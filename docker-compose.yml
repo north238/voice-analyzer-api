@@ -1,0 +1,19 @@
+services:
+  voice-analyzer:
+    container_name: voice-analyzer-api
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./app:/app
+    environment:
+      - TZ=Asia/Tokyo
+    networks:
+      - uchistock_network
+    restart: always
+
+networks:
+  uchistock_network:
+    external: true  # 既存の uchistock_network を再利用（同一ネットワークで通信）
