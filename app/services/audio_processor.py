@@ -2,10 +2,12 @@ import tempfile
 import subprocess
 import os
 import whisper
+
 from fastapi import UploadFile, HTTPException
+from utils.logger import logger
+from utils.normalizer import normalize_to_hiragana
 
-model = whisper.load_model("small")
-
+model = whisper.load_model("tiny.ja")
 
 async def transcribe_audio(file: UploadFile) -> str:
     tmp_path = None
@@ -62,17 +64,11 @@ async def transcribe_audio(file: UploadFile) -> str:
         else:
             raise ValueError("音声解析結果が取得できませんでした")
 
+        text = result["text"].strip()
+        hiragana_text = normalize_to_hiragana(text)
+        logger.info(f"🗣 文字起こし前: {text}")
 
-        # 補正処理（誤変換修正など）
-        text = result["text"]
-        corrections = {
-            "無天下": "無添加",
-            "生石犬": "生石鹸",
-        }
-        for wrong, correct in corrections.items():
-            text = text.replace(wrong, correct)
-
-        return text
+        return hiragana_text
 
     except subprocess.CalledProcessError:
         raise HTTPException(status_code=500, detail="音声変換に失敗しました。")
