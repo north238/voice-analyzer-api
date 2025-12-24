@@ -5,9 +5,8 @@ import whisper
 
 from fastapi import UploadFile, HTTPException
 from utils.logger import logger
-from utils.normalizer import normalize_to_hiragana
 
-model = whisper.load_model("tiny.ja")
+model = whisper.load_model("tiny")
 
 async def transcribe_audio(file: UploadFile) -> str:
     tmp_path = None
@@ -56,7 +55,6 @@ async def transcribe_audio(file: UploadFile) -> str:
         if "segments" in result and result["segments"]:
             first_segment = result["segments"][0]
             no_speech_prob = first_segment.get("no_speech_prob", 0)
-            avg_logprob = first_segment.get("avg_logprob", 0)
 
             # 音声として有効かどうかを簡易判定
             if no_speech_prob > 0.9:
@@ -65,10 +63,9 @@ async def transcribe_audio(file: UploadFile) -> str:
             raise ValueError("音声解析結果が取得できませんでした")
 
         text = result["text"].strip()
-        hiragana_text = normalize_to_hiragana(text)
-        logger.info(f"🗣 文字起こし前: {text}")
+        logger.info(f"🗣 Whisper出力: {text}")
 
-        return hiragana_text
+        return text
 
     except subprocess.CalledProcessError:
         raise HTTPException(status_code=500, detail="音声変換に失敗しました。")

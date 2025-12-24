@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from services.audio_processor import transcribe_audio
 from services.inventory_parser import parse_inventory
 from services.text_filter import is_valid_text
+from utils.normalizer import normalize_to_hiragana
 from utils.logger import logger
 
 app = FastAPI()
@@ -13,7 +14,6 @@ async def transcribe(file: UploadFile, intent: str = Form("inventory"),):
     try:
         # Whisperで文字起こし
         text = await transcribe_audio(file)
-        logger.info(f"📝 文字起こし結果: {text}")
 
         # NGワードフィルタリング
         if not is_valid_text(text):
@@ -29,7 +29,10 @@ async def transcribe(file: UploadFile, intent: str = Form("inventory"),):
 
         # 意図に応じた処理
         if intent == "inventory":
-            result = parse_inventory(text)
+            hiragana_text = normalize_to_hiragana(text)
+            logger.info(f"📝 正規化後（ひらがな）: {hiragana_text}")
+
+            result = parse_inventory(hiragana_text)
 
         # elif intent == "raw":
         #     result = analyze_with_llm(text)

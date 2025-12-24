@@ -40,9 +40,6 @@ def parse_inventory(text: str) -> Dict[str, List[Dict]]:
             "unit": unit or "個",
         })
 
-    if not items:
-        raise ValueError("no inventory items detected")
-
     logger.info(f"🔍 解析結果: {items}")
 
     return {"items": items}
