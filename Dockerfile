@@ -6,7 +6,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y ffmpeg git && rm -rf /var/lib/apt/lists/*
 
 # Python依存関係をインストール
-RUN pip install --no-cache-dir fastapi uvicorn openai-whisper python-multipart
+RUN pip install --no-cache-dir fastapi uvicorn openai-whisper python-multipart jaconv pykakasi
 
 # アプリケーションコードをコピー
 COPY ./app /app

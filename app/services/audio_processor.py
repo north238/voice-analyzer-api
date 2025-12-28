@@ -2,10 +2,11 @@ import tempfile
 import subprocess
 import os
 import whisper
+
 from fastapi import UploadFile, HTTPException
+from utils.logger import logger
 
-model = whisper.load_model("small")
-
+model = whisper.load_model("tiny")
 
 async def transcribe_audio(file: UploadFile) -> str:
     tmp_path = None
@@ -54,7 +55,6 @@ async def transcribe_audio(file: UploadFile) -> str:
         if "segments" in result and result["segments"]:
             first_segment = result["segments"][0]
             no_speech_prob = first_segment.get("no_speech_prob", 0)
-            avg_logprob = first_segment.get("avg_logprob", 0)
 
             # 音声として有効かどうかを簡易判定
             if no_speech_prob > 0.9:
@@ -62,15 +62,8 @@ async def transcribe_audio(file: UploadFile) -> str:
         else:
             raise ValueError("音声解析結果が取得できませんでした")
 
-
-        # 補正処理（誤変換修正など）
-        text = result["text"]
-        corrections = {
-            "無天下": "無添加",
-            "生石犬": "生石鹸",
-        }
-        for wrong, correct in corrections.items():
-            text = text.replace(wrong, correct)
+        text = result["text"].strip()
+        logger.info(f"🗣 Whisper出力: {text}")
 
         return text
 

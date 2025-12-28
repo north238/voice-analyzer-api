@@ -8,12 +8,27 @@ services:
       - "5001:5001"
     volumes:
       - ./app:/app
+    depends_on:
+      - local-llm
     environment:
       - TZ=Asia/Tokyo
     networks:
-      - uchistock_network
-    restart: always
+      - voice_analysis_network
+
+  local-llm:
+    image: ollama/ollama
+    container_name: local-llm
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - voice_analysis_network
+    ports:
+      - "11434:11434"
 
 networks:
-  uchistock_network:
-    external: true  # 既存の uchistock_network を再利用（同一ネットワークで通信）
+  voice_analysis_network:
+    external: true  # 既存の voice_analysis_network を再利用（同一ネットワークで通信）
+
+volumes:
+  ollama_data:
+    external: true

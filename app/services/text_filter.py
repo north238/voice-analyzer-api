@@ -1,36 +1,31 @@
 import re
+from collections import Counter
 
-# NGワードリスト
-NG_WORDS = [
-    "こんにちは",
-    "こんばんは",
-    "おはよう",
-    "視聴",
-    "ご視聴",
-    "ありがとう",
-    "どうも",
-    "よろしく",
-    "さようなら",
-    "また見てね",
-    "終わり",
-    "終了",
-    "お疲れ様",
+# よくある相槌・フィラー（意味を持たない）
+FILLER_PATTERNS = [
+    r"^(あ+|え+|う+|ん+)$",
+    r"(えー+|あの+|その+)",
 ]
 
+# 日本語として最低限意味を持ちそうな品詞的特徴
+MEANINGFUL_PATTERN = re.compile(r"[ぁ-ん一-龥]")
 
 def is_valid_text(text: str) -> bool:
+    text = text.strip()
 
-    # NGワードが含まれていないか確認
-    for word in NG_WORDS:
-        if word in text:
-            return False
-
-    # 日本語・数字・単位以外が極端に多い文字列を除外
-    if not re.search(r"[ぁ-んァ-ン一-龥0-9]", text):
+    # 日本語要素がほぼ無い
+    if not MEANINGFUL_PATTERN.search(text):
         return False
 
-    # 一文字の単語はノイズの可能性が高い（例：「あ」など）
-    if len(text.strip()) <= 1:
+    # フィラーのみ
+    for pattern in FILLER_PATTERNS:
+        if re.fullmatch(pattern, text):
+            return False
+
+    # 同一文字の異常な繰り返し（雑音）
+    counts = Counter(text)
+    most_common_char, freq = counts.most_common(1)[0]
+    if freq / len(text) > 0.7:
         return False
 
     return True
