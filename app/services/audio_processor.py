@@ -1,12 +1,22 @@
 import tempfile
 import subprocess
 import os
-import whisper
 
+from faster_whisper import WhisperModel
+from faster_whisper.vad import VadOptions
 from fastapi import UploadFile, HTTPException
+
+from config import settings
 from utils.logger import logger
 
-model = whisper.load_model("tiny")
+whisper_model = WhisperModel(
+    settings.WHISPER_MODEL_SIZE,
+    device=settings.WHISPER_DEVICE,
+    compute_type=settings.WHISPER_COMPUTE_TYPE,
+    cpu_threads=settings.WHISPER_CPU_THREADS,
+    num_workers=settings.WHISPER_NUM_WORKERS,
+)
+
 
 async def transcribe_audio(file: UploadFile) -> str:
     tmp_path = None
@@ -39,30 +49,39 @@ async def transcribe_audio(file: UploadFile) -> str:
             stderr=subprocess.DEVNULL,
         )
 
-        # Whisperで文字起こし
-        result = model.transcribe(
-            converted_path,
-            language="ja",
-            temperature=0.0,
-            best_of=5,
-            beam_size=10,
-            patience=0.2,
-            fp16=False,
-            condition_on_previous_text=True,
+        vad_options = VadOptions(
+            min_silence_duration_ms=settings.WHISPER_VAD_MIN_SILENCE_MS,
+            speech_pad_ms=settings.WHISPER_VAD_SPEECH_PAD_MS,
         )
 
-        # 音声チェック（無音・ノイズ判定）
-        if "segments" in result and result["segments"]:
-            first_segment = result["segments"][0]
-            no_speech_prob = first_segment.get("no_speech_prob", 0)
+        # Whisperで文字起こし
+        segments, info = whisper_model.transcribe(
+            converted_path,
+            language="ja",
+            beam_size=settings.WHISPER_BEAM_SIZE,
+            best_of=settings.WHISPER_BEST_OF,
+            temperature=settings.WHISPER_TEMPERATURE,
+            vad_filter=settings.WHISPER_VAD_ENABLED,
+            vad_parameters=vad_options,
+        )
 
-            # 音声として有効かどうかを簡易判定
-            if no_speech_prob > 0.9:
-                raise ValueError("音声が認識されませんでした（無音またはノイズの可能性）")
-        else:
-            raise ValueError("音声解析結果が取得できませんでした")
+        logger.info(f"✅️info出力: {info}")
 
-        text = result["text"].strip()
+        texts = []
+        has_speech = False
+
+        for segment in segments:
+            texts.append(segment.text)
+            has_speech = True
+
+        if not has_speech:
+            raise ValueError("音声が認識されませんでした（無音またはノイズの可能性）")
+
+        text = "".join(texts).strip()
+
+        if not text:
+            raise ValueError("音声解析結果が空でした")
+
         logger.info(f"🗣 Whisper出力: {text}")
 
         return text

@@ -8,6 +8,7 @@ services:
       - "5001:5001"
     volumes:
       - ./app:/app
+      - ./models:/root/.cache/huggingface
     depends_on:
       - local-llm
     environment:
