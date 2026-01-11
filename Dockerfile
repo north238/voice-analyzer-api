@@ -20,6 +20,7 @@ RUN pip install --no-cache-dir \
     requests>=2.31.0
 
 # faster-whisperのみインストール（PyAV依存を回避）
+RUN pip install --no-cache-dir av==12.0.0
 RUN pip install --no-cache-dir faster-whisper --no-deps
 RUN pip install --no-cache-dir \
     ctranslate2>=4.0.0 \

@@ -9,9 +9,8 @@ from utils.logger import logger
 
 app = FastAPI()
 
-
 @app.post("/transcribe")
-async def transcribe(file: UploadFile, intent: str = Form("inventory"),):
+async def transcribe(file: UploadFile, intent: str = Form("inventory")):
     try:
         # Whisperで文字起こし
         text = await transcribe_audio(file)
