@@ -59,8 +59,6 @@ def call_llm(text: str) -> dict:
             "stream": False,
         }
 
-        logger.info(f"payload: {payload}")
-
         response = requests.post(OLLAMA_URL, json=payload, timeout=settings.OLLAMA_TIMEOUT)
         response.raise_for_status()
         data = response.json()
