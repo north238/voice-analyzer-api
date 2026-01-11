@@ -31,17 +31,17 @@ async def transcribe(file: UploadFile, intent: str = Form("inventory")):
         logger.info(f"📝 正規化後（ひらがな）: {hiragana_text}")
 
         # 意図に応じた処理
-        if intent == "inventory":
-            result = parse_inventory(hiragana_text)
+        # if intent == "inventory":
+        #     result = parse_inventory(hiragana_text)
 
-        elif intent == "raw":
-            result = analyze_with_llm(hiragana_text)
+        # elif intent == "raw":
+        #     result = analyze_with_llm(hiragana_text)
 
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"unknown intent: {intent}",
-            )
+        # else:
+        #     raise HTTPException(
+        #         status_code=400,
+        #         detail=f"unknown intent: {intent}",
+            # )
 
         return JSONResponse(
             status_code=200,
@@ -50,7 +50,7 @@ async def transcribe(file: UploadFile, intent: str = Form("inventory")):
                 "message": "音声解析に成功しました",
                 "intent": intent,
                 "text": text,
-                "result": result,
+                "result": hiragana_text,
             },
         )
 

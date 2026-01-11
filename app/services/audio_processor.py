@@ -1,6 +1,7 @@
 import tempfile
 import subprocess
 import os
+import re
 
 from faster_whisper import WhisperModel
 from faster_whisper.vad import VadOptions
@@ -67,17 +68,15 @@ async def transcribe_audio(file: UploadFile) -> str:
 
         logger.info(f"✅️info出力: {info}")
 
-        texts = []
-        has_speech = False
-
-        for segment in segments:
-            texts.append(segment.text)
-            has_speech = True
-
-        if not has_speech:
+        if not segments:
             raise ValueError("音声が認識されませんでした（無音またはノイズの可能性）")
 
+        texts = []
+        texts = [s.text for s in segments if s.text.strip()]
         text = "".join(texts).strip()
+
+        # 数字間の不要なスペース（半角・全角）を削除
+        text = re.sub(r'(?<=\d)[\s　]+(?=\d)', '', text)
 
         if not text:
             raise ValueError("音声解析結果が空でした")
