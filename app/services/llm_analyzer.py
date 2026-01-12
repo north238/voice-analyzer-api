@@ -5,8 +5,10 @@ import re
 
 from config import settings
 from utils.logger import logger
+from urllib.parse import urljoin
 
-OLLAMA_URL = "http://local-llm:11434/api/chat"
+OLLAMA_BASE_URL = settings.OLLAMA_BASE_URL
+OLLAMA_URL = urljoin(OLLAMA_BASE_URL.rstrip("/") + "/", "api/chat")
 MODEL_NAME = settings.OLLAMA_MODEL
 
 # SYSTEM_PROMPT = """You are a Japanese Hiragana-to-Kanji converter.

@@ -64,3 +64,14 @@ async def transcribe(file: UploadFile, intent: str = Form("inventory")):
                 "detail": str(e),
             },
         )
+
+@app.get("/health")
+async def health_check():
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": "healthy",
+            "service": "Voice Analyzer API",
+            "version": "1.0.0",
+        },
+    )
