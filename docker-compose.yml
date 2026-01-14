@@ -13,6 +13,7 @@ services:
       - local-llm
     environment:
       - TZ=Asia/Tokyo
+      - LOG_LEVEL=DEBUG
     networks:
       - voice_analysis_network
 

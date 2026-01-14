@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir \
     python-multipart>=0.0.6 \
     pykakasi>=2.2.0 \
     jaconv>=0.3.0 \
+    janome>=0.4.2 \
     requests>=2.31.0
 
 # faster-whisperのみインストール（PyAV依存を回避）
@@ -27,6 +28,12 @@ RUN pip install --no-cache-dir \
     huggingface-hub>=0.13 \
     tokenizers>=0.13 \
     onnxruntime>=1.14
+
+# Hugging Face Transformers（翻訳用）
+RUN pip install --no-cache-dir \
+    torch>=2.0.0 \
+    transformers>=4.30.0 \
+    sentencepiece>=0.1.99
 
 # アプリケーションコードをコピー
 COPY ./app /app
