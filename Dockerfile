@@ -32,7 +32,8 @@ RUN pip install --no-cache-dir \
 # Hugging Face Transformers（翻訳用）
 RUN pip install --no-cache-dir \
     torch>=2.0.0 \
-    transformers>=4.30.0
+    transformers>=4.30.0 \
+    sentencepiece>=0.1.99
 
 # アプリケーションコードをコピー
 COPY ./app /app

@@ -32,6 +32,13 @@ class Settings:
     OLLAMA_TOP_P: float = 0.9
     OLLAMA_REPEAT_PENALTY: float = 1.1
 
+    # 翻訳設定
+    TRANSLATION_MODEL: str = os.getenv(
+        "TRANSLATION_MODEL", "Helsinki-NLP/opus-mt-ja-en"
+    )
+    MAX_TRANSLATION_LENGTH: int = int(os.getenv("MAX_TRANSLATION_LENGTH", "512"))
+    TRANSLATION_DEVICE: str = "cpu"  # CPU推奨（Raspberry Pi対応）
+
     # テキスト処理設定
     MAX_TEXT_LENGTH: int = 50
 

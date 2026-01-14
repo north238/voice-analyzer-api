@@ -1,190 +1,299 @@
-import re
-from pykakasi import kakasi
+"""
+日本語テキストをひらがなに正規化するモジュール
+
+機能:
+- 漢字・カタカナをひらがなに変換
+- 数字を適切にひらがな化（数え言葉対応）
+- janome形態素解析による高精度な変換
+"""
+
+from janome.tokenizer import Tokenizer
 import jaconv
+import re
+from typing import Optional
+from .number_converter import NumberConverter
 
 
-class HiraganaConverter:
-    """Whisper出力をひらがなに変換するクラス
+class JapaneseNormalizer:
+    """
+    日本語テキストをひらがなに正規化
 
-    Phase 1: kakasi の精度向上
-    Phase 2: 数字のひらがな化
-    Phase 3: 複雑な漢字への対応
+    処理フロー:
+    1. 数字を漢数字に前処理（NumberConverter）
+    2. janomeで形態素解析
+    3. reading属性でひらがな化
+    4. カタカナ→ひらがな変換
+    5. 音便処理
     """
 
     def __init__(self):
-        # kakasi の初期化（複合語対応）
-        self.kks = kakasi()
-        self.kks.setMode("J", "H")  # 漢字 → ひらがな
-        self.kks.setMode("K", "H")  # カタカナ → ひらがな
-        self.kks.setMode("H", "H")  # ひらがな → ひらがな
-        self.conv = self.kks.getConverter()
+        """初期化"""
+        self.tokenizer = Tokenizer()
+        self.converter = NumberConverter()
 
-        # 数字ひらがな化マップ
-        self.number_to_hiragana = {
-            "0": "ぜろ",
-            "1": "いち",
-            "2": "に",
-            "3": "さん",
-            "4": "よん",
-            "5": "ご",
-            "6": "ろく",
-            "7": "なな",
-            "8": "はち",
-            "9": "きゅう",
-        }
+    def to_hiragana(self, text: str, keep_punctuation: bool = False) -> str:
+        """
+        テキストを完全なひらがなに変換
 
-        # 位取りマップ
-        self.place_values = {
-            "10": "じゅう",
-            "100": "ひゃく",
-            "1000": "せん",
-            "10000": "まん",
-        }
+        Args:
+            text: 変換対象のテキスト
+            keep_punctuation: 句読点を残すかどうか
 
-    def normalize_to_hiragana(self, text: str) -> str:
-        """Whisper出力をひらがなに変換する（複数ステップ）"""
+        Returns:
+            ひらがな化されたテキスト
 
-        # 全角英数を半角に
-        text = jaconv.z2h(text, ascii=True, digit=True, kana=False)
+        Examples:
+            >>> normalizer = JapaneseNormalizer()
+            >>> normalizer.to_hiragana("1974年3月")
+            'せんきゅうひゃくななじゅうよねんさんがつ'
+            >>> normalizer.to_hiragana("卵3個")
+            'たまごさんこ'
+        """
 
-        # kakasi で基本変換
-        text = self.conv.do(text)
+        if not text or not text.strip():
+            return ""
 
-        # 数字をひらがなに変換
-        text = self._convert_numbers_to_hiragana(text)
+        # Step 1: 数字を漢数字に前処理
+        preprocessed = self.converter.preprocess_text(text)
 
-        # 余計な記号を除去
-        text = re.sub(r"[^\wぁ-んー\s]", "", text)
+        # Step 2: janomeで形態素解析してひらがな化
+        hiragana_parts = []
 
-        # 連続スペースを1つに
-        text = re.sub(r"\s+", " ", text).strip()
+        for token in self.tokenizer.tokenize(preprocessed):
+            surface = token.surface
+            reading = token.reading
+
+            # 句読点の処理
+            if surface in ["。", "、", "！", "？", "…", "・"]:
+                if keep_punctuation:
+                    hiragana_parts.append(surface)
+                continue
+
+            # その他の記号・空白
+            if surface in [" ", "　", "\n", "\t"]:
+                if keep_punctuation:
+                    hiragana_parts.append(surface)
+                continue
+
+            # reading属性の処理
+            if reading == "*" or reading is None:
+                # readingが取得できない場合
+                # 数字は前処理で変換済みなので、ここには記号や特殊文字が来る
+                if re.match(r"^[a-zA-Z0-9\-]+$", surface):
+                    # アルファベット・数字・ハイフンはそのまま
+                    hiragana_parts.append(surface)
+                elif re.match(r"^[\u4e00-\u9fff]+$", surface):
+                    # 漢字なのにreadingがない場合（稀）
+                    # 表層形をそのまま使うか、エラーログを出す
+                    hiragana_parts.append(surface)
+                else:
+                    # その他の記号
+                    if keep_punctuation:
+                        hiragana_parts.append(surface)
+            else:
+                # カタカナ読みをひらがなに変換
+                hiragana = jaconv.kata2hira(reading)
+                hiragana_parts.append(hiragana)
+
+        result = "".join(hiragana_parts)
+
+        # Step 3: 音便処理（促音化）
+        result = self._apply_onbin(result)
+
+        # 連続する空白を1つにまとめる
+        if keep_punctuation:
+            result = re.sub(r"\s+", " ", result)
+
+        return result.strip()
+
+    def _apply_onbin(self, text: str) -> str:
+        """
+        音便（促音化）を適用
+
+        日本語の自然な発音に合わせて促音化する
+        例: 「ななじゅうよん」→「ななじゅうよ」
+            「ごじゅうさい」→「ごじゅっさい」
+
+        Args:
+            text: ひらがなテキスト
+
+        Returns:
+            音便処理後のテキスト
+        """
+
+        # 1. 十の位 + 「よん」→「よ」（文末または特定の助詞の前）
+        # 例: にじゅうよん → にじゅうよ、ななじゅうよねん → ななじゅうよねん
+        text = re.sub(r"じゅうよん($|[^かきくけこがぎぐげご])", r"じゅうよ\1", text)
+
+        # 2. 「さい」の前の促音化
+        # 例: ごじゅうさい → ごじゅっさい
+        text = re.sub(r"じゅうさい", r"じゅっさい", text)
 
         return text
 
-    def _convert_numbers_to_hiragana(self, text: str) -> str:
-        """数字をひらがなに変換する
+    def to_hiragana_readable(self, text: str) -> str:
+        """
+        読みやすさを重視したひらがな化
 
-        例:
-        - 「卵1個」→ 「たまごひとつ」
-        - 「砂糖100g」→ 「さとうひゃくぐらむ」
-        - 「0120」→ 「ぜろいちにぜろ」
+        - 句読点を保持
+        - 適度な空白を維持
+
+        Args:
+            text: 変換対象のテキスト
+
+        Returns:
+            読みやすいひらがなテキスト
+
+        Examples:
+            >>> normalizer = JapaneseNormalizer()
+            >>> normalizer.to_hiragana_readable("今日は良い天気です。")
+            'きょうは よい てんきです。'
+        """
+        return self.to_hiragana(text, keep_punctuation=True)
+
+    def to_hiragana_with_counters(
+        self, text: str, keep_punctuation: bool = False
+    ) -> str:
+        """
+        数え言葉（ひとつ、ふたつ）を使ったひらがな化
+
+        用途: 子ども向けコンテンツなど
+
+        Args:
+            text: 変換対象のテキスト
+            keep_punctuation: 句読点を残すかどうか
+
+        Returns:
+            数え言葉を含むひらがなテキスト
+
+        Examples:
+            >>> normalizer = JapaneseNormalizer()
+            >>> normalizer.to_hiragana_with_counters("りんご3")
+            'りんごみっつ'
         """
 
-        def replace_number(match):
-            num_str = match.group(0)
+        if not text or not text.strip():
+            return ""
 
-            # 電話番号のような連続数字
-            if len(num_str) >= 4 and num_str.isdigit():
-                return "".join(self.number_to_hiragana[d] for d in num_str)
+        # Step 1: 数字のみの場合は先に漢数字に変換
+        preprocessed = self.converter.preprocess_text(text)
 
-            # 通常の数字（個数・グラム等）
-            num = int(num_str)
+        # Step 2: janomeで形態素解析
+        hiragana_parts = []
 
-            # 1-9: 個別の数字
-            if 1 <= num <= 9:
-                return self._get_counter_word(num)
+        for token in self.tokenizer.tokenize(preprocessed):
+            surface = token.surface
+            reading = token.reading
 
-            # 10以上: 位を考慮
-            return self._convert_large_number(num)
+            # 句読点の処理
+            if surface in ["。", "、", "！", "？", "…", "・"]:
+                if keep_punctuation:
+                    hiragana_parts.append(surface)
+                continue
 
-        # 数字パターンをマッチして変換
-        text = re.sub(r"\d+", replace_number, text)
+            # 空白
+            if surface in [" ", "　", "\n", "\t"]:
+                if keep_punctuation:
+                    hiragana_parts.append(surface)
+                continue
 
-        return text
+            # reading属性の処理
+            if reading == "*" or reading is None:
+                if re.match(r"^[a-zA-Z0-9\-]+$", surface):
+                    hiragana_parts.append(surface)
+                elif re.match(r"^[\u4e00-\u9fff]+$", surface):
+                    hiragana_parts.append(surface)
+                else:
+                    if keep_punctuation:
+                        hiragana_parts.append(surface)
+            else:
+                hiragana = jaconv.kata2hira(reading)
+                hiragana_parts.append(hiragana)
 
-    def _get_counter_word(self, num: int) -> str:
-        """1-9の数字を数え言葉に変換（文脈を考慮した自然な表現）
+        result = "".join(hiragana_parts)
 
-        例: 1→いち or ひと, 2→に or ふた, etc
-        """
-        counter_words = {
-            1: "ひとつ",
-            2: "ふたつ",
-            3: "みっつ",
-            4: "よっつ",
-            5: "いつつ",
-            6: "むっつ",
-            7: "ななつ",
-            8: "やっつ",
-            9: "ここのつ",
+        # Step 3: 音便処理
+        result = self._apply_onbin(result)
+
+        # Step 4: 数字の読みを数え言葉に置換
+        counter_map = {
+            "いち": "ひとつ",
+            "に": "ふたつ",
+            "さん": "みっつ",
+            "よん": "よっつ",
+            "し": "よっつ",
+            "ご": "いつつ",
+            "ろく": "むっつ",
+            "なな": "ななつ",
+            "しち": "ななつ",
+            "はち": "やっつ",
+            "きゅう": "ここのつ",
+            "く": "ここのつ",
+            "じゅう": "とお",
         }
-        return counter_words.get(num, self.number_to_hiragana.get(str(num), str(num)))
 
-    def _convert_large_number(self, num: int) -> str:
-        """10以上の数字を位付き表現に変換
+        # 助数詞のパターン（これらの後ろでは変換しない）
+        unit_suffixes = [
+            "こ",
+            "ほん",
+            "ぽん",
+            "ぼん",
+            "まい",
+            "だい",
+            "にん",
+            "ひき",
+            "ぴき",
+            "びき",
+            "はい",
+            "ぱい",
+            "ばい",
+            "さつ",
+            "かい",
+            "がい",
+            "さい",
+            "じ",
+            "ふん",
+            "ぷん",
+            "がつ",
+            "にち",
+            "ねん",
+            "えん",
+            "ど",
+            "どる",
+        ]
 
-        例:
-        - 100 → ひゃく
-        - 120 → ひゃくにじゅう
-        - 1000 → せん
+        unit_pattern = "|".join(unit_suffixes)
+
+        # 数え言葉への変換（最長一致優先で、単語の一部にマッチしないように）
+        # 例: 「りんご」の「ご」は変換しない
+        for num_reading, counter_word in sorted(
+            counter_map.items(), key=lambda x: len(x[0]), reverse=True
+        ):
+            # 前後が母音（ひらがな）でない場合のみ置換
+            # または単独で存在する場合のみ置換
+            pattern = rf"(?<![あ-ん])({num_reading})(?!{unit_pattern}|[あ-ん])"
+            result = re.sub(pattern, counter_word, result)
+
+        return result
+
+    def normalize_with_mode(self, text: str, mode: str = "standard") -> str:
         """
-        if num == 0:
-            return "ぜろ"
+        モード指定でひらがな化
 
-        result = []
+        Args:
+            text: 変換対象のテキスト
+            mode: 変換モード
+                - "standard": 通常のひらがな化
+                - "readable": 句読点・空白を保持
+                - "counter": 数え言葉を使用
 
-        # 万の位
-        if num >= 10000:
-            man = num // 10000
-            result.append(
-                self.number_to_hiragana.get(str(man), str(man))
-                + self.place_values["10000"]
-            )
-            num %= 10000
+        Returns:
+            モードに応じたひらがなテキスト
+        """
 
-        # 千の位
-        if num >= 1000:
-            sen = num // 1000
-            if sen == 1:
-                result.append(self.place_values["1000"])
-            else:
-                result.append(
-                    self.number_to_hiragana.get(str(sen), str(sen))
-                    + self.place_values["1000"]
-                )
-            num %= 1000
-
-        # 百の位
-        if num >= 100:
-            hyaku = num // 100
-            if hyaku == 1:
-                result.append(self.place_values["100"])
-            elif hyaku == 3:
-                result.append("さんびゃく")  # 三百の例外
-            elif hyaku == 6:
-                result.append("ろっぴゃく")  # 六百の例外
-            elif hyaku == 8:
-                result.append("はっぴゃく")  # 八百の例外
-            else:
-                result.append(
-                    self.number_to_hiragana.get(str(hyaku), str(hyaku))
-                    + self.place_values["100"]
-                )
-            num %= 100
-
-        # 十の位
-        if num >= 10:
-            ju = num // 10
-            if ju == 1:
-                result.append(self.place_values["10"])
-            else:
-                result.append(
-                    self.number_to_hiragana.get(str(ju), str(ju))
-                    + self.place_values["10"]
-                )
-            num %= 10
-
-        # 一の位
-        if num > 0:
-            result.append(self.number_to_hiragana.get(str(num), str(num)))
-
-        return "".join(result)
-
-
-# グローバルインスタンス
-_converter = HiraganaConverter()
-
-
-def normalize_to_hiragana(text: str) -> str:
-    """Whisper出力をひらがなに変換する（公開API）"""
-    return _converter.normalize_to_hiragana(text)
+        if mode == "readable":
+            return self.to_hiragana_readable(text)
+        elif mode == "counter":
+            return self.to_hiragana_with_counters(text)
+        else:  # standard
+            return self.to_hiragana(text)
