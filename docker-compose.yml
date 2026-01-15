@@ -9,6 +9,7 @@ services:
     volumes:
       - ./app:/app
       - ./models:/root/.cache/huggingface
+      - ./logs:/app/logs
     depends_on:
       - local-llm
     environment:

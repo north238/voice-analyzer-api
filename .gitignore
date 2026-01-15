@@ -211,4 +211,7 @@ __marimo__/
 huggingface/
 models/
 
+# Application logs
+logs/
+
 CLAUDE.md
