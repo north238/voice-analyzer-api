@@ -39,6 +39,10 @@ class Settings:
     MAX_TRANSLATION_LENGTH: int = int(os.getenv("MAX_TRANSLATION_LENGTH", "512"))
     TRANSLATION_DEVICE: str = "cpu"  # CPU推奨（Raspberry Pi対応）
 
+    # セッション管理設定
+    SESSION_TIMEOUT_MINUTES: int = int(os.getenv("SESSION_TIMEOUT_MINUTES", "30"))
+    MAX_CHUNKS_PER_SESSION: int = int(os.getenv("MAX_CHUNKS_PER_SESSION", "100"))
+
     # テキスト処理設定
     MAX_TEXT_LENGTH: int = 50
 
