@@ -2,6 +2,7 @@ from transformers import MarianMTModel, MarianTokenizer
 from config import settings
 from utils.logger import logger
 from typing import Optional
+import re
 
 
 class Translator:
@@ -30,6 +31,48 @@ class Translator:
             logger.exception(f"❌ 翻訳モデルのロードに失敗: {e}")
             raise RuntimeError(f"翻訳モデルのロードに失敗しました: {e}")
 
+    def _preprocess_text(self, text: str) -> tuple[str, dict]:
+        """
+        翻訳前の前処理（数字・電話番号の保護）
+
+        Args:
+            text: 前処理対象のテキスト
+
+        Returns:
+            (前処理後のテキスト, 置換マップ)
+        """
+        replacements = {}
+        processed_text = text
+
+        # 電話番号パターンを検出して保護
+        phone_pattern = r"\d{10,11}"
+        phones = re.findall(phone_pattern, processed_text)
+        for i, phone in enumerate(phones):
+            placeholder = f"__PHONE_{i}__"
+            replacements[placeholder] = phone
+            processed_text = processed_text.replace(phone, placeholder, 1)
+            logger.debug(f"電話番号を保護: {phone} → {placeholder}")
+
+        return processed_text, replacements
+
+    def _postprocess_text(self, text: str, replacements: dict) -> str:
+        """
+        翻訳後の後処理（保護した要素を復元）
+
+        Args:
+            text: 後処理対象のテキスト
+            replacements: 置換マップ
+
+        Returns:
+            後処理後のテキスト
+        """
+        processed_text = text
+        for placeholder, original in replacements.items():
+            processed_text = processed_text.replace(placeholder, original)
+            logger.debug(f"保護要素を復元: {placeholder} → {original}")
+
+        return processed_text
+
     def translate_text(self, text: str) -> str:
         """
         日本語テキストを英語に翻訳
@@ -48,18 +91,26 @@ class Translator:
             # モデルのロード（初回のみ）
             self._load_model()
 
-            # 長文の場合は分割処理
-            if len(text) > self.max_length:
-                logger.info(
-                    f"📝 長文を分割処理します（{len(text)}文字 > {self.max_length}文字）"
-                )
-                return self._translate_long_text(text)
+            # 前処理（数字・電話番号の保護）
+            preprocessed_text, replacements = self._preprocess_text(text)
 
-            # 通常の翻訳処理
-            logger.info(f"🔄 翻訳開始: {text[:50]}...")
-            translated = self._translate_chunk(text)
-            logger.info(f"✅ 翻訳完了: {translated[:50]}...")
-            return translated
+            # 文単位で分割して翻訳（精度向上のため）
+            sentences = self._split_into_sentences(preprocessed_text)
+
+            if len(sentences) > 1:
+                # 複数文の場合は1文ずつ翻訳
+                logger.info(f"📝 {len(sentences)}個の文に分割して翻訳します")
+                translated = self._translate_long_text(preprocessed_text)
+            else:
+                # 単一文の場合は通常の翻訳処理
+                logger.info(f"🔄 翻訳開始: {preprocessed_text[:50]}...")
+                translated = self._translate_chunk(preprocessed_text)
+                logger.info(f"✅ 翻訳完了: {translated[:50]}...")
+
+            # 後処理（保護要素の復元）
+            final_text = self._postprocess_text(translated, replacements)
+
+            return final_text
 
         except Exception as e:
             logger.exception(f"❌ 翻訳中にエラー発生: {e}")
@@ -80,8 +131,17 @@ class Translator:
             text, return_tensors="pt", padding=True, truncation=True, max_length=512
         ).to(self.device)
 
-        # 翻訳生成
-        translated_tokens = self.model.generate(**inputs)
+        # 翻訳生成（品質向上パラメータ）
+        translated_tokens = self.model.generate(
+            **inputs,
+            num_beams=6,  # ビームサーチで品質向上（5→6に増加）
+            no_repeat_ngram_size=3,  # 3-gramの繰り返しを防止
+            repetition_penalty=1.3,  # 繰り返しペナルティを緩和（1.5→1.3）
+            length_penalty=0.8,  # 短めの翻訳を優先（1.0→0.8）
+            early_stopping=True,  # 早期終了を有効化
+            max_length=512,  # 最大出力長
+            temperature=0.7,  # 多様性を追加（デフォルトは1.0だが0.7で安定性向上）
+        )
 
         # デコード
         translated_text = self.tokenizer.decode(
@@ -89,6 +149,25 @@ class Translator:
         )
 
         return translated_text
+
+    def _split_into_sentences(self, text: str) -> list[str]:
+        """
+        テキストを文単位で分割
+
+        Args:
+            text: 分割対象のテキスト
+
+        Returns:
+            文のリスト
+        """
+        # 句点で分割
+        sentences = text.split("。")
+        result = []
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if sentence:
+                result.append(sentence + "。" if not sentence.endswith("。") else sentence)
+        return result
 
     def _translate_long_text(self, text: str) -> str:
         """
@@ -100,39 +179,22 @@ class Translator:
         Returns:
             分割翻訳された結果を結合したテキスト
         """
-        # 句点で分割
-        sentences = text.split("。")
-        chunks = []
-        current_chunk = ""
+        # 文単位で分割
+        sentences = self._split_into_sentences(text)
 
-        for sentence in sentences:
-            if not sentence.strip():
-                continue
+        logger.info(f"📦 {len(sentences)}個の文に分割しました")
 
-            # チャンクサイズを超える場合は次のチャンクへ
-            if len(current_chunk) + len(sentence) + 1 > self.max_length:
-                if current_chunk:
-                    chunks.append(current_chunk)
-                current_chunk = sentence + "。"
-            else:
-                current_chunk += sentence + "。"
-
-        # 残りを追加
-        if current_chunk:
-            chunks.append(current_chunk)
-
-        logger.info(f"📦 {len(chunks)}個のチャンクに分割しました")
-
-        # 各チャンクを翻訳
-        translated_chunks = []
-        for i, chunk in enumerate(chunks):
-            logger.info(f"🔄 チャンク {i+1}/{len(chunks)} を翻訳中...")
-            translated = self._translate_chunk(chunk)
-            translated_chunks.append(translated)
+        # 各文を個別に翻訳
+        translated_sentences = []
+        for i, sentence in enumerate(sentences):
+            logger.info(f"🔄 文 {i+1}/{len(sentences)} を翻訳中: {sentence[:30]}...")
+            translated = self._translate_chunk(sentence)
+            translated_sentences.append(translated)
+            logger.info(f"✅ 翻訳結果: {translated[:50]}...")
 
         # 結合して返す
-        result = " ".join(translated_chunks)
-        logger.info(f"✅ 全チャンクの翻訳完了")
+        result = " ".join(translated_sentences)
+        logger.info(f"✅ 全文の翻訳完了")
         return result
 
 

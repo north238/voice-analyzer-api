@@ -114,13 +114,17 @@ async def translate(file: UploadFile):
                 },
             )
 
-        # ひらがな正規化
-        hiragana_text = normalizer.to_hiragana(text)
+        # 句読点を挿入（翻訳精度向上のため）
+        text_with_punctuation = normalizer.add_punctuation(text)
+        logger.info(f"📝 句読点挿入後: {text_with_punctuation}")
+
+        # ひらがな正規化（句読点付きテキストから）
+        hiragana_text = normalizer.to_hiragana(text_with_punctuation, keep_punctuation=True)
         logger.info(f"📝 正規化後（ひらがな）: {hiragana_text}")
 
-        # 翻訳実行
+        # 翻訳実行（句読点付きテキストを使用）
         logger.info("🌐 翻訳を実行します")
-        translated_text = translate_text(text)
+        translated_text = translate_text(text_with_punctuation)
         logger.info(f"✅ 翻訳完了: {translated_text}")
 
         return JSONResponse(
@@ -129,6 +133,7 @@ async def translate(file: UploadFile):
                 "status": "success",
                 "message": "音声翻訳に成功しました",
                 "original_text": text,
+                "text_with_punctuation": text_with_punctuation,
                 "hiragana_text": hiragana_text,
                 "translated_text": translated_text,
             },
@@ -197,14 +202,19 @@ async def translate_chunk(
                     },
                 )
 
-        # 3. ひらがな正規化
+        # 3. 句読点挿入
+        with monitor.measure("punctuation"):
+            text_with_punctuation = normalizer.add_punctuation(text)
+            logger.info(f"📝 句読点挿入完了: {text_with_punctuation}")
+
+        # 4. ひらがな正規化
         with monitor.measure("normalization"):
-            hiragana_text = normalizer.to_hiragana(text)
+            hiragana_text = normalizer.to_hiragana(text_with_punctuation, keep_punctuation=True)
             logger.info(f"📝 正規化完了: {hiragana_text}")
 
-        # 4. 翻訳
+        # 5. 翻訳
         with monitor.measure("translation"):
-            translated_text = translate_text(text)
+            translated_text = translate_text(text_with_punctuation)
             logger.info(f"✅ 翻訳完了: {translated_text}")
 
         # 処理時間の計算
