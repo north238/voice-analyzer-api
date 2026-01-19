@@ -39,8 +39,10 @@ RUN pip install --no-cache-dir \
 COPY ./app /app
 
 # 非rootユーザで実行（軽量・安全）
-RUN useradd -m appuser
-USER appuser
+RUN useradd -m -u 1000 appuser  # ← UID=1000 を明示的に指定
+
+# ログディレクトリを作成し、appuserに権限を付与
+RUN mkdir -p /app/logs && chown -R appuser:appuser /app/logs
 
 # FastAPIサーバ起動
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5001", "--reload"]
