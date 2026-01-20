@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, Form, HTTPException
+from fastapi import FastAPI, UploadFile, Form, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from services.audio_processor import transcribe_audio
 from services.inventory_parser import parse_inventory
@@ -6,11 +6,19 @@ from services.llm_analyzer import analyze_with_llm
 from services.text_filter import is_valid_text
 from services.translator import translate_text
 from services.session_manager import get_session_manager
+from services.websocket_manager import get_websocket_manager
+from services.async_processor import (
+    transcribe_async,
+    normalize_async,
+    translate_async,
+    add_punctuation_async,
+)
 from utils.normalizer import JapaneseNormalizer
 from utils.performance_monitor import PerformanceMonitor
 from utils.logger import logger
 from config import settings
 import time
+import json
 from typing import Optional
 
 app = FastAPI()
@@ -23,6 +31,9 @@ session_manager = get_session_manager(
     timeout_minutes=settings.SESSION_TIMEOUT_MINUTES,
     max_chunks_per_session=settings.MAX_CHUNKS_PER_SESSION,
 )
+
+# WebSocketマネージャーの初期化
+ws_manager = get_websocket_manager()
 
 @app.post("/transcribe")
 async def transcribe(
@@ -286,5 +297,190 @@ async def health_check():
             "status": "healthy",
             "service": "Voice Analyzer API",
             "version": "1.0.0",
+            "websocket_connections": ws_manager.get_active_connections_count(),
         },
     )
+
+
+@app.websocket("/ws/translate-stream")
+async def websocket_translate_stream(websocket: WebSocket):
+    """
+    WebSocketによる音声チャンクのストリーミング翻訳
+
+    プロトコル:
+    1. クライアントが接続
+    2. サーバーが {"type": "connected", "session_id": "..."} を送信
+    3. クライアントが音声チャンク（バイナリ）を送信
+    4. サーバーが進捗通知を送信しながら処理
+    5. サーバーが結果を送信
+    6. 3-5を繰り返し
+    7. クライアントが {"type": "end"} を送信してセッション終了
+    """
+    connection = None
+    session_id = None
+
+    try:
+        # 接続を受け付け
+        connection = await ws_manager.connect(websocket)
+        session_id = connection.session_id
+
+        # セッションマネージャーにも登録
+        session_manager.create_session(session_id)
+        logger.info(f"🚀 WebSocketセッション開始: {session_id}")
+
+        while True:
+            try:
+                # メッセージを受信（テキストまたはバイナリ）
+                message = await websocket.receive()
+
+                if message["type"] == "websocket.disconnect":
+                    break
+
+                # テキストメッセージ（制御コマンド）
+                if "text" in message:
+                    data = json.loads(message["text"])
+                    msg_type = data.get("type", "")
+
+                    if msg_type == "end":
+                        # セッション終了
+                        session_info = session_manager.get_session_info(session_id)
+                        statistics = {}
+                        if session_info:
+                            statistics = {
+                                "total_chunks": session_info.get("total_chunks", 0),
+                                "duration": session_info.get("last_updated", ""),
+                            }
+
+                        await ws_manager.send_session_end(
+                            session_id,
+                            connection.chunk_count,
+                            statistics,
+                        )
+                        logger.info(f"🏁 WebSocketセッション終了: {session_id}")
+                        break
+
+                    elif msg_type == "ping":
+                        # Ping応答
+                        await ws_manager.send_json(session_id, {"type": "pong"})
+
+                # バイナリメッセージ（音声データ）
+                elif "bytes" in message:
+                    audio_data = message["bytes"]
+                    chunk_id = connection.increment_chunk()
+
+                    logger.info(
+                        f"📦 WebSocketチャンク受信: session={session_id}, chunk={chunk_id}, size={len(audio_data)}bytes"
+                    )
+
+                    # チャンク処理を実行
+                    await process_websocket_chunk(
+                        session_id=session_id,
+                        chunk_id=chunk_id,
+                        audio_data=audio_data,
+                        connection=connection,
+                    )
+
+            except WebSocketDisconnect:
+                logger.info(f"🔌 WebSocket切断: session={session_id}")
+                break
+
+    except Exception as e:
+        logger.exception(f"❌ WebSocketエラー: {e}")
+        if session_id:
+            await ws_manager.send_error(session_id, str(e))
+
+    finally:
+        # クリーンアップ
+        if session_id:
+            await ws_manager.disconnect(session_id)
+            # セッションは残す（統計確認用）
+
+
+async def process_websocket_chunk(
+    session_id: str,
+    chunk_id: int,
+    audio_data: bytes,
+    connection,
+):
+    """
+    WebSocket経由で受信した音声チャンクを処理
+
+    Args:
+        session_id: セッションID
+        chunk_id: チャンクID
+        audio_data: 音声データ
+        connection: WebSocket接続情報
+    """
+    monitor = connection.monitor
+    request_start_time = time.time()
+
+    try:
+        # 1. 文字起こし
+        await ws_manager.send_progress(
+            session_id, "transcribing", "音声認識中...", chunk_id
+        )
+        with monitor.measure("transcription"):
+            text = await transcribe_async(audio_data)
+            logger.info(f"📝 文字起こし完了: {text}")
+
+        # 2. NGワードフィルタリング
+        if not is_valid_text(text):
+            logger.warning(f"⚠️ 無効な内容検出: {text}")
+            await ws_manager.send_error(session_id, f"無効な音声内容です: {text}")
+            return
+
+        # 3. 句読点挿入
+        await ws_manager.send_progress(
+            session_id, "punctuation", "句読点挿入中...", chunk_id
+        )
+        with monitor.measure("punctuation"):
+            text_with_punctuation = await add_punctuation_async(text)
+            logger.info(f"📝 句読点挿入完了: {text_with_punctuation}")
+
+        # 4. ひらがな正規化
+        await ws_manager.send_progress(
+            session_id, "normalizing", "ひらがな変換中...", chunk_id
+        )
+        with monitor.measure("normalization"):
+            hiragana_text = await normalize_async(text_with_punctuation)
+            logger.info(f"📝 正規化完了: {hiragana_text}")
+
+        # 5. 翻訳
+        await ws_manager.send_progress(
+            session_id, "translating", "翻訳中...", chunk_id
+        )
+        with monitor.measure("translation"):
+            translated_text = await translate_async(text_with_punctuation)
+            logger.info(f"✅ 翻訳完了: {translated_text}")
+
+        # 処理時間の計算
+        total_time = time.time() - request_start_time
+
+        # セッションにチャンクデータを保存
+        session_manager.add_chunk_to_session(
+            session_id=session_id,
+            chunk_id=chunk_id,
+            timestamp=request_start_time,
+            original_text=text,
+            hiragana_text=hiragana_text,
+            translated_text=translated_text,
+            processing_time=total_time,
+        )
+
+        # 結果を送信
+        await ws_manager.send_result(
+            session_id=session_id,
+            chunk_id=chunk_id,
+            original_text=text,
+            hiragana_text=hiragana_text,
+            translated_text=translated_text,
+            performance=monitor.get_summary(),
+        )
+
+        logger.info(
+            f"✅ WebSocketチャンク処理完了: session={session_id}, chunk={chunk_id}, time={total_time:.3f}秒"
+        )
+
+    except Exception as e:
+        logger.exception(f"❌ チャンク処理エラー: {e}")
+        await ws_manager.send_error(session_id, f"チャンク処理エラー: {str(e)}")
