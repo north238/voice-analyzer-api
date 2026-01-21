@@ -16,3 +16,7 @@ python-dotenv>=1.0.0
 # sounddeviceはPortAudioをバンドルしているため、pip installだけで動作
 sounddevice>=0.4.6
 numpy>=1.24.0
+
+# VAD（Voice Activity Detection）（Phase 3.2）
+# webrtcvadはGoogle製の軽量VADライブラリ
+webrtcvad>=2.0.10
