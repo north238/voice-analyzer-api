@@ -118,7 +118,8 @@ def _transcribe_sync(audio_data: bytes, suffix: str = ".wav") -> str:
         text = re.sub(r"(?<=\d)[\s　]+(?=\d)", "", text)
 
         if not text:
-            raise ValueError("音声解析結果が空でした")
+            logger.info("🔇 無音チャンク検出（スキップ）")
+            return ""  # 空文字を返して呼び出し元でスキップ処理
 
         logger.info(f"🗣 Whisper出力: {text}")
         return text
