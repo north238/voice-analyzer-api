@@ -421,7 +421,18 @@ async def process_websocket_chunk(
         )
         with monitor.measure("transcription"):
             text = await transcribe_async(audio_data)
-            logger.info(f"📝 文字起こし完了: {text}")
+
+        # 無音チャンクはスキップ（エラーではなく正常終了）
+        if not text:
+            await ws_manager.send_json(session_id, {
+                "type": "skipped",
+                "chunk_id": chunk_id,
+                "reason": "silent",
+                "message": "無音チャンク"
+            })
+            return
+
+        logger.info(f"📝 文字起こし完了: {text}")
 
         # 2. NGワードフィルタリング
         if not is_valid_text(text):

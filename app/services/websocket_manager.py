@@ -121,14 +121,16 @@ class WebSocketManager:
         """
         connection = self.get_connection(session_id)
         if connection is None:
-            logger.warning(f"⚠️ 接続が見つかりません: session_id={session_id}")
             return False
 
         try:
+            # WebSocketの状態を確認
+            if connection.websocket.client_state.name != "CONNECTED":
+                return False
             await connection.websocket.send_json(data)
             return True
-        except Exception as e:
-            logger.error(f"❌ JSON送信エラー: {e}")
+        except Exception:
+            # 切断済みの場合は静かに失敗（ログ出力しない）
             return False
 
     async def send_progress(
