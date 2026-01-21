@@ -1,7 +1,8 @@
 """
-リアルタイム音声翻訳クライアント（Phase 3.1）
+リアルタイム音声翻訳クライアント（Phase 3.2）
 
 マイク入力 → WebSocket送信 → リアルタイム翻訳結果受信
+Phase 3.2ではVAD（Voice Activity Detection）による動的チャンク分割と音量メーターを追加。
 """
 
 import asyncio
@@ -21,13 +22,47 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def create_volume_meter(volume_db: float, is_speech: bool, width: int = 30) -> str:
+    """
+    音量メーターを生成
+
+    Args:
+        volume_db: 音量レベル（dB）-60〜0
+        is_speech: 発話中かどうか
+        width: メーターの幅
+
+    Returns:
+        音量メーター文字列
+    """
+    # -60dB〜0dBを0〜1に正規化
+    normalized = (volume_db + 60) / 60
+    normalized = max(0.0, min(1.0, normalized))
+
+    # メーターの長さ
+    filled = int(normalized * width)
+
+    # 発話状態に応じた色/記号
+    if is_speech:
+        bar = '█' * filled + '░' * (width - filled)
+        status = '🎤'
+    else:
+        bar = '▓' * filled + '░' * (width - filled)
+        status = '🔇'
+
+    return f"{status} [{bar}] {volume_db:5.1f}dB"
+
+
 class RealtimeTranslationClient:
     """
-    リアルタイム音声翻訳クライアント
+    リアルタイム音声翻訳クライアント（Phase 3.2対応）
 
     使用例:
         client = RealtimeTranslationClient("ws://localhost:5001/ws/translate-stream")
         await client.run(chunk_duration=3.0)
+
+    使用例（VADモード）:
+        client = RealtimeTranslationClient("ws://localhost:5001/ws/translate-stream")
+        await client.run(enable_vad=True, silence_duration_ms=500)
     """
 
     def __init__(self, url: str, device_index: Optional[int] = None):
@@ -42,16 +77,43 @@ class RealtimeTranslationClient:
         self.total_processing_time = 0.0
         self.chunk_times = []
 
-    async def run(self, chunk_duration: float = 3.0):
+        # 音量メーター表示用
+        self.show_volume_meter = True
+        self.last_volume_db = -60.0
+        self.last_is_speech = False
+
+    async def run(
+        self,
+        chunk_duration: float = 3.0,
+        enable_vad: bool = False,
+        vad_aggressiveness: int = 2,
+        silence_duration_ms: int = 500,
+        min_chunk_duration_ms: int = 500,
+        max_chunk_duration_ms: int = 10000,
+        show_volume_meter: bool = True
+    ):
         """
         リアルタイム翻訳セッションを開始
 
         Args:
-            chunk_duration: チャンク長（秒）
+            chunk_duration: 固定チャンク長（秒）- VAD無効時に使用
+            enable_vad: VAD有効化フラグ
+            vad_aggressiveness: VAD感度（0-3、3が最も厳密）
+            silence_duration_ms: 無音判定時間（ミリ秒）
+            min_chunk_duration_ms: 最小チャンク長（ミリ秒）
+            max_chunk_duration_ms: 最大チャンク長（ミリ秒）
+            show_volume_meter: 音量メーター表示フラグ
         """
+        self.show_volume_meter = show_volume_meter
+
         logger.info("=== リアルタイム音声翻訳クライアント起動 ===")
         logger.info(f"接続先: {self.url}")
-        logger.info(f"チャンク長: {chunk_duration}秒")
+
+        if enable_vad:
+            logger.info(f"モード: VAD（感度: {vad_aggressiveness}、無音閾値: {silence_duration_ms}ms）")
+            logger.info(f"チャンク長: {min_chunk_duration_ms}ms〜{max_chunk_duration_ms}ms")
+        else:
+            logger.info(f"モード: 固定長（{chunk_duration}秒チャンク）")
 
         try:
             # WebSocket接続
@@ -67,7 +129,14 @@ class RealtimeTranslationClient:
                     logger.info(f"セッション開始: {self.session_id}")
 
                 # 音声キャプチャ設定
-                config = AudioConfig(chunk_duration=chunk_duration)
+                config = AudioConfig(
+                    chunk_duration=chunk_duration,
+                    enable_vad=enable_vad,
+                    vad_aggressiveness=vad_aggressiveness,
+                    silence_duration_ms=silence_duration_ms,
+                    min_chunk_duration_ms=min_chunk_duration_ms,
+                    max_chunk_duration_ms=max_chunk_duration_ms
+                )
                 capture = AudioCapture(config)
 
                 # 受信タスクと送信タスクを並列実行
@@ -78,11 +147,22 @@ class RealtimeTranslationClient:
                     self._capture_loop(capture)
                 )
 
+                # 音量メーター表示タスク（VADモード時のみ）
+                volume_task = None
+                if show_volume_meter:
+                    volume_task = asyncio.create_task(self._volume_display_loop())
+
                 # Ctrl+Cで停止
                 try:
                     print("\n🎤 録音開始！話してください...")
+                    if enable_vad:
+                        print("（VADモード: 発話終了を検出して自動送信）")
                     print("Ctrl+C で停止\n")
-                    await asyncio.gather(receive_task, capture_task)
+
+                    tasks = [receive_task, capture_task]
+                    if volume_task:
+                        tasks.append(volume_task)
+                    await asyncio.gather(*tasks)
                 except KeyboardInterrupt:
                     logger.info("ユーザーによる停止")
                 finally:
@@ -110,16 +190,25 @@ class RealtimeTranslationClient:
                     loop
                 )
 
+        def on_volume_level(volume_db: float, is_speech: bool):
+            """音量レベル受信時のコールバック"""
+            self.last_volume_db = volume_db
+            self.last_is_speech = is_speech
+
         # ブロッキング処理を別スレッドで実行
         await loop.run_in_executor(
             None,
-            lambda: self._start_capture(capture, on_chunk)
+            lambda: self._start_capture(capture, on_chunk, on_volume_level)
         )
 
-    def _start_capture(self, capture: AudioCapture, on_chunk):
+    def _start_capture(self, capture: AudioCapture, on_chunk, on_volume_level):
         """音声キャプチャを開始（ブロッキング）"""
         try:
-            capture.start(on_chunk, device_index=self.device_index)
+            capture.start(
+                on_chunk,
+                device_index=self.device_index,
+                on_volume_level=on_volume_level
+            )
             # is_runningがFalseになるまで待機
             while self.is_running:
                 import time
@@ -129,6 +218,24 @@ class RealtimeTranslationClient:
         finally:
             capture.stop()
 
+    async def _volume_display_loop(self):
+        """音量メーター表示ループ"""
+        try:
+            while self.is_running:
+                if self.show_volume_meter:
+                    meter = create_volume_meter(
+                        self.last_volume_db,
+                        self.last_is_speech
+                    )
+                    # カーソルを行頭に戻して上書き
+                    print(f"\r{meter}", end='', flush=True)
+                await asyncio.sleep(0.05)  # 20fps
+        except asyncio.CancelledError:
+            pass
+        finally:
+            # 改行して次の出力に備える
+            print()
+
     async def _send_chunk(self, audio_data: bytes):
         """音声チャンクをWebSocketで送信"""
         if not self.websocket:
@@ -137,6 +244,10 @@ class RealtimeTranslationClient:
         try:
             self.chunk_count += 1
             chunk_start = datetime.now()
+
+            # 音量メーター表示中は改行してからログ出力
+            if self.show_volume_meter:
+                print()  # 音量メーターの行を改行
 
             logger.info(f"チャンク#{self.chunk_count} 送信中... ({len(audio_data)} bytes)")
             await self.websocket.send(audio_data)
@@ -204,6 +315,11 @@ class RealtimeTranslationClient:
                 print(f"  - レイテンシ: {elapsed:.2f}秒（送信〜受信）")
             print(f"{'='*60}\n")
 
+        elif msg_type == "skipped":
+            # 無音チャンクスキップ
+            chunk_id = data.get("chunk_id")
+            logger.info(f"チャンク#{chunk_id}: 無音のためスキップ")
+
         elif msg_type == "error":
             # エラー
             error_msg = data.get("message", "不明なエラー")
@@ -219,7 +335,7 @@ class RealtimeTranslationClient:
         if self.chunk_count == 0:
             return
 
-        avg_time = self.total_processing_time / self.chunk_count
+        avg_time = self.total_processing_time / self.chunk_count if self.chunk_count > 0 else 0
 
         print("\n" + "="*60)
         print("📊 処理統計")
@@ -232,7 +348,7 @@ class RealtimeTranslationClient:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="リアルタイム音声翻訳クライアント（Phase 3.1）"
+        description="リアルタイム音声翻訳クライアント（Phase 3.2）"
     )
     parser.add_argument(
         "--url",
@@ -243,7 +359,7 @@ def main():
         "--chunk-duration",
         type=float,
         default=3.0,
-        help="チャンク長（秒）（デフォルト: 3.0）"
+        help="固定チャンク長（秒）- VAD無効時に使用（デフォルト: 3.0）"
     )
     parser.add_argument(
         "--device",
@@ -257,6 +373,43 @@ def main():
         help="利用可能な音声デバイスを表示して終了"
     )
 
+    # VAD設定（Phase 3.2）
+    parser.add_argument(
+        "--enable-vad",
+        action="store_true",
+        help="VAD（Voice Activity Detection）を有効化"
+    )
+    parser.add_argument(
+        "--vad-aggressiveness",
+        type=int,
+        default=2,
+        choices=[0, 1, 2, 3],
+        help="VAD感度（0-3、3が最も厳密、デフォルト: 2）"
+    )
+    parser.add_argument(
+        "--silence-duration-ms",
+        type=int,
+        default=500,
+        help="無音判定時間（ミリ秒、デフォルト: 500）"
+    )
+    parser.add_argument(
+        "--min-chunk-duration-ms",
+        type=int,
+        default=500,
+        help="最小チャンク長（ミリ秒、デフォルト: 500）"
+    )
+    parser.add_argument(
+        "--max-chunk-duration-ms",
+        type=int,
+        default=10000,
+        help="最大チャンク長（ミリ秒、デフォルト: 10000）"
+    )
+    parser.add_argument(
+        "--no-volume-meter",
+        action="store_true",
+        help="音量メーター表示を無効化"
+    )
+
     args = parser.parse_args()
 
     # デバイス一覧表示
@@ -268,7 +421,15 @@ def main():
     client = RealtimeTranslationClient(args.url, device_index=args.device)
 
     try:
-        asyncio.run(client.run(chunk_duration=args.chunk_duration))
+        asyncio.run(client.run(
+            chunk_duration=args.chunk_duration,
+            enable_vad=args.enable_vad,
+            vad_aggressiveness=args.vad_aggressiveness,
+            silence_duration_ms=args.silence_duration_ms,
+            min_chunk_duration_ms=args.min_chunk_duration_ms,
+            max_chunk_duration_ms=args.max_chunk_duration_ms,
+            show_volume_meter=not args.no_volume_meter
+        ))
     except KeyboardInterrupt:
         logger.info("終了します")
 
