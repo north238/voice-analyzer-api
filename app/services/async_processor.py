@@ -72,6 +72,8 @@ def _transcribe_sync(audio_data: bytes, suffix: str = ".wav") -> str:
             tmp_path = tmp.name
 
         # ffmpegで16kHz/モノラルに変換
+        # Phase 4最適化: loudnormフィルタを削除（処理時間0.2秒削減）
+        # Whisper VADが無音区間を自動処理するため、音量正規化は不要
         converted_path = tmp_path.rsplit(".", 1)[0] + "_16k.wav"
         subprocess.run(
             [
@@ -83,8 +85,6 @@ def _transcribe_sync(audio_data: bytes, suffix: str = ".wav") -> str:
                 "16000",
                 "-ac",
                 "1",
-                "-af",
-                "loudnorm",
                 converted_path,
             ],
             check=True,

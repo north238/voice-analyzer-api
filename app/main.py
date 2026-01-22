@@ -1,8 +1,6 @@
-from fastapi import FastAPI, UploadFile, Form, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, Form, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from services.audio_processor import transcribe_audio
-from services.inventory_parser import parse_inventory
-from services.llm_analyzer import analyze_with_llm
 from services.text_filter import is_valid_text
 from services.translator import translate_text
 from services.session_manager import get_session_manager
@@ -432,7 +430,8 @@ async def process_websocket_chunk(
             })
             return
 
-        logger.info(f"📝 文字起こし完了: {text}")
+        transcription_time = monitor.get_last_measurement("transcription")
+        logger.info(f"📝 文字起こし完了 ({transcription_time:.2f}秒): {text}")
 
         # 2. NGワードフィルタリング
         if not is_valid_text(text):
@@ -446,7 +445,8 @@ async def process_websocket_chunk(
         )
         with monitor.measure("punctuation"):
             text_with_punctuation = await add_punctuation_async(text)
-            logger.info(f"📝 句読点挿入完了: {text_with_punctuation}")
+        punctuation_time = monitor.get_last_measurement("punctuation")
+        logger.info(f"📝 句読点挿入完了 ({punctuation_time:.2f}秒): {text_with_punctuation}")
 
         # 4. ひらがな正規化
         await ws_manager.send_progress(
@@ -454,7 +454,8 @@ async def process_websocket_chunk(
         )
         with monitor.measure("normalization"):
             hiragana_text = await normalize_async(text_with_punctuation)
-            logger.info(f"📝 正規化完了: {hiragana_text}")
+        normalization_time = monitor.get_last_measurement("normalization")
+        logger.info(f"📝 正規化完了 ({normalization_time:.2f}秒): {hiragana_text}")
 
         # 5. 翻訳
         await ws_manager.send_progress(
@@ -462,7 +463,8 @@ async def process_websocket_chunk(
         )
         with monitor.measure("translation"):
             translated_text = await translate_async(text_with_punctuation)
-            logger.info(f"✅ 翻訳完了: {translated_text}")
+        translation_time = monitor.get_last_measurement("translation")
+        logger.info(f"✅ 翻訳完了 ({translation_time:.2f}秒): {translated_text}")
 
         # 処理時間の計算
         total_time = time.time() - request_start_time
