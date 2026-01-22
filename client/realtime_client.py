@@ -1,8 +1,9 @@
 """
-リアルタイム音声翻訳クライアント（Phase 3.2）
+リアルタイム音声翻訳クライアント（Phase 3.2 + 累積バッファ対応）
 
 マイク入力 → WebSocket送信 → リアルタイム翻訳結果受信
 Phase 3.2ではVAD（Voice Activity Detection）による動的チャンク分割と音量メーターを追加。
+Phase 5では累積バッファ方式によるリアルタイム文字起こしを追加。
 """
 
 import asyncio
@@ -54,7 +55,7 @@ def create_volume_meter(volume_db: float, is_speech: bool, width: int = 30) -> s
 
 class RealtimeTranslationClient:
     """
-    リアルタイム音声翻訳クライアント（Phase 3.2対応）
+    リアルタイム音声翻訳クライアント（Phase 3.2 + 累積バッファ対応）
 
     使用例:
         client = RealtimeTranslationClient("ws://localhost:5001/ws/translate-stream")
@@ -63,6 +64,10 @@ class RealtimeTranslationClient:
     使用例（VADモード）:
         client = RealtimeTranslationClient("ws://localhost:5001/ws/translate-stream")
         await client.run(enable_vad=True, silence_duration_ms=500)
+
+    使用例（累積バッファモード）:
+        client = RealtimeTranslationClient("ws://localhost:5001/ws/transcribe-stream-cumulative")
+        await client.run(cumulative_mode=True)
     """
 
     def __init__(self, url: str, device_index: Optional[int] = None):
@@ -82,6 +87,13 @@ class RealtimeTranslationClient:
         self.last_volume_db = -60.0
         self.last_is_speech = False
 
+        # 累積バッファモード用
+        self.cumulative_mode = False
+        self.confirmed_text = ""      # 確定テキスト
+        self.tentative_text = ""      # 暫定テキスト
+        self.confirmed_hiragana = ""  # 確定ひらがな
+        self.tentative_hiragana = ""  # 暫定ひらがな
+
     async def run(
         self,
         chunk_duration: float = 3.0,
@@ -90,7 +102,8 @@ class RealtimeTranslationClient:
         silence_duration_ms: int = 500,
         min_chunk_duration_ms: int = 500,
         max_chunk_duration_ms: int = 10000,
-        show_volume_meter: bool = True
+        show_volume_meter: bool = True,
+        cumulative_mode: bool = False
     ):
         """
         リアルタイム翻訳セッションを開始
@@ -103,13 +116,17 @@ class RealtimeTranslationClient:
             min_chunk_duration_ms: 最小チャンク長（ミリ秒）
             max_chunk_duration_ms: 最大チャンク長（ミリ秒）
             show_volume_meter: 音量メーター表示フラグ
+            cumulative_mode: 累積バッファモード有効化フラグ
         """
         self.show_volume_meter = show_volume_meter
+        self.cumulative_mode = cumulative_mode
 
         logger.info("=== リアルタイム音声翻訳クライアント起動 ===")
         logger.info(f"接続先: {self.url}")
 
-        if enable_vad:
+        if cumulative_mode:
+            logger.info("モード: 累積バッファ（リアルタイム文字起こし）")
+        elif enable_vad:
             logger.info(f"モード: VAD（感度: {vad_aggressiveness}、無音閾値: {silence_duration_ms}ms）")
             logger.info(f"チャンク長: {min_chunk_duration_ms}ms〜{max_chunk_duration_ms}ms")
         else:
@@ -286,7 +303,7 @@ class RealtimeTranslationClient:
             logger.info(f"  [{step}] {message}")
 
         elif msg_type == "result":
-            # 翻訳結果
+            # 翻訳結果（従来モード）
             chunk_id = data.get("chunk_id")
             results = data.get("results", {})
             performance = data.get("performance", {})
@@ -315,6 +332,43 @@ class RealtimeTranslationClient:
                 print(f"  - レイテンシ: {elapsed:.2f}秒（送信〜受信）")
             print(f"{'='*60}\n")
 
+        elif msg_type == "accumulating":
+            # 累積中の通知（累積バッファモード）
+            accumulated = data.get("accumulated_seconds", 0)
+            until_transcription = data.get("chunks_until_transcription", 0)
+            if until_transcription > 0:
+                logger.info(f"📦 音声蓄積中... {accumulated:.1f}秒（残り{until_transcription}チャンクで処理）")
+
+        elif msg_type == "transcription_update":
+            # 累積バッファモードの文字起こし結果
+            chunk_id = data.get("chunk_id")
+            transcription = data.get("transcription", {})
+            hiragana = data.get("hiragana", {})
+            performance = data.get("performance", {})
+            is_silent = data.get("is_silent", False)
+
+            # 確定/暫定テキストを更新
+            self.confirmed_text = transcription.get("confirmed", "")
+            self.tentative_text = transcription.get("tentative", "")
+            self.confirmed_hiragana = hiragana.get("confirmed", "")
+            self.tentative_hiragana = hiragana.get("tentative", "")
+
+            if is_silent:
+                logger.info("🔇 無音区間")
+                return
+
+            # 処理時間計算
+            chunk_info = next(
+                (c for c in self.chunk_times if c["chunk_id"] == chunk_id),
+                None
+            )
+            if chunk_info:
+                elapsed = (datetime.now() - chunk_info["sent_at"]).total_seconds()
+                self.total_processing_time += elapsed
+
+            # リアルタイム文字起こし表示
+            self._display_cumulative_result(performance)
+
         elif msg_type == "skipped":
             # 無音チャンクスキップ
             chunk_id = data.get("chunk_id")
@@ -327,8 +381,58 @@ class RealtimeTranslationClient:
 
         elif msg_type == "session_end":
             # セッション終了
-            total_chunks = data.get("total_chunks", 0)
-            logger.info(f"セッション終了（合計 {total_chunks} チャンク）")
+            if self.cumulative_mode:
+                # 累積バッファモードの最終結果
+                transcription = data.get("transcription", {})
+                hiragana = data.get("hiragana", {})
+                statistics = data.get("statistics", {})
+
+                self.confirmed_text = transcription.get("confirmed", "")
+                self.confirmed_hiragana = hiragana.get("confirmed", "")
+
+                print(f"\n{'='*60}")
+                print("🏁 セッション終了 - 最終結果")
+                print(f"{'='*60}")
+                print(f"📝 確定テキスト:")
+                print(f"   {self.confirmed_text}")
+                print(f"\n🔤 ひらがな:")
+                print(f"   {self.confirmed_hiragana}")
+                print(f"\n📊 統計:")
+                print(f"   - 処理チャンク数: {statistics.get('chunk_count', 0)}")
+                print(f"   - 累積音声: {statistics.get('audio_duration_seconds', 0):.1f}秒")
+                print(f"{'='*60}\n")
+            else:
+                total_chunks = data.get("total_chunks", 0)
+                logger.info(f"セッション終了（合計 {total_chunks} チャンク）")
+
+    def _display_cumulative_result(self, performance: dict):
+        """累積バッファモードの結果を表示"""
+        # 画面をクリアして最新の状態を表示
+        print(f"\n{'='*60}")
+        print("📝 リアルタイム文字起こし")
+        print(f"{'='*60}")
+
+        # 確定テキスト（白/通常色）
+        if self.confirmed_text:
+            print(f"✅ 確定: {self.confirmed_text}")
+
+        # 暫定テキスト（グレー表示をシミュレート）
+        if self.tentative_text:
+            # ANSI エスケープコードでグレー表示
+            print(f"⏳ 暫定: \033[90m{self.tentative_text}\033[0m")
+
+        print(f"\n🔤 ひらがな:")
+        if self.confirmed_hiragana:
+            print(f"   確定: {self.confirmed_hiragana}")
+        if self.tentative_hiragana:
+            print(f"   暫定: \033[90m{self.tentative_hiragana}\033[0m")
+
+        # パフォーマンス情報
+        print(f"\n⏱️  処理時間:")
+        print(f"   - 文字起こし: {performance.get('transcription_time', 0):.2f}秒")
+        print(f"   - 累積音声: {performance.get('accumulated_audio_seconds', 0):.1f}秒")
+        print(f"   - 合計: {performance.get('total_time', 0):.2f}秒")
+        print(f"{'='*60}\n")
 
     def _print_statistics(self):
         """統計情報を表示"""

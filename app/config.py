@@ -45,6 +45,17 @@ class Settings:
     SESSION_TIMEOUT_MINUTES: int = int(os.getenv("SESSION_TIMEOUT_MINUTES", "30"))
     MAX_CHUNKS_PER_SESSION: int = int(os.getenv("MAX_CHUNKS_PER_SESSION", "100"))
 
+    # 累積バッファ設定
+    CUMULATIVE_MAX_AUDIO_SECONDS: float = float(
+        os.getenv("CUMULATIVE_MAX_AUDIO_SECONDS", "30.0")
+    )
+    CUMULATIVE_TRANSCRIPTION_INTERVAL: int = int(
+        os.getenv("CUMULATIVE_TRANSCRIPTION_INTERVAL", "3")
+    )
+    CUMULATIVE_STABLE_THRESHOLD: int = int(
+        os.getenv("CUMULATIVE_STABLE_THRESHOLD", "2")
+    )
+
     # テキスト処理設定
     MAX_TEXT_LENGTH: int = 50
 
