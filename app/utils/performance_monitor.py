@@ -96,6 +96,13 @@ class PerformanceMonitor:
             if timing.duration is not None
         }
 
+    def get_last_measurement(self, step_name: str) -> float:
+        """指定ステップの最新の計測結果を取得"""
+        for timing in reversed(self.completed_timings):
+            if timing.step_name == step_name and timing.duration is not None:
+                return timing.duration
+        return 0.0
+
     def get_total_time(self) -> float:
         """全ステップの合計時間を取得"""
         return sum(

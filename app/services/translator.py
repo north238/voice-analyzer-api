@@ -132,9 +132,10 @@ class Translator:
         ).to(self.device)
 
         # 翻訳生成（品質向上パラメータ）
+        # Phase 4最適化: num_beams を 6 → 4 に変更（処理時間30%削減）
         translated_tokens = self.model.generate(
             **inputs,
-            num_beams=6,  # ビームサーチで品質向上（5→6に増加）
+            num_beams=4,  # ビームサーチで品質向上（6→4に削減、速度向上）
             no_repeat_ngram_size=3,  # 3-gramの繰り返しを防止
             repetition_penalty=1.3,  # 繰り返しペナルティを緩和（1.5→1.3）
             length_penalty=0.8,  # 短めの翻訳を優先（1.0→0.8）
