@@ -13,6 +13,87 @@ body {
     padding: 40px 20px;
 }
 
+/* トースト通知 */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 400px;
+}
+
+.toast {
+    background: white;
+    border-radius: 8px;
+    padding: 16px 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-left: 4px solid;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: slideIn 0.3s ease-out;
+    font-size: 0.875rem;
+}
+
+.toast.fade-out {
+    animation: slideOut 0.3s ease-in forwards;
+}
+
+.toast.info {
+    border-left-color: #3B82F6;
+    background: #EFF6FF;
+}
+
+.toast.success {
+    border-left-color: #10B981;
+    background: #F0FDF4;
+}
+
+.toast.error {
+    border-left-color: #EF4444;
+    background: #FEF2F2;
+}
+
+.toast.warning {
+    border-left-color: #F59E0B;
+    background: #FFF7ED;
+}
+
+.toast-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.toast-message {
+    flex: 1;
+    font-weight: 500;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
 .container {
     max-width: 1000px;
     margin: 0 auto;
@@ -208,18 +289,18 @@ section h2 {
 
 .volume-bar-container {
     flex: 1;
-    height: 8px;
-    background: #F3F4F6;
-    border-radius: 4px;
+    height: 6px;
+    background: #E5E7EB;
+    border-radius: 3px;
     overflow: hidden;
 }
 
 .volume-bar {
     height: 100%;
     width: 0%;
-    background: #9CA3AF;
-    transition: width 0.1s ease, background-color 0.3s ease;
-    border-radius: 4px;
+    background: #3B82F6;
+    transition: width 0.1s ease;
+    border-radius: 3px;
 }
 
 /* 文字起こし結果 */

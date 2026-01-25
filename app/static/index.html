@@ -1,81 +1,89 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>リアルタイム音声文字起こし</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/style.css">
-</head>
-<body>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/css/style.css" />
+  </head>
+  <body>
+    <!-- トースト通知エリア -->
+    <div id="toast-container" class="toast-container"></div>
+
     <div class="container">
-        <header>
-            <h1>🎤 リアルタイム音声文字起こし</h1>
-            <p class="subtitle">累積バッファ方式による日本語音声認識</p>
-        </header>
+      <header>
+        <h1>🎤 リアルタイム音声文字起こし</h1>
+        <p class="subtitle">累積バッファ方式による日本語音声認識</p>
+      </header>
 
-        <main>
-            <!-- コントロール -->
-            <section class="controls">
-                <div class="device-selector-wrapper">
-                    <label for="device-selector">マイク:</label>
-                    <select id="device-selector"></select>
-                </div>
+      <main>
+        <!-- コントロール -->
+        <section class="controls">
+          <div class="device-selector-wrapper">
+            <label for="device-selector">マイク:</label>
+            <select id="device-selector"></select>
+          </div>
 
-                <div class="button-group">
-                    <button id="start-button" class="btn btn-primary">開始</button>
-                    <button id="stop-button" class="btn btn-secondary" disabled>停止</button>
-                </div>
+          <div class="button-group">
+            <button id="start-button" class="btn btn-primary">開始</button>
+            <button id="stop-button" class="btn btn-secondary" disabled>
+              停止
+            </button>
+          </div>
 
-                <div id="status-text" class="status info">準備中...</div>
-            </section>
+          <div id="status-text" class="status info">準備中...</div>
+        </section>
 
-            <!-- 音量メーター -->
-            <section class="volume-meter">
-                <label>音量:</label>
-                <div class="volume-bar-container">
-                    <div id="volume-bar" class="volume-bar"></div>
-                </div>
-            </section>
+        <!-- 音量メーター -->
+        <section class="volume-meter">
+          <label>音量:</label>
+          <div class="volume-bar-container">
+            <div id="volume-bar" class="volume-bar"></div>
+          </div>
+        </section>
 
-            <!-- 文字起こし結果 -->
-            <section class="transcription-results">
-                <h2>文字起こし結果</h2>
+        <!-- 文字起こし結果 -->
+        <section class="transcription-results">
+          <h2>文字起こし結果</h2>
 
-                <div class="result-box">
-                    <h3>確定テキスト</h3>
-                    <div id="confirmed-text" class="text-display confirmed"></div>
-                </div>
+          <div class="result-box">
+            <h3>確定テキスト</h3>
+            <div id="confirmed-text" class="text-display confirmed"></div>
+          </div>
 
-                <div class="result-box">
-                    <h3>暫定テキスト</h3>
-                    <div id="tentative-text" class="text-display tentative"></div>
-                </div>
-            </section>
+          <div class="result-box">
+            <h3>暫定テキスト</h3>
+            <div id="tentative-text" class="text-display tentative"></div>
+          </div>
+        </section>
 
-            <!-- ひらがな正規化 -->
-            <section class="hiragana-results">
-                <h2>ひらがな正規化</h2>
-                <div id="hiragana-text" class="text-display hiragana"></div>
-            </section>
+        <!-- ひらがな正規化 -->
+        <section class="hiragana-results">
+          <h2>ひらがな正規化</h2>
+          <div id="hiragana-text" class="text-display hiragana"></div>
+        </section>
 
-            <!-- パフォーマンス情報 -->
-            <section class="performance">
-                <h2>処理時間</h2>
-                <div id="performance-info" class="performance-info"></div>
-            </section>
-        </main>
+        <!-- パフォーマンス情報 -->
+        <section class="performance">
+          <h2>処理時間</h2>
+          <div id="performance-info" class="performance-info"></div>
+        </section>
+      </main>
 
-        <footer>
-            <p>Voice Analyzer API | Phase 4.1 累積バッファ方式</p>
-        </footer>
+      <footer>
+        <p>Voice Analyzer API</p>
+      </footer>
     </div>
 
     <script src="/static/js/audio-capture.js"></script>
     <script src="/static/js/websocket-client.js"></script>
     <script src="/static/js/ui-controller.js"></script>
     <script src="/static/js/app.js"></script>
-</body>
+  </body>
 </html>

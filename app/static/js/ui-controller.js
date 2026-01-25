@@ -18,6 +18,7 @@ class UIController {
 
         this.performanceInfo = document.getElementById('performance-info');
         this.deviceSelector = document.getElementById('device-selector');
+        this.toastContainer = document.getElementById('toast-container');
     }
 
     /**
@@ -39,16 +40,8 @@ class UIController {
     updateVolumeLevel(volumeDb) {
         // -60dB ~ 0dBを0~100%に正規化
         const normalized = Math.max(0, Math.min(100, ((volumeDb + 60) / 60) * 100));
+        // バーの幅（形）のみで音量を表現
         this.volumeBar.style.width = `${normalized}%`;
-
-        // 音量レベルに応じて色変更
-        if (normalized > 50) {
-            this.volumeBar.style.backgroundColor = '#4CAF50'; // 緑
-        } else if (normalized > 20) {
-            this.volumeBar.style.backgroundColor = '#FFC107'; // 黄
-        } else {
-            this.volumeBar.style.backgroundColor = '#9E9E9E'; // グレー
-        }
     }
 
     /**
@@ -122,7 +115,46 @@ class UIController {
      */
     showError(message) {
         this.setStatus(`エラー: ${message}`, 'error');
-        alert(`エラー: ${message}`);
+        this.showToast(message, 'error', 5000);
+    }
+
+    /**
+     * トースト通知を表示
+     *
+     * @param {string} message - 表示メッセージ
+     * @param {string} type - タイプ (info, success, error, warning)
+     * @param {number} duration - 表示時間（ミリ秒、デフォルト: 3000）
+     */
+    showToast(message, type = 'info', duration = 3000) {
+        // トースト要素を作成
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+
+        // アイコンを設定
+        const iconMap = {
+            info: 'ℹ️',
+            success: '✅',
+            error: '❌',
+            warning: '⚠️'
+        };
+
+        toast.innerHTML = `
+            <span class="toast-icon">${iconMap[type] || 'ℹ️'}</span>
+            <span class="toast-message">${this._escapeHtml(message)}</span>
+        `;
+
+        // コンテナに追加
+        this.toastContainer.appendChild(toast);
+
+        // 自動で消去
+        setTimeout(() => {
+            toast.classList.add('fade-out');
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300); // アニメーション完了を待つ
+        }, duration);
     }
 
     /**

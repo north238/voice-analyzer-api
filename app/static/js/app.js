@@ -32,9 +32,10 @@ class RealtimeTranscriptionApp {
             });
 
             this.uiController.setStatus('準備完了。「開始」ボタンを押してください。', 'success');
+            this.uiController.showToast('準備完了。「開始」ボタンを押してください。', 'success');
         } catch (error) {
             console.error('初期化エラー:', error);
-            this.uiController.showError('初期化に失敗しました');
+            this.uiController.showToast('初期化に失敗しました', 'error');
         }
     }
 
@@ -44,6 +45,7 @@ class RealtimeTranscriptionApp {
     async start() {
         try {
             this.uiController.setStatus('接続中...', 'info');
+            this.uiController.showToast('WebSocket接続中...', 'info');
 
             // WebSocket接続
             const wsUrl = `ws://${window.location.host}/ws/transcribe-stream-cumulative`;
@@ -51,10 +53,11 @@ class RealtimeTranscriptionApp {
 
             this.wsClient.on('connected', (sessionId) => {
                 console.log('セッション開始:', sessionId);
+                this.uiController.showToast('セッション開始', 'success');
             });
 
             this.wsClient.on('progress', (step, message) => {
-                this.uiController.setStatus(message, 'info');
+                this.uiController.showToast(message, 'info', 2000);
             });
 
             this.wsClient.on('transcription_update', (data) => {
@@ -69,12 +72,13 @@ class RealtimeTranscriptionApp {
             });
 
             this.wsClient.on('error', (message) => {
-                this.uiController.showError(message);
+                this.uiController.showToast(message, 'error', 5000);
             });
 
             this.wsClient.on('session_end', (data) => {
                 console.log('セッション終了:', data);
                 this.uiController.setStatus('セッション終了', 'success');
+                this.uiController.showToast('セッション終了', 'success');
             });
 
             await this.wsClient.connect();
@@ -102,21 +106,26 @@ class RealtimeTranscriptionApp {
             this.isRecording = true;
             this.uiController.setButtonsState(true);
             this.uiController.setStatus('録音中...', 'recording');
+            this.uiController.showToast('録音を開始しました', 'success');
 
         } catch (error) {
             console.error('開始エラー:', error);
 
             // エラータイプに応じたメッセージ
             if (error.name === 'NotAllowedError') {
-                this.uiController.showError(
-                    'マイクへのアクセスが拒否されました。ブラウザの設定を確認してください。'
+                this.uiController.showToast(
+                    'マイクへのアクセスが拒否されました。ブラウザの設定を確認してください。',
+                    'error',
+                    5000
                 );
             } else if (error.name === 'NotFoundError') {
-                this.uiController.showError(
-                    'マイクが見つかりません。デバイスを接続してください。'
+                this.uiController.showToast(
+                    'マイクが見つかりません。デバイスを接続してください。',
+                    'error',
+                    5000
                 );
             } else {
-                this.uiController.showError(error.message || '開始に失敗しました');
+                this.uiController.showToast(error.message || '開始に失敗しました', 'error', 5000);
             }
 
             // クリーンアップ
@@ -130,6 +139,7 @@ class RealtimeTranscriptionApp {
     stop() {
         this.cleanup();
         this.uiController.setStatus('停止しました。', 'success');
+        this.uiController.showToast('録音を停止しました', 'success');
     }
 
     /**
