@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, Form, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from services.audio_processor import transcribe_audio
 from services.text_filter import is_valid_text
 from services.translator import translate_text
@@ -21,6 +22,7 @@ from utils.logger import logger
 from config import settings
 import time
 import json
+import os
 from typing import Optional, Dict
 
 app = FastAPI()
@@ -841,3 +843,26 @@ async def finalize_cumulative_session(session_id: str, connection):
     except Exception as e:
         logger.exception(f"❌ セッション終了処理エラー: {e}")
         await ws_manager.send_error(session_id, f"セッション終了処理エラー: {str(e)}")
+
+
+# 静的ファイル配信の設定
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    logger.info(f"📁 静的ファイル配信を有効化: {static_dir}")
+
+
+@app.get("/")
+async def serve_web_ui():
+    """Web UIのHTMLを返す"""
+    html_path = os.path.join(static_dir, "index.html")
+    if os.path.exists(html_path):
+        return FileResponse(html_path)
+    return JSONResponse(
+        status_code=200,
+        content={
+            "message": "Voice Analyzer API",
+            "version": "1.0.0",
+            "web_ui": "Web UIは /static/index.html を配置してください",
+        }
+    )
