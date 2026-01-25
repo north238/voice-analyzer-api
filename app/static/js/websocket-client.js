@@ -129,14 +129,25 @@ class WebSocketClient {
     }
 
     /**
+     * 終了メッセージを送信（WebSocketは切断しない）
+     */
+    sendEndMessage() {
+        if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
+            console.log('📤 終了メッセージ送信');
+            this.ws.send(JSON.stringify({ type: 'end' }));
+        }
+    }
+
+    /**
      * WebSocket接続を切断
      */
     disconnect() {
-        if (this.isConnected) {
-            this.ws.send(JSON.stringify({ type: 'end' }));
+        if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
+            console.log('🔌 WebSocket切断');
             // 正常終了コード(1000)を指定して切断
             this.ws.close(1000, 'Normal closure');
         }
+        this.isConnected = false;
     }
 
     /**

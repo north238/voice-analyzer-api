@@ -10,6 +10,7 @@ class RealtimeTranscriptionApp {
         this.uiController = new UIController();
 
         this.isRecording = false;
+        this.disconnectTimeout = null;
 
         this.init();
     }
@@ -78,7 +79,10 @@ class RealtimeTranscriptionApp {
             this.wsClient.on('session_end', (data) => {
                 console.log('セッション終了:', data);
                 this.uiController.setStatus('セッション終了', 'success');
-                this.uiController.showToast('セッション終了', 'success');
+                this.uiController.showToast('処理が完了しました', 'success');
+
+                // session_end受信後にクリーンアップ
+                this.forceCleanup();
             });
 
             await this.wsClient.connect();
@@ -129,7 +133,7 @@ class RealtimeTranscriptionApp {
             }
 
             // クリーンアップ
-            this.cleanup();
+            this.forceCleanup();
         }
     }
 
@@ -137,18 +141,37 @@ class RealtimeTranscriptionApp {
      * 録音停止
      */
     stop() {
-        this.cleanup();
-        this.uiController.setStatus('停止しました。', 'success');
-        this.uiController.showToast('録音を停止しました', 'success');
-    }
-
-    /**
-     * クリーンアップ
-     */
-    cleanup() {
+        // 音声キャプチャを停止（これ以上チャンクを送信しない）
         if (this.audioCapture) {
             this.audioCapture.stop();
             this.audioCapture = null;
+        }
+
+        this.isRecording = false;
+        this.uiController.setButtonsState(false);
+        this.uiController.setStatus('処理中の結果を待機中...', 'info');
+        this.uiController.showToast('録音を停止しました。処理完了を待っています...', 'info', 2000);
+
+        // サーバーに終了メッセージを送信
+        if (this.wsClient) {
+            this.wsClient.sendEndMessage();
+
+            // タイムアウト処理: 10秒待ってもsession_endが来なければ強制切断
+            this.disconnectTimeout = setTimeout(() => {
+                console.warn('⚠️ session_end待機タイムアウト。強制切断します。');
+                this.forceCleanup();
+                this.uiController.showToast('タイムアウトにより接続を切断しました', 'warning');
+            }, 10000);
+        }
+    }
+
+    /**
+     * 強制クリーンアップ
+     */
+    forceCleanup() {
+        if (this.disconnectTimeout) {
+            clearTimeout(this.disconnectTimeout);
+            this.disconnectTimeout = null;
         }
 
         if (this.wsClient) {
@@ -156,8 +179,20 @@ class RealtimeTranscriptionApp {
             this.wsClient = null;
         }
 
+        if (this.audioCapture) {
+            this.audioCapture.stop();
+            this.audioCapture = null;
+        }
+
         this.isRecording = false;
         this.uiController.setButtonsState(false);
+    }
+
+    /**
+     * クリーンアップ（後方互換性のため維持）
+     */
+    cleanup() {
+        this.forceCleanup();
     }
 }
 
