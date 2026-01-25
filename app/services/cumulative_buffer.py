@@ -41,9 +41,8 @@ def extract_diff(previous: str, current: str) -> Tuple[str, str]:
 
     アルゴリズム:
     1. 両方のテキストを文単位（句点区切り）で分割
-    2. 先頭から一致する文をカウント
-    3. 一致した文 → 確定テキスト
-    4. 残りの文 → 暫定テキスト
+    2. 前回存在した句点終わりの文で、今回も同じ形で存在するものを確定
+    3. 残りを暫定とする
 
     例:
     前回: "これはテストです。システムを"
@@ -53,29 +52,56 @@ def extract_diff(previous: str, current: str) -> Tuple[str, str]:
     確定: "これはテストです。"
     暫定: "システムを構築しています。"
     """
-    if not previous or not current:
-        return "", current
+    if not current:
+        return "", ""
+
+    if not previous:
+        # 前回結果がない場合、句点で終わる文を確定とみなす
+        sentence_pattern = r'(?<=[。！？])'
+        sentences = re.split(sentence_pattern, current)
+
+        # 最後の文以外は確定（句点で終わっている）
+        if len(sentences) > 1:
+            confirmed = ''.join(sentences[:-1])
+            tentative = sentences[-1] if sentences[-1].strip() else ""
+        else:
+            confirmed = ""
+            tentative = current
+        return confirmed, tentative
 
     # 句点で分割（句点は保持）
-    # 「。」「！」「？」を区切りとして使用
     sentence_pattern = r'(?<=[。！？])'
     prev_sentences = [s for s in re.split(sentence_pattern, previous) if s.strip()]
     curr_sentences = [s for s in re.split(sentence_pattern, current) if s.strip()]
 
-    # 先頭からの一致をカウント
+    # 前回と今回で一致する句点終わりの文を確定
     confirmed_sentences = []
     for i, (prev_s, curr_s) in enumerate(zip(prev_sentences, curr_sentences)):
-        # 完全一致の文のみ確定とする
-        if prev_s.strip() == curr_s.strip():
+        # 句点で終わる文が一致した場合のみ確定
+        if prev_s.strip() == curr_s.strip() and prev_s.rstrip().endswith(('。', '！', '？')):
             confirmed_sentences.append(curr_s)
         else:
             break
+
+    # さらに、今回のテキストで句点で終わり、確定済みでない文も確定候補に
+    # （前回より文が増えた場合）
+    if len(curr_sentences) > len(confirmed_sentences):
+        # 確定済みの次の文から、句点で終わるものを確定
+        for i in range(len(confirmed_sentences), len(curr_sentences) - 1):
+            s = curr_sentences[i]
+            if s.rstrip().endswith(('。', '！', '？')):
+                confirmed_sentences.append(s)
+            else:
+                break
 
     # 確定テキストを結合
     confirmed = ''.join(confirmed_sentences)
 
     # 暫定テキストは確定部分を除いた残り
-    tentative = current[len(confirmed):].lstrip()
+    if confirmed:
+        tentative = current[len(confirmed):].lstrip()
+    else:
+        tentative = current
 
     return confirmed, tentative
 
@@ -228,21 +254,26 @@ class CumulativeBuffer:
         Returns:
             TranscriptionResult: 確定/暫定テキストを含む結果
         """
-        # 差分抽出
-        new_confirmed, tentative = extract_diff(self.last_transcription, new_text)
+        # 差分抽出（今回のテキスト全体から確定部分と暫定部分を分離）
+        current_confirmed, tentative = extract_diff(self.last_transcription, new_text)
 
-        # 確定テキストを更新（累積）
-        if new_confirmed:
-            # 既存の確定テキストと新しく確定した部分が重複しないようにする
-            if not self.confirmed_text.endswith(new_confirmed):
-                self.confirmed_text += new_confirmed
+        # 新しく確定された部分を計算（既存の確定テキストとの差分）
+        newly_confirmed = ""
+        if current_confirmed and len(current_confirmed) > len(self.confirmed_text):
+            # 今回の確定部分が既存より長い場合、差分を追加
+            newly_confirmed = current_confirmed[len(self.confirmed_text):]
+            self.confirmed_text = current_confirmed
+        elif current_confirmed and not self.confirmed_text:
+            # 初回の確定
+            newly_confirmed = current_confirmed
+            self.confirmed_text = current_confirmed
 
         # ひらがな変換
         confirmed_hiragana = ""
         tentative_hiragana = ""
         if hiragana_converter:
-            if new_confirmed:
-                confirmed_hiragana = hiragana_converter(new_confirmed)
+            if newly_confirmed:
+                confirmed_hiragana = hiragana_converter(newly_confirmed)
                 self.confirmed_hiragana += confirmed_hiragana
             if tentative:
                 tentative_hiragana = hiragana_converter(tentative)

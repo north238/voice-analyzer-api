@@ -452,12 +452,17 @@ class RealtimeTranslationClient:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="リアルタイム音声翻訳クライアント（Phase 3.2）"
+        description="リアルタイム音声翻訳クライアント（Phase 3.2 + 累積バッファ対応）"
     )
     parser.add_argument(
         "--url",
-        default="ws://localhost:5001/ws/translate-stream",
-        help="WebSocketサーバーURL（デフォルト: ws://localhost:5001/ws/translate-stream）"
+        default=None,
+        help="WebSocketサーバーURL（--cumulativeで自動設定）"
+    )
+    parser.add_argument(
+        "--cumulative",
+        action="store_true",
+        help="累積バッファモード（リアルタイム文字起こし）を有効化"
     )
     parser.add_argument(
         "--chunk-duration",
@@ -521,8 +526,16 @@ def main():
         list_audio_devices()
         sys.exit(0)
 
+    # URL設定（累積モードか通常モードかで自動設定）
+    if args.url:
+        url = args.url
+    elif args.cumulative:
+        url = "ws://localhost:5001/ws/transcribe-stream-cumulative"
+    else:
+        url = "ws://localhost:5001/ws/translate-stream"
+
     # クライアント起動
-    client = RealtimeTranslationClient(args.url, device_index=args.device)
+    client = RealtimeTranslationClient(url, device_index=args.device)
 
     try:
         asyncio.run(client.run(
@@ -532,7 +545,8 @@ def main():
             silence_duration_ms=args.silence_duration_ms,
             min_chunk_duration_ms=args.min_chunk_duration_ms,
             max_chunk_duration_ms=args.max_chunk_duration_ms,
-            show_volume_meter=not args.no_volume_meter
+            show_volume_meter=not args.no_volume_meter,
+            cumulative_mode=args.cumulative
         ))
     except KeyboardInterrupt:
         logger.info("終了します")
