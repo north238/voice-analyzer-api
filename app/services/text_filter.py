@@ -10,6 +10,7 @@ FILLER_PATTERNS = [
 # 日本語として最低限意味を持ちそうな品詞的特徴
 MEANINGFUL_PATTERN = re.compile(r"[ぁ-ん一-龥]")
 
+
 def is_valid_text(text: str) -> bool:
     text = text.strip()
 

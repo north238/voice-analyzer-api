@@ -109,7 +109,9 @@ class SessionManager:
         """セッションにチャンクデータを追加"""
         session = self.get_session(session_id)
         if session is None:
-            logger.error(f"❌ セッション {session_id} が見つからないためチャンク追加失敗")
+            logger.error(
+                f"❌ セッション {session_id} が見つからないためチャンク追加失敗"
+            )
             return False
 
         # 最大チャンク数チェック
@@ -156,7 +158,9 @@ class SessionManager:
             self.delete_session(session_id)
 
         if expired_sessions:
-            logger.info(f"🧹 {len(expired_sessions)}個の期限切れセッションを削除しました")
+            logger.info(
+                f"🧹 {len(expired_sessions)}個の期限切れセッションを削除しました"
+            )
 
         return len(expired_sessions)
 
@@ -190,6 +194,7 @@ def get_session_manager(
     global _session_manager_instance
     if _session_manager_instance is None:
         _session_manager_instance = SessionManager(
-            timeout_minutes=timeout_minutes, max_chunks_per_session=max_chunks_per_session
+            timeout_minutes=timeout_minutes,
+            max_chunks_per_session=max_chunks_per_session,
         )
     return _session_manager_instance

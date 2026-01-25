@@ -17,8 +17,7 @@ from datetime import datetime
 from audio_capture import AudioCapture, AudioConfig, list_audio_devices
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s'
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -44,11 +43,11 @@ def create_volume_meter(volume_db: float, is_speech: bool, width: int = 30) -> s
 
     # 発話状態に応じた色/記号
     if is_speech:
-        bar = '█' * filled + '░' * (width - filled)
-        status = '🎤'
+        bar = "█" * filled + "░" * (width - filled)
+        status = "🎤"
     else:
-        bar = '▓' * filled + '░' * (width - filled)
-        status = '🔇'
+        bar = "▓" * filled + "░" * (width - filled)
+        status = "🔇"
 
     return f"{status} [{bar}] {volume_db:5.1f}dB"
 
@@ -89,8 +88,8 @@ class RealtimeTranslationClient:
 
         # 累積バッファモード用
         self.cumulative_mode = False
-        self.confirmed_text = ""      # 確定テキスト
-        self.tentative_text = ""      # 暫定テキスト
+        self.confirmed_text = ""  # 確定テキスト
+        self.tentative_text = ""  # 暫定テキスト
         self.confirmed_hiragana = ""  # 確定ひらがな
         self.tentative_hiragana = ""  # 暫定ひらがな
 
@@ -103,7 +102,7 @@ class RealtimeTranslationClient:
         min_chunk_duration_ms: int = 500,
         max_chunk_duration_ms: int = 10000,
         show_volume_meter: bool = True,
-        cumulative_mode: bool = False
+        cumulative_mode: bool = False,
     ):
         """
         リアルタイム翻訳セッションを開始
@@ -127,8 +126,12 @@ class RealtimeTranslationClient:
         if cumulative_mode:
             logger.info("モード: 累積バッファ（リアルタイム文字起こし）")
         elif enable_vad:
-            logger.info(f"モード: VAD（感度: {vad_aggressiveness}、無音閾値: {silence_duration_ms}ms）")
-            logger.info(f"チャンク長: {min_chunk_duration_ms}ms〜{max_chunk_duration_ms}ms")
+            logger.info(
+                f"モード: VAD（感度: {vad_aggressiveness}、無音閾値: {silence_duration_ms}ms）"
+            )
+            logger.info(
+                f"チャンク長: {min_chunk_duration_ms}ms〜{max_chunk_duration_ms}ms"
+            )
         else:
             logger.info(f"モード: 固定長（{chunk_duration}秒チャンク）")
 
@@ -152,7 +155,7 @@ class RealtimeTranslationClient:
                     vad_aggressiveness=vad_aggressiveness,
                     silence_duration_ms=silence_duration_ms,
                     min_chunk_duration_ms=min_chunk_duration_ms,
-                    max_chunk_duration_ms=max_chunk_duration_ms
+                    max_chunk_duration_ms=max_chunk_duration_ms,
                 )
                 capture = AudioCapture(config)
 
@@ -160,9 +163,7 @@ class RealtimeTranslationClient:
                 self.is_running = True
 
                 receive_task = asyncio.create_task(self._receive_loop())
-                capture_task = asyncio.create_task(
-                    self._capture_loop(capture)
-                )
+                capture_task = asyncio.create_task(self._capture_loop(capture))
 
                 # 音量メーター表示タスク（VADモード時のみ）
                 volume_task = None
@@ -202,10 +203,7 @@ class RealtimeTranslationClient:
         def on_chunk(audio_data: bytes):
             """チャンク受信時のコールバック"""
             if self.is_running:
-                asyncio.run_coroutine_threadsafe(
-                    self._send_chunk(audio_data),
-                    loop
-                )
+                asyncio.run_coroutine_threadsafe(self._send_chunk(audio_data), loop)
 
         def on_volume_level(volume_db: float, is_speech: bool):
             """音量レベル受信時のコールバック"""
@@ -214,8 +212,7 @@ class RealtimeTranslationClient:
 
         # ブロッキング処理を別スレッドで実行
         await loop.run_in_executor(
-            None,
-            lambda: self._start_capture(capture, on_chunk, on_volume_level)
+            None, lambda: self._start_capture(capture, on_chunk, on_volume_level)
         )
 
     def _start_capture(self, capture: AudioCapture, on_chunk, on_volume_level):
@@ -224,11 +221,12 @@ class RealtimeTranslationClient:
             capture.start(
                 on_chunk,
                 device_index=self.device_index,
-                on_volume_level=on_volume_level
+                on_volume_level=on_volume_level,
             )
             # is_runningがFalseになるまで待機
             while self.is_running:
                 import time
+
                 time.sleep(0.1)
         except Exception as e:
             logger.error(f"キャプチャエラー: {e}")
@@ -241,11 +239,10 @@ class RealtimeTranslationClient:
             while self.is_running:
                 if self.show_volume_meter:
                     meter = create_volume_meter(
-                        self.last_volume_db,
-                        self.last_is_speech
+                        self.last_volume_db, self.last_is_speech
                     )
                     # カーソルを行頭に戻して上書き
-                    print(f"\r{meter}", end='', flush=True)
+                    print(f"\r{meter}", end="", flush=True)
                 await asyncio.sleep(0.05)  # 20fps
         except asyncio.CancelledError:
             pass
@@ -266,14 +263,15 @@ class RealtimeTranslationClient:
             if self.show_volume_meter:
                 print()  # 音量メーターの行を改行
 
-            logger.info(f"チャンク#{self.chunk_count} 送信中... ({len(audio_data)} bytes)")
+            logger.info(
+                f"チャンク#{self.chunk_count} 送信中... ({len(audio_data)} bytes)"
+            )
             await self.websocket.send(audio_data)
 
             # 送信時刻を記録（レスポンス時間計測用）
-            self.chunk_times.append({
-                "chunk_id": self.chunk_count,
-                "sent_at": chunk_start
-            })
+            self.chunk_times.append(
+                {"chunk_id": self.chunk_count, "sent_at": chunk_start}
+            )
 
         except Exception as e:
             logger.error(f"送信エラー: {e}")
@@ -310,8 +308,7 @@ class RealtimeTranslationClient:
 
             # 処理時間計算
             chunk_info = next(
-                (c for c in self.chunk_times if c["chunk_id"] == chunk_id),
-                None
+                (c for c in self.chunk_times if c["chunk_id"] == chunk_id), None
             )
             if chunk_info:
                 elapsed = (datetime.now() - chunk_info["sent_at"]).total_seconds()
@@ -337,7 +334,9 @@ class RealtimeTranslationClient:
             accumulated = data.get("accumulated_seconds", 0)
             until_transcription = data.get("chunks_until_transcription", 0)
             if until_transcription > 0:
-                logger.info(f"📦 音声蓄積中... {accumulated:.1f}秒（残り{until_transcription}チャンクで処理）")
+                logger.info(
+                    f"📦 音声蓄積中... {accumulated:.1f}秒（残り{until_transcription}チャンクで処理）"
+                )
 
         elif msg_type == "transcription_update":
             # 累積バッファモードの文字起こし結果
@@ -359,8 +358,7 @@ class RealtimeTranslationClient:
 
             # 処理時間計算
             chunk_info = next(
-                (c for c in self.chunk_times if c["chunk_id"] == chunk_id),
-                None
+                (c for c in self.chunk_times if c["chunk_id"] == chunk_id), None
             )
             if chunk_info:
                 elapsed = (datetime.now() - chunk_info["sent_at"]).total_seconds()
@@ -399,7 +397,9 @@ class RealtimeTranslationClient:
                 print(f"   {self.confirmed_hiragana}")
                 print(f"\n📊 統計:")
                 print(f"   - 処理チャンク数: {statistics.get('chunk_count', 0)}")
-                print(f"   - 累積音声: {statistics.get('audio_duration_seconds', 0):.1f}秒")
+                print(
+                    f"   - 累積音声: {statistics.get('audio_duration_seconds', 0):.1f}秒"
+                )
                 print(f"{'='*60}\n")
             else:
                 total_chunks = data.get("total_chunks", 0)
@@ -439,15 +439,17 @@ class RealtimeTranslationClient:
         if self.chunk_count == 0:
             return
 
-        avg_time = self.total_processing_time / self.chunk_count if self.chunk_count > 0 else 0
+        avg_time = (
+            self.total_processing_time / self.chunk_count if self.chunk_count > 0 else 0
+        )
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("📊 処理統計")
-        print("="*60)
+        print("=" * 60)
         print(f"合計チャンク数  : {self.chunk_count}")
         print(f"平均処理時間    : {avg_time:.2f}秒/チャンク")
         print(f"合計処理時間    : {self.total_processing_time:.2f}秒")
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
 
 
 def main():
@@ -455,68 +457,64 @@ def main():
         description="リアルタイム音声翻訳クライアント（Phase 3.2 + 累積バッファ対応）"
     )
     parser.add_argument(
-        "--url",
-        default=None,
-        help="WebSocketサーバーURL（--cumulativeで自動設定）"
+        "--url", default=None, help="WebSocketサーバーURL（--cumulativeで自動設定）"
     )
     parser.add_argument(
         "--cumulative",
         action="store_true",
-        help="累積バッファモード（リアルタイム文字起こし）を有効化"
+        help="累積バッファモード（リアルタイム文字起こし）を有効化",
     )
     parser.add_argument(
         "--chunk-duration",
         type=float,
         default=3.0,
-        help="固定チャンク長（秒）- VAD無効時に使用（デフォルト: 3.0）"
+        help="固定チャンク長（秒）- VAD無効時に使用（デフォルト: 3.0）",
     )
     parser.add_argument(
         "--device",
         type=int,
         default=None,
-        help="使用する音声デバイスのインデックス（デフォルト: システムデフォルト）"
+        help="使用する音声デバイスのインデックス（デフォルト: システムデフォルト）",
     )
     parser.add_argument(
         "--list-devices",
         action="store_true",
-        help="利用可能な音声デバイスを表示して終了"
+        help="利用可能な音声デバイスを表示して終了",
     )
 
     # VAD設定（Phase 3.2）
     parser.add_argument(
         "--enable-vad",
         action="store_true",
-        help="VAD（Voice Activity Detection）を有効化"
+        help="VAD（Voice Activity Detection）を有効化",
     )
     parser.add_argument(
         "--vad-aggressiveness",
         type=int,
         default=2,
         choices=[0, 1, 2, 3],
-        help="VAD感度（0-3、3が最も厳密、デフォルト: 2）"
+        help="VAD感度（0-3、3が最も厳密、デフォルト: 2）",
     )
     parser.add_argument(
         "--silence-duration-ms",
         type=int,
         default=500,
-        help="無音判定時間（ミリ秒、デフォルト: 500）"
+        help="無音判定時間（ミリ秒、デフォルト: 500）",
     )
     parser.add_argument(
         "--min-chunk-duration-ms",
         type=int,
         default=500,
-        help="最小チャンク長（ミリ秒、デフォルト: 500）"
+        help="最小チャンク長（ミリ秒、デフォルト: 500）",
     )
     parser.add_argument(
         "--max-chunk-duration-ms",
         type=int,
         default=10000,
-        help="最大チャンク長（ミリ秒、デフォルト: 10000）"
+        help="最大チャンク長（ミリ秒、デフォルト: 10000）",
     )
     parser.add_argument(
-        "--no-volume-meter",
-        action="store_true",
-        help="音量メーター表示を無効化"
+        "--no-volume-meter", action="store_true", help="音量メーター表示を無効化"
     )
 
     args = parser.parse_args()
@@ -538,16 +536,18 @@ def main():
     client = RealtimeTranslationClient(url, device_index=args.device)
 
     try:
-        asyncio.run(client.run(
-            chunk_duration=args.chunk_duration,
-            enable_vad=args.enable_vad,
-            vad_aggressiveness=args.vad_aggressiveness,
-            silence_duration_ms=args.silence_duration_ms,
-            min_chunk_duration_ms=args.min_chunk_duration_ms,
-            max_chunk_duration_ms=args.max_chunk_duration_ms,
-            show_volume_meter=not args.no_volume_meter,
-            cumulative_mode=args.cumulative
-        ))
+        asyncio.run(
+            client.run(
+                chunk_duration=args.chunk_duration,
+                enable_vad=args.enable_vad,
+                vad_aggressiveness=args.vad_aggressiveness,
+                silence_duration_ms=args.silence_duration_ms,
+                min_chunk_duration_ms=args.min_chunk_duration_ms,
+                max_chunk_duration_ms=args.max_chunk_duration_ms,
+                show_volume_meter=not args.no_volume_meter,
+                cumulative_mode=args.cumulative,
+            )
+        )
     except KeyboardInterrupt:
         logger.info("終了します")
 

@@ -4,9 +4,17 @@ from typing import List, Dict
 
 # 認識対象の単位
 UNITS = [
-    "個", "本", "枚", "袋", "パック",
-    "g", "kg", "ml", "l",
-    "少々", "適量",
+    "個",
+    "本",
+    "枚",
+    "袋",
+    "パック",
+    "g",
+    "kg",
+    "ml",
+    "l",
+    "少々",
+    "適量",
 ]
 
 UNIT_PATTERN = "|".join(UNITS)
@@ -22,6 +30,7 @@ ITEM_PATTERN = re.compile(
     re.VERBOSE,
 )
 
+
 def parse_inventory(text: str) -> Dict[str, List[Dict]]:
     items = []
 
@@ -34,15 +43,18 @@ def parse_inventory(text: str) -> Dict[str, List[Dict]]:
         if not _is_valid_item_name(item):
             continue
 
-        items.append({
-            "name": item,
-            "quantity": int(quantity) if quantity else 1,
-            "unit": unit or "個",
-        })
+        items.append(
+            {
+                "name": item,
+                "quantity": int(quantity) if quantity else 1,
+                "unit": unit or "個",
+            }
+        )
 
     logger.info(f"🔍 解析結果: {items}")
 
     return {"items": items}
+
 
 def _is_valid_item_name(item: str) -> bool:
     # 2文字未満は不可

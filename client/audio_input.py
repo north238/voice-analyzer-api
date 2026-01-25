@@ -65,7 +65,9 @@ class AudioSplitter:
         """
         chunks = []
         audio_length_ms = len(audio)
-        num_chunks = (audio_length_ms + self.chunk_duration_ms - 1) // self.chunk_duration_ms
+        num_chunks = (
+            audio_length_ms + self.chunk_duration_ms - 1
+        ) // self.chunk_duration_ms
 
         # 最小チャンク長（1秒未満は処理しない）
         min_chunk_duration_ms = 1000
@@ -81,7 +83,9 @@ class AudioSplitter:
             # チャンク長が1秒未満の場合はスキップ
             chunk_duration_ms = len(chunk)
             if chunk_duration_ms < min_chunk_duration_ms:
-                print(f"   - チャンク {i}: {start_ms / 1000:.2f}秒 ~ {end_ms / 1000:.2f}秒 ⚠️ スキップ（{chunk_duration_ms}ms < 1秒）")
+                print(
+                    f"   - チャンク {i}: {start_ms / 1000:.2f}秒 ~ {end_ms / 1000:.2f}秒 ⚠️ スキップ（{chunk_duration_ms}ms < 1秒）"
+                )
                 continue
 
             chunks.append(chunk)

@@ -167,7 +167,9 @@ class Translator:
         for sentence in sentences:
             sentence = sentence.strip()
             if sentence:
-                result.append(sentence + "。" if not sentence.endswith("。") else sentence)
+                result.append(
+                    sentence + "。" if not sentence.endswith("。") else sentence
+                )
         return result
 
     def _translate_long_text(self, text: str) -> str:

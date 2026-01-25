@@ -6,8 +6,13 @@
 }
 
 body {
-    font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: #F7F8FA;
+    font-family:
+        "Noto Sans JP",
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+    background: #f7f8fa;
     color: #333;
     min-height: 100vh;
     padding: 40px 20px;
@@ -43,23 +48,23 @@ body {
 }
 
 .toast.info {
-    border-left-color: #3B82F6;
-    background: #EFF6FF;
+    border-left-color: #3b82f6;
+    background: #eff6ff;
 }
 
 .toast.success {
-    border-left-color: #10B981;
-    background: #F0FDF4;
+    border-left-color: #10b981;
+    background: #f0fdf4;
 }
 
 .toast.error {
-    border-left-color: #EF4444;
-    background: #FEF2F2;
+    border-left-color: #ef4444;
+    background: #fef2f2;
 }
 
 .toast.warning {
-    border-left-color: #F59E0B;
-    background: #FFF7ED;
+    border-left-color: #f59e0b;
+    background: #fff7ed;
 }
 
 .toast-icon {
@@ -77,6 +82,7 @@ body {
         transform: translateX(100%);
         opacity: 0;
     }
+
     to {
         transform: translateX(0);
         opacity: 1;
@@ -88,6 +94,7 @@ body {
         transform: translateX(0);
         opacity: 1;
     }
+
     to {
         transform: translateX(100%);
         opacity: 0;
@@ -106,21 +113,21 @@ body {
 /* ヘッダー */
 header {
     background: white;
-    color: #1F2937;
+    color: #1f2937;
     padding: 40px 40px 30px;
-    border-bottom: 1px solid #E5E7EB;
+    border-bottom: 1px solid #e5e7eb;
 }
 
 header h1 {
     font-size: 1.75rem;
     font-weight: 700;
     margin-bottom: 8px;
-    color: #1F2937;
+    color: #1f2937;
 }
 
 header .subtitle {
     font-size: 0.875rem;
-    color: #6B7280;
+    color: #6b7280;
     font-weight: 400;
 }
 
@@ -137,7 +144,7 @@ section h2 {
     font-size: 1.125rem;
     font-weight: 600;
     margin-bottom: 16px;
-    color: #1F2937;
+    color: #1f2937;
 }
 
 /* コントロール */
@@ -163,22 +170,22 @@ section h2 {
 .device-selector-wrapper select {
     flex: 1;
     padding: 10px 14px;
-    border: 1.5px solid #E5E7EB;
+    border: 1.5px solid #e5e7eb;
     border-radius: 8px;
     font-size: 0.9rem;
-    font-family: 'Noto Sans JP', sans-serif;
+    font-family: "Noto Sans JP", sans-serif;
     background: white;
-    color: #1F2937;
+    color: #1f2937;
     transition: all 0.2s ease;
 }
 
 .device-selector-wrapper select:hover {
-    border-color: #D1D5DB;
+    border-color: #d1d5db;
 }
 
 .device-selector-wrapper select:focus {
     outline: none;
-    border-color: #3B82F6;
+    border-color: #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
@@ -192,7 +199,7 @@ section h2 {
     padding: 12px 24px;
     font-size: 0.9rem;
     font-weight: 500;
-    font-family: 'Noto Sans JP', sans-serif;
+    font-family: "Noto Sans JP", sans-serif;
     border: none;
     border-radius: 8px;
     cursor: pointer;
@@ -200,25 +207,25 @@ section h2 {
 }
 
 .btn-primary {
-    background: #3B82F6;
+    background: #3b82f6;
     color: white;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .btn-primary:hover:not(:disabled) {
-    background: #2563EB;
+    background: #2563eb;
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
     transform: translateY(-1px);
 }
 
 .btn-secondary {
-    background: #EF4444;
+    background: #ef4444;
     color: white;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .btn-secondary:hover:not(:disabled) {
-    background: #DC2626;
+    background: #dc2626;
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
     transform: translateY(-1px);
 }
@@ -244,33 +251,40 @@ section h2 {
 }
 
 .status.info {
-    background: #EFF6FF;
-    color: #1E40AF;
-    border-color: #BFDBFE;
+    background: #eff6ff;
+    color: #1e40af;
+    border-color: #bfdbfe;
 }
 
 .status.success {
-    background: #F0FDF4;
+    background: #f0fdf4;
     color: #166534;
-    border-color: #BBF7D0;
+    border-color: #bbf7d0;
 }
 
 .status.error {
-    background: #FEF2F2;
-    color: #991B1B;
-    border-color: #FECACA;
+    background: #fef2f2;
+    color: #991b1b;
+    border-color: #fecaca;
 }
 
 .status.recording {
-    background: #FFF7ED;
-    color: #C2410C;
-    border-color: #FED7AA;
+    background: #fff7ed;
+    color: #c2410c;
+    border-color: #fed7aa;
     animation: pulse 2s infinite;
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.8; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.8;
+    }
 }
 
 /* 音量メーター */
@@ -290,7 +304,7 @@ section h2 {
 .volume-bar-container {
     flex: 1;
     height: 6px;
-    background: #E5E7EB;
+    background: #e5e7eb;
     border-radius: 3px;
     overflow: hidden;
 }
@@ -298,7 +312,7 @@ section h2 {
 .volume-bar {
     height: 100%;
     width: 0%;
-    background: #3B82F6;
+    background: #3b82f6;
     transition: width 0.1s ease;
     border-radius: 3px;
 }
@@ -315,7 +329,7 @@ section h2 {
 .result-box h3 {
     font-size: 0.875rem;
     font-weight: 500;
-    color: #6B7280;
+    color: #6b7280;
     margin-bottom: 8px;
 }
 
@@ -327,39 +341,39 @@ section h2 {
     line-height: 1.8;
     white-space: pre-wrap;
     word-wrap: break-word;
-    border: 1.5px solid #E5E7EB;
-    background: #FAFBFC;
+    border: 1.5px solid #e5e7eb;
+    background: #fafbfc;
 }
 
 .text-display.confirmed {
     background: white;
-    border-color: #3B82F6;
+    border-color: #3b82f6;
     font-weight: 500;
-    color: #1F2937;
+    color: #1f2937;
 }
 
 .text-display.tentative {
-    background: #F9FAFB;
-    border-color: #D1D5DB;
+    background: #f9fafb;
+    border-color: #d1d5db;
     border-style: dashed;
     font-style: italic;
-    color: #6B7280;
+    color: #6b7280;
 }
 
 .text-display.hiragana {
-    background: #FFFBEB;
-    border-color: #FCD34D;
-    color: #92400E;
+    background: #fffbeb;
+    border-color: #fcd34d;
+    color: #92400e;
 }
 
 .text-display .confirmed {
     font-weight: 500;
-    color: #1F2937;
+    color: #1f2937;
 }
 
 .text-display .tentative {
     font-style: italic;
-    color: #9CA3AF;
+    color: #9ca3af;
 }
 
 /* パフォーマンス情報 */
@@ -371,21 +385,21 @@ section h2 {
 
 .performance-info div {
     padding: 16px;
-    background: #F9FAFB;
+    background: #f9fafb;
     border-radius: 8px;
-    border-left: 3px solid #3B82F6;
+    border-left: 3px solid #3b82f6;
     font-size: 0.875rem;
     color: #374151;
 }
 
 /* フッター */
 footer {
-    background: #F9FAFB;
+    background: #f9fafb;
     padding: 24px;
     text-align: center;
-    color: #6B7280;
+    color: #6b7280;
     font-size: 0.875rem;
-    border-top: 1px solid #E5E7EB;
+    border-top: 1px solid #e5e7eb;
 }
 
 /* レスポンシブ対応 */
@@ -433,14 +447,14 @@ footer {
 }
 
 ::-webkit-scrollbar-track {
-    background: #F3F4F6;
+    background: #f3f4f6;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #D1D5DB;
+    background: #d1d5db;
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #9CA3AF;
+    background: #9ca3af;
 }
