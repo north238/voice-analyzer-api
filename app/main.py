@@ -11,13 +11,17 @@ from services.async_processor import (
     translate_async,
     add_punctuation_async,
 )
+from services.cumulative_buffer import (
+    CumulativeBuffer,
+    CumulativeBufferConfig,
+)
 from utils.normalizer import JapaneseNormalizer
 from utils.performance_monitor import PerformanceMonitor
 from utils.logger import logger
 from config import settings
 import time
 import json
-from typing import Optional
+from typing import Optional, Dict
 
 app = FastAPI()
 
@@ -32,6 +36,9 @@ session_manager = get_session_manager(
 
 # WebSocketマネージャーの初期化
 ws_manager = get_websocket_manager()
+
+# 累積バッファの管理（セッションIDをキーにした辞書）
+cumulative_buffers: Dict[str, CumulativeBuffer] = {}
 
 @app.post("/transcribe")
 async def transcribe(
@@ -497,3 +504,340 @@ async def process_websocket_chunk(
     except Exception as e:
         logger.exception(f"❌ チャンク処理エラー: {e}")
         await ws_manager.send_error(session_id, f"チャンク処理エラー: {str(e)}")
+
+
+@app.websocket("/ws/transcribe-stream-cumulative")
+async def websocket_transcribe_stream_cumulative(websocket: WebSocket):
+    """
+    累積バッファ方式によるリアルタイム文字起こし
+
+    プロトコル:
+    1. クライアントが接続
+    2. サーバーが {"type": "connected", "session_id": "..."} を送信
+    3. クライアントが音声チャンク（バイナリ）を送信
+    4. サーバーが音声を累積し、一定間隔で全体を再文字起こし
+    5. サーバーが確定/暫定テキストを送信
+    6. 3-5を繰り返し
+    7. クライアントが {"type": "end"} を送信してセッション終了
+    """
+    connection = None
+    session_id = None
+
+    try:
+        # 接続を受け付け
+        connection = await ws_manager.connect(websocket)
+        session_id = connection.session_id
+
+        # セッションマネージャーに登録
+        session_manager.create_session(session_id)
+
+        # 累積バッファを作成
+        buffer_config = CumulativeBufferConfig(
+            max_audio_duration_seconds=settings.CUMULATIVE_MAX_AUDIO_SECONDS,
+            transcription_interval_chunks=settings.CUMULATIVE_TRANSCRIPTION_INTERVAL,
+            stable_text_threshold=settings.CUMULATIVE_STABLE_THRESHOLD,
+        )
+        cumulative_buffers[session_id] = CumulativeBuffer(buffer_config)
+
+        logger.info(f"🚀 累積バッファセッション開始: {session_id}")
+
+        while True:
+            try:
+                # メッセージを受信
+                message = await websocket.receive()
+
+                if message["type"] == "websocket.disconnect":
+                    break
+
+                # テキストメッセージ（制御コマンド）
+                if "text" in message:
+                    data = json.loads(message["text"])
+                    msg_type = data.get("type", "")
+
+                    if msg_type == "end":
+                        # セッション終了処理
+                        await finalize_cumulative_session(session_id, connection)
+                        break
+
+                    elif msg_type == "ping":
+                        await ws_manager.send_json(session_id, {"type": "pong"})
+
+                # バイナリメッセージ（音声データ）
+                elif "bytes" in message:
+                    audio_data = message["bytes"]
+                    chunk_id = connection.increment_chunk()
+
+                    logger.info(
+                        f"📦 累積チャンク受信: session={session_id}, "
+                        f"chunk={chunk_id}, size={len(audio_data)}bytes"
+                    )
+
+                    # 累積バッファで処理
+                    await process_cumulative_chunk(
+                        session_id=session_id,
+                        chunk_id=chunk_id,
+                        audio_data=audio_data,
+                        connection=connection,
+                    )
+
+            except WebSocketDisconnect:
+                logger.info(f"🔌 WebSocket切断: session={session_id}")
+                break
+
+    except Exception as e:
+        logger.exception(f"❌ 累積バッファWebSocketエラー: {e}")
+        if session_id:
+            await ws_manager.send_error(session_id, str(e))
+
+    finally:
+        # クリーンアップ
+        if session_id:
+            await ws_manager.disconnect(session_id)
+            # 累積バッファを削除
+            if session_id in cumulative_buffers:
+                del cumulative_buffers[session_id]
+                logger.info(f"🧹 累積バッファ削除: {session_id}")
+
+
+async def process_cumulative_chunk(
+    session_id: str,
+    chunk_id: int,
+    audio_data: bytes,
+    connection,
+):
+    """
+    累積バッファ方式でチャンクを処理
+
+    Args:
+        session_id: セッションID
+        chunk_id: チャンクID
+        audio_data: 音声データ
+        connection: WebSocket接続情報
+    """
+    monitor = connection.monitor
+    buffer = cumulative_buffers.get(session_id)
+
+    if not buffer:
+        logger.error(f"❌ 累積バッファが見つかりません: {session_id}")
+        await ws_manager.send_error(session_id, "累積バッファが見つかりません")
+        return
+
+    try:
+        # 音声をバッファに追加
+        should_transcribe = buffer.add_audio_chunk(audio_data)
+
+        # 蓄積中の通知
+        chunks_until_transcription = (
+            buffer.config.transcription_interval_chunks
+            - (buffer.chunk_count % buffer.config.transcription_interval_chunks)
+        )
+        if chunks_until_transcription == buffer.config.transcription_interval_chunks:
+            chunks_until_transcription = 0
+
+        await ws_manager.send_json(session_id, {
+            "type": "accumulating",
+            "chunk_id": chunk_id,
+            "accumulated_seconds": buffer.current_audio_duration,
+            "chunks_until_transcription": chunks_until_transcription,
+        })
+
+        # 再文字起こしが必要な場合
+        if should_transcribe:
+            await perform_cumulative_transcription(
+                session_id=session_id,
+                chunk_id=chunk_id,
+                buffer=buffer,
+                monitor=monitor,
+            )
+
+    except Exception as e:
+        logger.exception(f"❌ 累積チャンク処理エラー: {e}")
+        await ws_manager.send_error(session_id, f"累積チャンク処理エラー: {str(e)}")
+
+
+async def perform_cumulative_transcription(
+    session_id: str,
+    chunk_id: int,
+    buffer: CumulativeBuffer,
+    monitor: PerformanceMonitor,
+):
+    """
+    累積音声の全体文字起こしを実行
+
+    Args:
+        session_id: セッションID
+        chunk_id: チャンクID
+        buffer: 累積バッファ
+        monitor: パフォーマンスモニター
+    """
+    request_start_time = time.time()
+
+    try:
+        # 進捗通知
+        await ws_manager.send_progress(
+            session_id, "transcribing", "累積音声を文字起こし中...", chunk_id
+        )
+
+        # 累積音声を取得
+        accumulated_audio = buffer.get_accumulated_audio()
+        if not accumulated_audio:
+            logger.warning(f"⚠️ 累積音声が空です: {session_id}")
+            return
+
+        # initial_promptを取得（前回の確定テキスト）
+        initial_prompt = buffer.get_initial_prompt()
+
+        # 文字起こし実行
+        with monitor.measure("transcription"):
+            text = await transcribe_async(
+                accumulated_audio,
+                suffix=".wav",
+                initial_prompt=initial_prompt
+            )
+
+        transcription_time = monitor.get_last_measurement("transcription")
+        logger.info(
+            f"📝 累積文字起こし完了 ({transcription_time:.2f}秒, "
+            f"{buffer.current_audio_duration:.1f}秒分): {text}"
+        )
+
+        # 無音の場合
+        if not text:
+            await ws_manager.send_json(session_id, {
+                "type": "transcription_update",
+                "chunk_id": chunk_id,
+                "transcription": {
+                    "confirmed": buffer.confirmed_text,
+                    "tentative": "",
+                    "full_text": buffer.confirmed_text,
+                },
+                "hiragana": {
+                    "confirmed": buffer.confirmed_hiragana,
+                    "tentative": "",
+                },
+                "is_silent": True,
+            })
+            return
+
+        # NGワードフィルタリング
+        if not is_valid_text(text):
+            logger.warning(f"⚠️ 無効な内容検出: {text}")
+            return
+
+        # 句読点挿入
+        await ws_manager.send_progress(
+            session_id, "punctuation", "句読点挿入中...", chunk_id
+        )
+        with monitor.measure("punctuation"):
+            text_with_punctuation = await add_punctuation_async(text)
+
+        # ひらがな変換関数
+        def hiragana_converter(t: str) -> str:
+            return normalizer.to_hiragana(t, keep_punctuation=True)
+
+        # 差分抽出と結果更新
+        await ws_manager.send_progress(
+            session_id, "normalizing", "ひらがな変換中...", chunk_id
+        )
+        with monitor.measure("normalization"):
+            result = buffer.update_transcription(
+                text_with_punctuation,
+                hiragana_converter=hiragana_converter
+            )
+
+        normalization_time = monitor.get_last_measurement("normalization")
+        logger.info(
+            f"📝 差分抽出完了 ({normalization_time:.2f}秒): "
+            f"確定={len(result.confirmed_text)}文字, "
+            f"暫定={len(result.tentative_text)}文字"
+        )
+
+        # 処理時間
+        total_time = time.time() - request_start_time
+
+        # 結果を送信
+        await ws_manager.send_json(session_id, {
+            "type": "transcription_update",
+            "chunk_id": chunk_id,
+            "transcription": {
+                "confirmed": result.confirmed_text,
+                "tentative": result.tentative_text,
+                "full_text": result.full_text,
+            },
+            "hiragana": {
+                "confirmed": result.confirmed_hiragana,
+                "tentative": result.tentative_hiragana,
+            },
+            "performance": {
+                "transcription_time": transcription_time,
+                "total_time": total_time,
+                "accumulated_audio_seconds": buffer.current_audio_duration,
+            },
+            "is_final": False,
+        })
+
+        logger.info(
+            f"✅ 累積文字起こし送信完了: session={session_id}, "
+            f"chunk={chunk_id}, time={total_time:.3f}秒"
+        )
+
+    except Exception as e:
+        logger.exception(f"❌ 累積文字起こしエラー: {e}")
+        await ws_manager.send_error(session_id, f"累積文字起こしエラー: {str(e)}")
+
+
+async def finalize_cumulative_session(session_id: str, connection):
+    """
+    累積バッファセッションを終了し、最終結果を送信
+
+    Args:
+        session_id: セッションID
+        connection: WebSocket接続情報
+    """
+    buffer = cumulative_buffers.get(session_id)
+    if not buffer:
+        logger.warning(f"⚠️ 累積バッファが見つかりません: {session_id}")
+        return
+
+    try:
+        # 残りのチャンクがあれば最終処理
+        if buffer.chunk_count % buffer.config.transcription_interval_chunks != 0:
+            # 最後の文字起こしを実行
+            await perform_cumulative_transcription(
+                session_id=session_id,
+                chunk_id=buffer.chunk_count,
+                buffer=buffer,
+                monitor=connection.monitor,
+            )
+
+        # ひらがな変換関数
+        def hiragana_converter(t: str) -> str:
+            return normalizer.to_hiragana(t, keep_punctuation=True)
+
+        # セッション終了、全テキストを確定
+        final_result = buffer.finalize(hiragana_converter=hiragana_converter)
+
+        # 最終結果を送信
+        await ws_manager.send_json(session_id, {
+            "type": "session_end",
+            "transcription": {
+                "confirmed": final_result.confirmed_text,
+                "tentative": "",
+                "full_text": final_result.full_text,
+            },
+            "hiragana": {
+                "confirmed": final_result.confirmed_hiragana,
+                "tentative": "",
+            },
+            "statistics": buffer.get_stats(),
+            "is_final": True,
+        })
+
+        logger.info(
+            f"🏁 累積バッファセッション終了: session={session_id}, "
+            f"最終テキスト={len(final_result.confirmed_text)}文字"
+        )
+
+    except Exception as e:
+        logger.exception(f"❌ セッション終了処理エラー: {e}")
+        await ws_manager.send_error(session_id, f"セッション終了処理エラー: {str(e)}")

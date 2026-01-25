@@ -48,13 +48,18 @@ def get_whisper_model() -> WhisperModel:
     return _whisper_model
 
 
-def _transcribe_sync(audio_data: bytes, suffix: str = ".wav") -> str:
+def _transcribe_sync(
+    audio_data: bytes,
+    suffix: str = ".wav",
+    initial_prompt: Optional[str] = None
+) -> str:
     """
     同期的な音声文字起こし処理
 
     Args:
         audio_data: 音声データのバイト列
         suffix: ファイル拡張子
+        initial_prompt: 文脈として使用する前回の文字起こし結果
 
     Returns:
         str: 文字起こし結果
@@ -100,15 +105,23 @@ def _transcribe_sync(audio_data: bytes, suffix: str = ".wav") -> str:
 
         # Whisperで文字起こし
         model = get_whisper_model()
-        segments, info = model.transcribe(
-            converted_path,
-            language="ja",
-            beam_size=settings.WHISPER_BEAM_SIZE,
-            best_of=settings.WHISPER_BEST_OF,
-            temperature=settings.WHISPER_TEMPERATURE,
-            vad_filter=settings.WHISPER_VAD_ENABLED,
-            vad_parameters=vad_options,
-        )
+
+        # transcribeのパラメータを構築
+        transcribe_params = {
+            "language": "ja",
+            "beam_size": settings.WHISPER_BEAM_SIZE,
+            "best_of": settings.WHISPER_BEST_OF,
+            "temperature": settings.WHISPER_TEMPERATURE,
+            "vad_filter": settings.WHISPER_VAD_ENABLED,
+            "vad_parameters": vad_options,
+        }
+
+        # initial_promptが指定されている場合は追加
+        if initial_prompt:
+            transcribe_params["initial_prompt"] = initial_prompt
+            logger.debug(f"📝 initial_prompt設定: {initial_prompt[:50]}...")
+
+        segments, info = model.transcribe(converted_path, **transcribe_params)
 
         # セグメントからテキストを抽出
         texts = [s.text for s in segments if s.text.strip()]
@@ -135,20 +148,34 @@ def _transcribe_sync(audio_data: bytes, suffix: str = ".wav") -> str:
             os.remove(converted_path)
 
 
-async def transcribe_async(audio_data: bytes, suffix: str = ".wav") -> str:
+async def transcribe_async(
+    audio_data: bytes,
+    suffix: str = ".wav",
+    initial_prompt: Optional[str] = None
+) -> str:
     """
     非同期的な音声文字起こし処理
 
     Args:
         audio_data: 音声データのバイト列
         suffix: ファイル拡張子
+        initial_prompt: 文脈として使用する前回の文字起こし結果
 
     Returns:
         str: 文字起こし結果
     """
     loop = asyncio.get_event_loop()
     executor = get_executor()
-    return await loop.run_in_executor(executor, _transcribe_sync, audio_data, suffix)
+
+    # functools.partialでinitial_promptを渡す
+    from functools import partial
+    transcribe_func = partial(
+        _transcribe_sync,
+        audio_data,
+        suffix,
+        initial_prompt
+    )
+    return await loop.run_in_executor(executor, transcribe_func)
 
 
 def _normalize_sync(text: str, keep_punctuation: bool = True) -> str:
