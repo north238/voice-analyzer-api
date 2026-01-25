@@ -3,6 +3,8 @@
  *
  * マイクから音声を16kHz, モノラル, 16-bit PCMでキャプチャし、
  * WAVフォーマットに変換してコールバックに渡します。
+ *
+ * AudioWorkletを使用して、メインスレッドをブロックせずに音声処理を行います。
  */
 class AudioCapture {
     constructor(config = {}) {
@@ -11,12 +13,12 @@ class AudioCapture {
 
         this.mediaStream = null;
         this.audioContext = null;
-        this.scriptProcessor = null;
-        this.audioBuffer = [];
+        this.workletNode = null;
         this.isCapturing = false;
 
         this.onChunkCallback = null;
         this.onVolumeLevelCallback = null;
+        this._remainingBufferResolve = null;
     }
 
     /**
@@ -34,77 +36,89 @@ class AudioCapture {
                     channelCount: 1, // モノラル
                     echoCancellation: true,
                     noiseSuppression: true,
-                }
+                },
             });
 
             // AudioContext作成（16kHzにリサンプリング）
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                sampleRate: this.sampleRate
+                sampleRate: this.sampleRate,
             });
+
+            // AudioWorkletプロセッサーをロード
+            await this.audioContext.audioWorklet.addModule("/static/js/audio-processor.js");
 
             const source = this.audioContext.createMediaStreamSource(this.mediaStream);
 
-            // ScriptProcessorNodeでPCMデータ取得
-            this.scriptProcessor = this.audioContext.createScriptProcessor(4096, 1, 1);
-            this.scriptProcessor.onaudioprocess = (event) => {
-                this._processAudio(event);
+            // AudioWorkletNodeを作成
+            this.workletNode = new AudioWorkletNode(this.audioContext, "voice-analyzer-processor");
+
+            // チャンクサイズをワークレットに送信
+            const samplesPerChunk = (this.sampleRate * this.chunkDurationMs) / 1000;
+            this.workletNode.port.postMessage({
+                type: "setChunkSize",
+                chunkSize: samplesPerChunk,
+            });
+
+            // ワークレットからのメッセージを処理
+            this.workletNode.port.onmessage = (event) => {
+                this._handleWorkletMessage(event.data);
             };
 
-            source.connect(this.scriptProcessor);
-            this.scriptProcessor.connect(this.audioContext.destination);
+            source.connect(this.workletNode);
+            this.workletNode.connect(this.audioContext.destination);
 
             this.onChunkCallback = onChunk;
             this.onVolumeLevelCallback = onVolumeLevel;
             this.isCapturing = true;
 
+            console.log("✅ AudioWorkletベースの音声キャプチャを開始");
         } catch (error) {
-            console.error('音声キャプチャ開始エラー:', error);
+            console.error("音声キャプチャ開始エラー:", error);
             throw error;
         }
     }
 
     /**
-     * 音声データの処理
+     * ワークレットからのメッセージを処理
      *
-     * @param {AudioProcessingEvent} event
+     * @param {Object} data - メッセージデータ
      */
-    _processAudio(event) {
-        const inputData = event.inputBuffer.getChannelData(0); // Float32Array
+    _handleWorkletMessage(data) {
+        switch (data.type) {
+            case "volumeLevel":
+                if (this.onVolumeLevelCallback) {
+                    this.onVolumeLevelCallback(data.volumeDb);
+                }
+                break;
 
-        // 音量レベル計算（RMS）
-        const rms = Math.sqrt(
-            inputData.reduce((sum, val) => sum + val * val, 0) / inputData.length
-        );
-        const volumeDb = 20 * Math.log10(rms + 1e-10);
+            case "audioChunk":
+                // Float32 → Int16 PCMに変換
+                const pcmData = this._float32ToInt16(new Float32Array(data.data));
 
-        if (this.onVolumeLevelCallback) {
-            this.onVolumeLevelCallback(volumeDb);
-        }
+                // WAVヘッダーを追加
+                const wavData = this._createWavFile(pcmData);
 
-        // バッファに蓄積
-        this.audioBuffer.push(...inputData);
+                if (this.onChunkCallback) {
+                    this.onChunkCallback(wavData);
+                }
+                break;
 
-        // バッファサイズ制限（最大10秒分）
-        const maxBufferSize = this.sampleRate * 10;
-        if (this.audioBuffer.length > maxBufferSize) {
-            this.audioBuffer = this.audioBuffer.slice(-maxBufferSize);
-        }
+            case "remainingBuffer":
+                // getRemainingBuffer()からのPromiseを解決
+                if (this._remainingBufferResolve) {
+                    if (data.data && data.data.length > 0) {
+                        const pcmData = this._float32ToInt16(new Float32Array(data.data));
+                        const wavData = this._createWavFile(pcmData);
+                        this._remainingBufferResolve(wavData);
+                    } else {
+                        this._remainingBufferResolve(null);
+                    }
+                    this._remainingBufferResolve = null;
+                }
+                break;
 
-        // チャンクサイズに達したら送信
-        const samplesPerChunk = (this.sampleRate * this.chunkDurationMs) / 1000;
-        if (this.audioBuffer.length >= samplesPerChunk) {
-            const chunkData = this.audioBuffer.slice(0, samplesPerChunk);
-            this.audioBuffer = this.audioBuffer.slice(samplesPerChunk);
-
-            // Float32 → Int16 PCMに変換
-            const pcmData = this._float32ToInt16(chunkData);
-
-            // WAVヘッダーを追加
-            const wavData = this._createWavFile(pcmData);
-
-            if (this.onChunkCallback) {
-                this.onChunkCallback(wavData);
-            }
+            default:
+                console.warn("⚠️ 未知のワークレットメッセージ:", data.type);
         }
     }
 
@@ -118,7 +132,7 @@ class AudioCapture {
         const int16Array = new Int16Array(float32Array.length);
         for (let i = 0; i < float32Array.length; i++) {
             const s = Math.max(-1, Math.min(1, float32Array[i]));
-            int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
         }
         return int16Array;
     }
@@ -141,10 +155,10 @@ class AudioCapture {
         const view = new DataView(buffer);
 
         // WAVヘッダー
-        this._writeString(view, 0, 'RIFF');
+        this._writeString(view, 0, "RIFF");
         view.setUint32(4, 36 + dataSize, true);
-        this._writeString(view, 8, 'WAVE');
-        this._writeString(view, 12, 'fmt ');
+        this._writeString(view, 8, "WAVE");
+        this._writeString(view, 12, "fmt ");
         view.setUint32(16, 16, true); // fmt chunkサイズ
         view.setUint16(20, 1, true); // PCM
         view.setUint16(22, numChannels, true);
@@ -152,7 +166,7 @@ class AudioCapture {
         view.setUint32(28, byteRate, true);
         view.setUint16(32, blockAlign, true);
         view.setUint16(34, bitsPerSample, true);
-        this._writeString(view, 36, 'data');
+        this._writeString(view, 36, "data");
         view.setUint32(40, dataSize, true);
 
         // PCMデータ
@@ -178,14 +192,64 @@ class AudioCapture {
     }
 
     /**
+     * バッファに残っているデータを取得（最終チャンク用）
+     *
+     * @returns {Promise<ArrayBuffer|null>} - 残りの音声データ（WAV形式）、なければnull
+     */
+    async getRemainingBuffer() {
+        if (!this.workletNode) {
+            return null;
+        }
+
+        return new Promise((resolve) => {
+            // Promiseのresolveをコールバックとして保存
+            this._remainingBufferResolve = (data) => {
+                if (!data || data.byteLength === 0) {
+                    resolve(null);
+                    return;
+                }
+
+                // 最小チャンクサイズ（0.5秒 = 8000サンプル = 16000bytes）
+                const minBytes = this.sampleRate * 0.5 * 2; // Int16 = 2 bytes/sample
+                if (data.byteLength < minBytes) {
+                    console.log(`⚠️ 残りバッファが小さすぎます: ${data.byteLength}bytes (最小: ${minBytes}bytes)`);
+                    resolve(null);
+                    return;
+                }
+
+                const sampleCount = (data.byteLength - 44) / 2; // WAVヘッダー44bytes除く
+                console.log(
+                    `📦 残りバッファを取得: ${sampleCount}サンプル (${(sampleCount / this.sampleRate).toFixed(2)}秒)`,
+                );
+                resolve(data);
+            };
+
+            // ワークレットに残りバッファを要求
+            this.workletNode.port.postMessage({
+                type: "getRemainingBuffer",
+            });
+
+            // タイムアウト処理（1秒待ってもレスポンスがなければnull）
+            setTimeout(() => {
+                if (this._remainingBufferResolve) {
+                    console.warn("⚠️ 残りバッファの取得がタイムアウトしました");
+                    this._remainingBufferResolve = null;
+                    resolve(null);
+                }
+            }, 1000);
+        });
+    }
+
+    /**
      * 音声キャプチャを停止
      */
     stop() {
         this.isCapturing = false;
 
-        if (this.scriptProcessor) {
-            this.scriptProcessor.disconnect();
-            this.scriptProcessor = null;
+        if (this.workletNode) {
+            this.workletNode.disconnect();
+            this.workletNode.port.close();
+            this.workletNode = null;
         }
 
         if (this.audioContext) {
@@ -194,7 +258,7 @@ class AudioCapture {
         }
 
         if (this.mediaStream) {
-            this.mediaStream.getTracks().forEach(track => track.stop());
+            this.mediaStream.getTracks().forEach((track) => track.stop());
             this.mediaStream = null;
         }
     }

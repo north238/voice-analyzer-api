@@ -30,31 +30,32 @@ class WebSocketClient {
 
             this.ws.onopen = () => {
                 this.isConnected = true;
-                console.log('WebSocket接続成功');
+                console.log("WebSocket接続成功");
             };
 
             this.ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 this._handleMessage(data);
 
-                if (data.type === 'connected') {
+                if (data.type === "connected") {
                     this.sessionId = data.session_id;
                     resolve();
                 }
             };
 
             this.ws.onerror = (error) => {
-                console.error('WebSocketエラー:', error);
+                console.error("WebSocketエラー:", error);
                 reject(error);
             };
 
             this.ws.onclose = (event) => {
                 this.isConnected = false;
-                console.log('WebSocket接続終了');
+                console.log("WebSocket接続終了");
 
-                if (event.code !== 1000) { // 正常終了以外
+                if (event.code !== 1000) {
+                    // 正常終了以外
                     if (this.onErrorCallback) {
-                        this.onErrorCallback('接続が切断されました。再試行してください。');
+                        this.onErrorCallback("接続が切断されました。再試行してください。");
                     }
                 }
             };
@@ -67,53 +68,53 @@ class WebSocketClient {
      * @param {Object} data - 受信メッセージ
      */
     _handleMessage(data) {
-        console.log('📨 受信メッセージ:', data.type, data);
+        console.log("📨 受信メッセージ:", data.type, data);
 
         switch (data.type) {
-            case 'connected':
-                console.log('✅ WebSocket接続確立:', data.session_id);
+            case "connected":
+                console.log("✅ WebSocket接続確立:", data.session_id);
                 if (this.onConnectedCallback) {
                     this.onConnectedCallback(data.session_id);
                 }
                 break;
 
-            case 'progress':
-                console.log('⏳ 処理中:', data.step, data.message);
+            case "progress":
+                console.log("⏳ 処理中:", data.step, data.message);
                 if (this.onProgressCallback) {
                     this.onProgressCallback(data.step, data.message);
                 }
                 break;
 
-            case 'transcription_update':
-                console.log('📝 文字起こし更新:', data);
+            case "transcription_update":
+                console.log("📝 文字起こし更新:", data);
                 if (this.onTranscriptionUpdateCallback) {
                     this.onTranscriptionUpdateCallback(data);
                 }
                 break;
 
-            case 'accumulating':
-                console.log('📦 音声蓄積中:', data.accumulated_seconds, '秒');
+            case "accumulating":
+                console.log("📦 音声蓄積中:", data.accumulated_seconds, "秒");
                 if (this.onAccumulatingCallback) {
                     this.onAccumulatingCallback(data);
                 }
                 break;
 
-            case 'error':
-                console.error('❌ エラー:', data.message);
+            case "error":
+                console.error("❌ エラー:", data.message);
                 if (this.onErrorCallback) {
                     this.onErrorCallback(data.message);
                 }
                 break;
 
-            case 'session_end':
-                console.log('🏁 セッション終了:', data);
+            case "session_end":
+                console.log("🏁 セッション終了:", data);
                 if (this.onSessionEndCallback) {
                     this.onSessionEndCallback(data);
                 }
                 break;
 
             default:
-                console.warn('⚠️ 未知のメッセージタイプ:', data.type);
+                console.warn("⚠️ 未知のメッセージタイプ:", data.type);
         }
     }
 
@@ -133,8 +134,8 @@ class WebSocketClient {
      */
     sendEndMessage() {
         if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
-            console.log('📤 終了メッセージ送信');
-            this.ws.send(JSON.stringify({ type: 'end' }));
+            console.log("📤 終了メッセージ送信");
+            this.ws.send(JSON.stringify({ type: "end" }));
         }
     }
 
@@ -143,9 +144,9 @@ class WebSocketClient {
      */
     disconnect() {
         if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
-            console.log('🔌 WebSocket切断');
+            console.log("🔌 WebSocket切断");
             // 正常終了コード(1000)を指定して切断
-            this.ws.close(1000, 'Normal closure');
+            this.ws.close(1000, "Normal closure");
         }
         this.isConnected = false;
     }
@@ -158,22 +159,22 @@ class WebSocketClient {
      */
     on(event, callback) {
         switch (event) {
-            case 'connected':
+            case "connected":
                 this.onConnectedCallback = callback;
                 break;
-            case 'progress':
+            case "progress":
                 this.onProgressCallback = callback;
                 break;
-            case 'transcription_update':
+            case "transcription_update":
                 this.onTranscriptionUpdateCallback = callback;
                 break;
-            case 'accumulating':
+            case "accumulating":
                 this.onAccumulatingCallback = callback;
                 break;
-            case 'error':
+            case "error":
                 this.onErrorCallback = callback;
                 break;
-            case 'session_end':
+            case "session_end":
                 this.onSessionEndCallback = callback;
                 break;
         }
