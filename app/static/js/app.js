@@ -85,9 +85,12 @@ class RealtimeTranscriptionApp {
                 chunkDurationMs: 3000,
             });
 
+            let chunkCount = 0;
             await this.audioCapture.start(
                 (audioData) => {
                     // 音声チャンクを送信
+                    chunkCount++;
+                    console.log(`🎤 音声チャンク送信: ${chunkCount}個目 (${audioData.byteLength} bytes)`);
                     this.wsClient.sendAudioChunk(audioData);
                 },
                 (volumeDb) => {

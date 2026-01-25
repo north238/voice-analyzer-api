@@ -57,19 +57,24 @@ class UIController {
      * @param {Object} data - 文字起こしデータ
      */
     updateTranscription(data) {
+        console.log('🖥️ UI更新:', data);
+
         const transcription = data.transcription || {};
         const hiragana = data.hiragana || {};
 
         // 確定テキスト（太字・白色）
         this.confirmedText.textContent = transcription.confirmed || '';
+        console.log('✅ 確定テキスト:', transcription.confirmed);
 
         // 暫定テキスト（イタリック・グレー）
         this.tentativeText.textContent = transcription.tentative || '';
+        console.log('⏳ 暫定テキスト:', transcription.tentative);
 
         // ひらがな
         const hiraganaConfirmed = hiragana.confirmed || '';
         const hiraganaTentative = hiragana.tentative || '';
         this.hiraganaText.innerHTML = `<span class="confirmed">${this._escapeHtml(hiraganaConfirmed)}</span><span class="tentative">${this._escapeHtml(hiraganaTentative)}</span>`;
+        console.log('🔤 ひらがな:', hiraganaConfirmed + hiraganaTentative);
 
         // パフォーマンス情報
         const perf = data.performance || {};

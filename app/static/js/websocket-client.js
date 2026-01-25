@@ -67,42 +67,53 @@ class WebSocketClient {
      * @param {Object} data - 受信メッセージ
      */
     _handleMessage(data) {
+        console.log('📨 受信メッセージ:', data.type, data);
+
         switch (data.type) {
             case 'connected':
+                console.log('✅ WebSocket接続確立:', data.session_id);
                 if (this.onConnectedCallback) {
                     this.onConnectedCallback(data.session_id);
                 }
                 break;
 
             case 'progress':
+                console.log('⏳ 処理中:', data.step, data.message);
                 if (this.onProgressCallback) {
                     this.onProgressCallback(data.step, data.message);
                 }
                 break;
 
             case 'transcription_update':
+                console.log('📝 文字起こし更新:', data);
                 if (this.onTranscriptionUpdateCallback) {
                     this.onTranscriptionUpdateCallback(data);
                 }
                 break;
 
             case 'accumulating':
+                console.log('📦 音声蓄積中:', data.accumulated_seconds, '秒');
                 if (this.onAccumulatingCallback) {
                     this.onAccumulatingCallback(data);
                 }
                 break;
 
             case 'error':
+                console.error('❌ エラー:', data.message);
                 if (this.onErrorCallback) {
                     this.onErrorCallback(data.message);
                 }
                 break;
 
             case 'session_end':
+                console.log('🏁 セッション終了:', data);
                 if (this.onSessionEndCallback) {
                     this.onSessionEndCallback(data);
                 }
                 break;
+
+            default:
+                console.warn('⚠️ 未知のメッセージタイプ:', data.type);
         }
     }
 
