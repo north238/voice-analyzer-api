@@ -75,6 +75,16 @@ class RealtimeTranscriptionApp {
 
             this.wsClient.on("session_end", (data) => {
                 console.log("セッション終了:", data);
+
+                // 最終結果をUIに反映（暫定テキストが確定テキストに移行）
+                if (data.transcription || data.hiragana) {
+                    this.uiController.updateTranscription({
+                        transcription: data.transcription || {},
+                        hiragana: data.hiragana || {},
+                        performance: data.performance || {},
+                    });
+                }
+
                 this.uiController.setStatus("セッション終了", "success");
                 this.uiController.showToast("処理が完了しました", "success");
 

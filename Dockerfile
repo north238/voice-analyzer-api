@@ -35,6 +35,11 @@ RUN pip install --no-cache-dir \
     transformers>=4.30.0 \
     sentencepiece>=0.1.99
 
+# テストツール
+RUN pip install --no-cache-dir \
+    pytest>=7.0.0 \
+    pytest-cov>=4.0.0
+
 # アプリケーションコードをコピー
 COPY ./app /app
 
