@@ -26,6 +26,10 @@ class UIController {
         this.previousHiraganaConfirmed = "";
         this.previousHiraganaTentative = "";
         this.typingTimers = [];
+
+        // 現在の確定テキスト（累積）
+        this.currentConfirmedText = "";
+        this.currentHiraganaConfirmed = "";
     }
 
     /**
@@ -70,16 +74,60 @@ class UIController {
         // 既存のタイピングアニメーションをキャンセル
         this._cancelTypingAnimations();
 
-        // 確定テキスト（タイピングアニメーション）
-        if (newConfirmedText !== this.previousConfirmedText) {
-            console.log("✅ 確定テキスト:", newConfirmedText);
+        // セッション終了時（暫定が空で確定が来た場合）は、最終確定テキストを反映
+        const isSessionEnd = !newTentativeText && this.previousTentativeText;
+        if (isSessionEnd) {
+            console.log("🏁 セッション終了: 暫定テキストを確定に移行");
+
+            // サーバーからの最終確定テキストと、ローカルの確定+暫定を比較して長い方を採用
+            const localFinalText = this.currentConfirmedText + this.previousTentativeText;
+            const serverFinalText = newConfirmedText || "";
+
+            if (serverFinalText.length >= localFinalText.length) {
+                // サーバーの最終確定テキストを採用
+                this.currentConfirmedText = serverFinalText;
+                this.currentHiraganaConfirmed = newHiraganaConfirmed || "";
+            } else {
+                // ローカルの確定+暫定を採用（サーバーのデータが不完全な場合）
+                this.currentConfirmedText = localFinalText;
+                this.currentHiraganaConfirmed += this.previousHiraganaTentative;
+            }
+
+            // 確定テキスト欄を更新
+            this.confirmedText.textContent = this.currentConfirmedText;
+
+            // 暫定テキストをクリア
+            this.tentativeText.textContent = "";
+            this.previousTentativeText = "";
+            this.previousHiraganaTentative = "";
+            this.previousConfirmedText = this.currentConfirmedText;
+
+            // ひらがな表示を更新
+            this._updateHiraganaDisplay("", this.currentHiraganaConfirmed);
+            return;
+        }
+
+        // 確定テキストが更新された場合（追記のみ、減少は無視）
+        if (newConfirmedText && newConfirmedText.length > this.currentConfirmedText.length) {
+            console.log("✅ 確定テキスト追加:", newConfirmedText);
+
+            // 確定テキストを保存・表示（追記のみ）
+            this.currentConfirmedText = newConfirmedText;
+            this.currentHiraganaConfirmed = newHiraganaConfirmed;
+
+            // タイピングアニメーションで表示
             this._typeText(
                 this.confirmedText,
                 this.previousConfirmedText,
                 newConfirmedText,
-                50, // 50ms間隔
+                50,
             );
+
             this.previousConfirmedText = newConfirmedText;
+            this.previousHiraganaConfirmed = newHiraganaConfirmed;
+        } else if (newConfirmedText && newConfirmedText.length < this.currentConfirmedText.length) {
+            // 確定テキストが減少した場合は無視（ログのみ）
+            console.warn("⚠️ 確定テキスト減少を無視:", newConfirmedText.length, "<", this.currentConfirmedText.length);
         }
 
         // 暫定テキスト（タイピングアニメーション）
@@ -89,29 +137,15 @@ class UIController {
                 this.tentativeText,
                 this.previousTentativeText,
                 newTentativeText,
-                50, // 50ms間隔
+                50,
             );
             this.previousTentativeText = newTentativeText;
         }
 
-        // ひらがな（タイピングアニメーション）
-        const hiraganaChanged =
-            newHiraganaConfirmed !== this.previousHiraganaConfirmed ||
-            newHiraganaTentative !== this.previousHiraganaTentative;
-
-        if (hiraganaChanged) {
-            console.log("🔤 ひらがな:", newHiraganaConfirmed + newHiraganaTentative);
-            const previousFullHiragana = this.previousHiraganaConfirmed + this.previousHiraganaTentative;
-
-            // ひらがなは特殊処理（confirmed/tentativeのspan構造を保持）
-            this._typeHiragana(
-                previousFullHiragana,
-                newHiraganaConfirmed,
-                newHiraganaTentative,
-                50, // 50ms間隔
-            );
-
-            this.previousHiraganaConfirmed = newHiraganaConfirmed;
+        // ひらがな表示の更新
+        if (newHiraganaConfirmed !== this.previousHiraganaConfirmed ||
+            newHiraganaTentative !== this.previousHiraganaTentative) {
+            this._updateHiraganaDisplay(newHiraganaTentative, newHiraganaConfirmed);
             this.previousHiraganaTentative = newHiraganaTentative;
         }
 
@@ -212,6 +246,28 @@ class UIController {
                 `<span class="confirmed">${this._escapeHtml(newConfirmed)}</span>` +
                 `<span class="tentative">${this._escapeHtml(newTentative)}</span>`;
         }
+    }
+
+    /**
+     * ひらがな表示を更新（確定 + 暫定）
+     *
+     * @param {string} tentativeText - 暫定テキスト
+     * @param {string} confirmedText - 確定テキスト（省略時は現在の値を使用）
+     */
+    _updateHiraganaDisplay(tentativeText, confirmedText = null) {
+        const confirmed = confirmedText !== null ? confirmedText : this.currentHiraganaConfirmed;
+
+        // 確定テキスト
+        const confirmedHtml = confirmed
+            ? `<span class="confirmed">${this._escapeHtml(confirmed)}</span>`
+            : "";
+
+        // 暫定テキスト
+        const tentativeHtml = tentativeText
+            ? `<span class="tentative">${this._escapeHtml(tentativeText)}</span>`
+            : "";
+
+        this.hiraganaText.innerHTML = confirmedHtml + tentativeHtml;
     }
 
     /**

@@ -93,6 +93,10 @@ class RealtimeTranslationClient:
         self.confirmed_hiragana = ""  # 確定ひらがな
         self.tentative_hiragana = ""  # 暫定ひらがな
 
+        # 確定テキストの履歴（過去の入力を保持）
+        self.confirmed_history = []  # [{"text": str, "hiragana": str, "timestamp": datetime}, ...]
+        self.last_confirmed_text = ""  # 前回の確定テキスト（変更検出用）
+
     async def run(
         self,
         chunk_duration: float = 3.0,
@@ -347,10 +351,22 @@ class RealtimeTranslationClient:
             is_silent = data.get("is_silent", False)
 
             # 確定/暫定テキストを更新
-            self.confirmed_text = transcription.get("confirmed", "")
+            new_confirmed_text = transcription.get("confirmed", "")
             self.tentative_text = transcription.get("tentative", "")
-            self.confirmed_hiragana = hiragana.get("confirmed", "")
+            new_confirmed_hiragana = hiragana.get("confirmed", "")
             self.tentative_hiragana = hiragana.get("tentative", "")
+
+            # 確定テキストが更新されたら履歴に追加
+            if new_confirmed_text and new_confirmed_text != self.last_confirmed_text:
+                self.confirmed_history.append({
+                    "text": new_confirmed_text,
+                    "hiragana": new_confirmed_hiragana,
+                    "timestamp": datetime.now()
+                })
+                self.last_confirmed_text = new_confirmed_text
+
+            self.confirmed_text = new_confirmed_text
+            self.confirmed_hiragana = new_confirmed_hiragana
 
             if is_silent:
                 logger.info("🔇 無音区間")
@@ -385,18 +401,37 @@ class RealtimeTranslationClient:
                 hiragana = data.get("hiragana", {})
                 statistics = data.get("statistics", {})
 
-                self.confirmed_text = transcription.get("confirmed", "")
-                self.confirmed_hiragana = hiragana.get("confirmed", "")
+                final_confirmed_text = transcription.get("confirmed", "")
+                final_confirmed_hiragana = hiragana.get("confirmed", "")
+
+                # 最終確定テキストが履歴にない場合は追加
+                if final_confirmed_text and final_confirmed_text != self.last_confirmed_text:
+                    self.confirmed_history.append({
+                        "text": final_confirmed_text,
+                        "hiragana": final_confirmed_hiragana,
+                        "timestamp": datetime.now()
+                    })
 
                 print(f"\n{'='*60}")
-                print("🏁 セッション終了 - 最終結果")
+                print("🏁 セッション終了 - 全履歴")
                 print(f"{'='*60}")
-                print(f"📝 確定テキスト:")
-                print(f"   {self.confirmed_text}")
-                print(f"\n🔤 ひらがな:")
-                print(f"   {self.confirmed_hiragana}")
+
+                if self.confirmed_history:
+                    print(f"\n📝 確定テキスト履歴:")
+                    for i, entry in enumerate(self.confirmed_history, 1):
+                        timestamp = entry["timestamp"].strftime("%H:%M:%S")
+                        print(f"   {i}. [{timestamp}] {entry['text']}")
+
+                    print(f"\n🔤 ひらがな履歴:")
+                    for i, entry in enumerate(self.confirmed_history, 1):
+                        timestamp = entry["timestamp"].strftime("%H:%M:%S")
+                        print(f"   {i}. [{timestamp}] {entry['hiragana']}")
+                else:
+                    print(f"\n📝 確定テキスト: （なし）")
+
                 print(f"\n📊 統計:")
                 print(f"   - 処理チャンク数: {statistics.get('chunk_count', 0)}")
+                print(f"   - 確定入力数: {len(self.confirmed_history)}")
                 print(
                     f"   - 累積音声: {statistics.get('audio_duration_seconds', 0):.1f}秒"
                 )
@@ -406,24 +441,29 @@ class RealtimeTranslationClient:
                 logger.info(f"セッション終了（合計 {total_chunks} チャンク）")
 
     def _display_cumulative_result(self, performance: dict):
-        """累積バッファモードの結果を表示"""
-        # 画面をクリアして最新の状態を表示
+        """累積バッファモードの結果を表示（履歴保持版）"""
         print(f"\n{'='*60}")
         print("📝 リアルタイム文字起こし")
         print(f"{'='*60}")
 
-        # 確定テキスト（白/通常色）
-        if self.confirmed_text:
-            print(f"✅ 確定: {self.confirmed_text}")
+        # 確定テキストの履歴を表示
+        if self.confirmed_history:
+            print("\n✅ 確定テキスト履歴:")
+            for i, entry in enumerate(self.confirmed_history, 1):
+                timestamp = entry["timestamp"].strftime("%H:%M:%S")
+                print(f"  [{timestamp}] {entry['text']}")
 
         # 暫定テキスト（グレー表示をシミュレート）
         if self.tentative_text:
-            # ANSI エスケープコードでグレー表示
-            print(f"⏳ 暫定: \033[90m{self.tentative_text}\033[0m")
+            print(f"\n⏳ 暫定: \033[90m{self.tentative_text}\033[0m")
 
+        # ひらがな表示
         print(f"\n🔤 ひらがな:")
-        if self.confirmed_hiragana:
-            print(f"   確定: {self.confirmed_hiragana}")
+        if self.confirmed_history:
+            print("   確定履歴:")
+            for i, entry in enumerate(self.confirmed_history, 1):
+                timestamp = entry["timestamp"].strftime("%H:%M:%S")
+                print(f"     [{timestamp}] {entry['hiragana']}")
         if self.tentative_hiragana:
             print(f"   暫定: \033[90m{self.tentative_hiragana}\033[0m")
 

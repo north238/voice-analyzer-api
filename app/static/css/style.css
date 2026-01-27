@@ -376,6 +376,28 @@ section h2 {
     color: #9ca3af;
 }
 
+/* 確定テキスト履歴の各エントリ */
+.confirmed-entry {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.confirmed-entry:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+/* 暫定テキストのエントリ */
+.tentative-entry {
+    font-style: italic;
+    color: #9ca3af;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed #d1d5db;
+}
+
 /* パフォーマンス情報 */
 .performance-info {
     display: grid;

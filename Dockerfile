@@ -2,6 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# PYTHONPATHを設定（テストとアプリケーション起動の両方で app.xxx 形式のインポートを有効化）
+ENV PYTHONPATH=/
+
 # 必要なパッケージ（音声解析系には ffmpeg が必須）
 RUN apt-get update && apt-get install -y \
     ffmpeg \
