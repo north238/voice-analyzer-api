@@ -16,6 +16,11 @@ class UIController {
         this.tentativeText = document.getElementById("tentative-text");
         this.hiraganaText = document.getElementById("hiragana-text");
 
+        this.confirmedTranslation = document.getElementById("confirmed-translation");
+        this.tentativeTranslation = document.getElementById("tentative-translation");
+        this.hiraganaSection = document.querySelector(".hiragana-results");
+        this.translationSection = document.getElementById("translation-section");
+
         this.performanceInfo = document.getElementById("performance-info");
         this.deviceSelector = document.getElementById("device-selector");
         this.toastContainer = document.getElementById("toast-container");
@@ -25,11 +30,14 @@ class UIController {
         this.previousTentativeText = "";
         this.previousHiraganaConfirmed = "";
         this.previousHiraganaTentative = "";
+        this.previousConfirmedTranslation = "";
+        this.previousTentativeTranslation = "";
         this.typingTimers = [];
 
         // 現在の確定テキスト（累積）
         this.currentConfirmedText = "";
         this.currentHiraganaConfirmed = "";
+        this.currentConfirmedTranslation = "";
     }
 
     /**
@@ -104,6 +112,36 @@ class UIController {
 
             // ひらがな表示を更新
             this._updateHiraganaDisplay("", this.currentHiraganaConfirmed);
+
+            // 翻訳の暫定→確定移行
+            const translation = data.translation || {};
+            const newConfirmedTranslation = translation.confirmed || "";
+            const newTentativeTranslation = translation.tentative || "";
+
+            if (this.confirmedTranslation && this.tentativeTranslation) {
+                // サーバーからの最終確定翻訳と、ローカルの確定+暫定を比較
+                const localFinalTranslation = this.currentConfirmedTranslation + this.previousTentativeTranslation;
+                const serverFinalTranslation = newConfirmedTranslation || "";
+
+                if (serverFinalTranslation.length >= localFinalTranslation.length) {
+                    // サーバーの最終確定翻訳を採用
+                    this.currentConfirmedTranslation = serverFinalTranslation;
+                } else {
+                    // ローカルの確定+暫定を採用
+                    this.currentConfirmedTranslation = localFinalTranslation;
+                }
+
+                // 確定翻訳欄を更新
+                this.confirmedTranslation.textContent = this.currentConfirmedTranslation;
+
+                // 暫定翻訳をクリア
+                this.tentativeTranslation.textContent = "";
+                this.previousTentativeTranslation = "";
+                this.previousConfirmedTranslation = this.currentConfirmedTranslation;
+
+                console.log("✅ 翻訳の暫定→確定移行完了");
+            }
+
             return;
         }
 
@@ -147,6 +185,36 @@ class UIController {
             newHiraganaTentative !== this.previousHiraganaTentative) {
             this._updateHiraganaDisplay(newHiraganaTentative, newHiraganaConfirmed);
             this.previousHiraganaTentative = newHiraganaTentative;
+        }
+
+        // 翻訳結果の更新
+        const translation = data.translation || {};
+        const newConfirmedTranslation = translation.confirmed || "";
+        const newTentativeTranslation = translation.tentative || "";
+
+        if (this.confirmedTranslation && this.tentativeTranslation) {
+            // 確定翻訳（追記のみ）
+            if (newConfirmedTranslation && newConfirmedTranslation.length > this.currentConfirmedTranslation.length) {
+                this.currentConfirmedTranslation = newConfirmedTranslation;
+                this._typeText(
+                    this.confirmedTranslation,
+                    this.previousConfirmedTranslation,
+                    newConfirmedTranslation,
+                    50
+                );
+                this.previousConfirmedTranslation = newConfirmedTranslation;
+            }
+
+            // 暫定翻訳
+            if (newTentativeTranslation !== this.previousTentativeTranslation) {
+                this._typeText(
+                    this.tentativeTranslation,
+                    this.previousTentativeTranslation,
+                    newTentativeTranslation,
+                    50
+                );
+                this.previousTentativeTranslation = newTentativeTranslation;
+            }
         }
 
         // パフォーマンス情報
@@ -359,5 +427,65 @@ class UIController {
         const div = document.createElement("div");
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    /**
+     * ひらがなセクションの表示/非表示を切り替え
+     *
+     * @param {boolean} enabled - 表示するかどうか
+     */
+    toggleHiraganaSection(enabled) {
+        if (this.hiraganaSection) {
+            this.hiraganaSection.style.display = enabled ? "block" : "none";
+        }
+    }
+
+    /**
+     * 翻訳セクションの表示/非表示を切り替え
+     *
+     * @param {boolean} enabled - 表示するかどうか
+     */
+    toggleTranslationSection(enabled) {
+        if (this.translationSection) {
+            this.translationSection.style.display = enabled ? "block" : "none";
+        }
+    }
+
+    /**
+     * すべてのテキスト表示をクリア
+     * 新しい録音セッション開始時に呼び出される
+     */
+    clearAllText() {
+        // テキスト表示をクリア
+        this.confirmedText.textContent = "";
+        this.tentativeText.textContent = "";
+        this.hiraganaText.innerHTML = "";
+
+        if (this.confirmedTranslation) {
+            this.confirmedTranslation.textContent = "";
+        }
+        if (this.tentativeTranslation) {
+            this.tentativeTranslation.textContent = "";
+        }
+
+        // パフォーマンス情報をクリア
+        this.performanceInfo.innerHTML = "";
+
+        // 内部状態をリセット
+        this.previousConfirmedText = "";
+        this.previousTentativeText = "";
+        this.previousHiraganaConfirmed = "";
+        this.previousHiraganaTentative = "";
+        this.previousConfirmedTranslation = "";
+        this.previousTentativeTranslation = "";
+
+        this.currentConfirmedText = "";
+        this.currentHiraganaConfirmed = "";
+        this.currentConfirmedTranslation = "";
+
+        // タイピングアニメーションをキャンセル
+        this._cancelTypingAnimations();
+
+        console.log("✨ すべてのテキスト表示をクリアしました");
     }
 }

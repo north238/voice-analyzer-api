@@ -16,6 +16,13 @@ class RealtimeTranscriptionApp {
         this.inputSource = "microphone"; // 'microphone' または 'video'
         this.videoElement = null;
 
+        // 処理オプション
+        this.processingOptions = {
+            enableHiragana: false,
+            enableTranslation: false,
+            enableSummary: false,
+        };
+
         this.init();
     }
 
@@ -49,6 +56,17 @@ class RealtimeTranscriptionApp {
                     const videoUrl = btn.getAttribute("data-video");
                     this.loadVideoUrl(videoUrl);
                 });
+            });
+
+            // 処理オプションのイベントリスナー
+            document.getElementById("enable-hiragana").addEventListener("change", (e) => {
+                this.processingOptions.enableHiragana = e.target.checked;
+                this.uiController.toggleHiraganaSection(e.target.checked);
+            });
+
+            document.getElementById("enable-translation").addEventListener("change", (e) => {
+                this.processingOptions.enableTranslation = e.target.checked;
+                this.uiController.toggleTranslationSection(e.target.checked);
             });
 
             // ボタンイベント設定
@@ -218,6 +236,9 @@ class RealtimeTranscriptionApp {
                 this.audioCapture = null;
             }
 
+            // 新しいセッション開始前にすべてのテキストをクリア
+            this.uiController.clearAllText();
+
             this.uiController.setStatus("接続中...", "info");
             this.uiController.showToast("WebSocket接続中...", "info");
 
@@ -250,10 +271,11 @@ class RealtimeTranscriptionApp {
                 console.log("セッション終了:", data);
 
                 // 最終結果をUIに反映（暫定テキストが確定テキストに移行）
-                if (data.transcription || data.hiragana) {
+                if (data.transcription || data.hiragana || data.translation) {
                     this.uiController.updateTranscription({
                         transcription: data.transcription || {},
                         hiragana: data.hiragana || {},
+                        translation: data.translation || {},
                         performance: data.performance || {},
                     });
                 }
@@ -266,6 +288,10 @@ class RealtimeTranscriptionApp {
             });
 
             await this.wsClient.connect();
+
+            // 処理オプションを送信
+            this.wsClient.sendOptions(this.processingOptions);
+            console.log("処理オプション送信:", this.processingOptions);
 
             // 音声キャプチャ開始
             this.audioCapture = new AudioCapture({

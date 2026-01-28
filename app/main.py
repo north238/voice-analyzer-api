@@ -565,7 +565,22 @@ async def websocket_transcribe_stream_cumulative(websocket: WebSocket):
                     data = json.loads(message["text"])
                     msg_type = data.get("type", "")
 
-                    if msg_type == "end":
+                    if msg_type == "options":
+                        # 処理オプションを設定
+                        connection.processing_options = {
+                            "hiragana": data.get("hiragana", False),
+                            "translation": data.get("translation", False),
+                            "summary": data.get("summary", False),
+                        }
+                        logger.info(
+                            f"📝 処理オプション設定: session={session_id}, "
+                            f"options={connection.processing_options}"
+                        )
+                        await ws_manager.send_json(
+                            session_id, {"type": "options_received"}
+                        )
+
+                    elif msg_type == "end":
                         # セッション終了処理
                         await finalize_cumulative_session(session_id, connection)
                         break
@@ -738,6 +753,10 @@ async def perform_cumulative_transcription(
             logger.warning(f"⚠️ 無効な内容検出: {text}")
             return
 
+        # 処理オプションを取得
+        connection = ws_manager.connections.get(session_id)
+        options = connection.processing_options if connection else {}
+
         # 句読点挿入
         await ws_manager.send_progress(
             session_id, "punctuation", "句読点挿入中...", chunk_id
@@ -745,52 +764,88 @@ async def perform_cumulative_transcription(
         with monitor.measure("punctuation"):
             text_with_punctuation = await add_punctuation_async(text)
 
-        # ひらがな変換関数
-        def hiragana_converter(t: str) -> str:
-            return normalizer.to_hiragana(t, keep_punctuation=True)
+        # ひらがな正規化（オプション）
+        result = None
+        if options.get("hiragana", False):
+            # ひらがな変換関数
+            def hiragana_converter(t: str) -> str:
+                return normalizer.to_hiragana(t, keep_punctuation=True)
 
-        # 差分抽出と結果更新
-        await ws_manager.send_progress(
-            session_id, "normalizing", "ひらがな変換中...", chunk_id
-        )
-        with monitor.measure("normalization"):
-            result = buffer.update_transcription(
-                text_with_punctuation, hiragana_converter=hiragana_converter
+            # 差分抽出と結果更新
+            await ws_manager.send_progress(
+                session_id, "normalizing", "ひらがな変換中...", chunk_id
             )
+            with monitor.measure("normalization"):
+                result = buffer.update_transcription(
+                    text_with_punctuation, hiragana_converter=hiragana_converter
+                )
 
-        normalization_time = monitor.get_last_measurement("normalization")
-        logger.info(
-            f"📝 差分抽出完了 ({normalization_time:.2f}秒): "
-            f"確定={len(result.confirmed_text)}文字, "
-            f"暫定={len(result.tentative_text)}文字"
-        )
+            normalization_time = monitor.get_last_measurement("normalization")
+            logger.info(
+                f"📝 差分抽出完了 ({normalization_time:.2f}秒): "
+                f"確定={len(result.confirmed_text)}文字, "
+                f"暫定={len(result.tentative_text)}文字"
+            )
+        else:
+            # ひらがな変換をスキップ
+            result = buffer.update_transcription(text_with_punctuation)
+            logger.info(f"⏭️  ひらがな正規化スキップ")
+
+        # 翻訳（オプション）
+        translated_confirmed = ""
+        translated_tentative = ""
+        if options.get("translation", False):
+            await ws_manager.send_progress(
+                session_id, "translating", "翻訳中...", chunk_id
+            )
+            with monitor.measure("translation"):
+                if result.confirmed_text:
+                    translated_confirmed = await translate_async(result.confirmed_text)
+                if result.tentative_text:
+                    translated_tentative = await translate_async(result.tentative_text)
+
+            translation_time = monitor.get_last_measurement("translation")
+            logger.info(
+                f"🌐 翻訳完了 ({translation_time:.2f}秒): "
+                f"確定={len(translated_confirmed)}文字, "
+                f"暫定={len(translated_tentative)}文字"
+            )
 
         # 処理時間
         total_time = time.time() - request_start_time
 
-        # 結果を送信
-        await ws_manager.send_json(
-            session_id,
-            {
-                "type": "transcription_update",
-                "chunk_id": chunk_id,
-                "transcription": {
-                    "confirmed": result.confirmed_text,
-                    "tentative": result.tentative_text,
-                    "full_text": result.full_text,
-                },
-                "hiragana": {
-                    "confirmed": result.confirmed_hiragana,
-                    "tentative": result.tentative_hiragana,
-                },
-                "performance": {
-                    "transcription_time": transcription_time,
-                    "total_time": total_time,
-                    "accumulated_audio_seconds": buffer.current_audio_duration,
-                },
-                "is_final": False,
+        # 結果を構築
+        response_data = {
+            "type": "transcription_update",
+            "chunk_id": chunk_id,
+            "transcription": {
+                "confirmed": result.confirmed_text,
+                "tentative": result.tentative_text,
+                "full_text": result.full_text,
             },
-        )
+            "performance": {
+                "transcription_time": transcription_time,
+                "total_time": total_time,
+                "accumulated_audio_seconds": buffer.current_audio_duration,
+            },
+            "is_final": False,
+        }
+
+        # オプション処理結果を条件付きで追加
+        if options.get("hiragana", False):
+            response_data["hiragana"] = {
+                "confirmed": result.confirmed_hiragana,
+                "tentative": result.tentative_hiragana,
+            }
+
+        if options.get("translation", False):
+            response_data["translation"] = {
+                "confirmed": translated_confirmed,
+                "tentative": translated_tentative,
+            }
+
+        # 結果を送信
+        await ws_manager.send_json(session_id, response_data)
 
         logger.info(
             f"✅ 累積文字起こし送信完了: session={session_id}, "
@@ -826,31 +881,54 @@ async def finalize_cumulative_session(session_id: str, connection):
                 monitor=connection.monitor,
             )
 
-        # ひらがな変換関数
-        def hiragana_converter(t: str) -> str:
-            return normalizer.to_hiragana(t, keep_punctuation=True)
+        # 処理オプションを取得
+        options = connection.processing_options
 
-        # セッション終了、全テキストを確定
-        final_result = buffer.finalize(hiragana_converter=hiragana_converter)
+        # ひらがな正規化（オプション）
+        if options.get("hiragana", False):
+            # ひらがな変換関数
+            def hiragana_converter(t: str) -> str:
+                return normalizer.to_hiragana(t, keep_punctuation=True)
+
+            # セッション終了、全テキストを確定
+            final_result = buffer.finalize(hiragana_converter=hiragana_converter)
+        else:
+            # ひらがな変換をスキップ
+            final_result = buffer.finalize()
+
+        # 翻訳（オプション）
+        translated_confirmed = ""
+        if options.get("translation", False) and final_result.confirmed_text:
+            translated_confirmed = await translate_async(final_result.confirmed_text)
+            logger.info(f"🌐 最終翻訳完了: {len(translated_confirmed)}文字")
+
+        # 最終結果を構築
+        response_data = {
+            "type": "session_end",
+            "transcription": {
+                "confirmed": final_result.confirmed_text,
+                "tentative": "",
+                "full_text": final_result.full_text,
+            },
+            "statistics": buffer.get_stats(),
+            "is_final": True,
+        }
+
+        # オプション処理結果を条件付きで追加
+        if options.get("hiragana", False):
+            response_data["hiragana"] = {
+                "confirmed": final_result.confirmed_hiragana,
+                "tentative": "",
+            }
+
+        if options.get("translation", False):
+            response_data["translation"] = {
+                "confirmed": translated_confirmed,
+                "tentative": "",
+            }
 
         # 最終結果を送信
-        await ws_manager.send_json(
-            session_id,
-            {
-                "type": "session_end",
-                "transcription": {
-                    "confirmed": final_result.confirmed_text,
-                    "tentative": "",
-                    "full_text": final_result.full_text,
-                },
-                "hiragana": {
-                    "confirmed": final_result.confirmed_hiragana,
-                    "tentative": "",
-                },
-                "statistics": buffer.get_stats(),
-                "is_final": True,
-            },
-        )
+        await ws_manager.send_json(session_id, response_data)
 
         logger.info(
             f"🏁 累積バッファセッション終了: session={session_id}, "
