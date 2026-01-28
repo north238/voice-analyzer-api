@@ -22,7 +22,7 @@ class AudioCapture {
     }
 
     /**
-     * 音声キャプチャを開始
+     * 音声キャプチャを開始（マイクから）
      *
      * @param {Function} onChunk - チャンク生成時のコールバック
      * @param {Function} onVolumeLevel - 音量レベル更新時のコールバック
@@ -39,43 +39,138 @@ class AudioCapture {
                 },
             });
 
+            await this._setupAudioProcessing(this.mediaStream, onChunk, onVolumeLevel);
+
+            console.log("✅ AudioWorkletベースの音声キャプチャを開始（マイク）");
+        } catch (error) {
+            console.error("音声キャプチャ開始エラー:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * 音声キャプチャを開始（動画要素から）
+     *
+     * @param {HTMLVideoElement} videoElement - 動画要素
+     * @param {Function} onChunk - チャンク生成時のコールバック
+     * @param {Function} onVolumeLevel - 音量レベル更新時のコールバック
+     */
+    async startFromVideo(videoElement, onChunk, onVolumeLevel) {
+        try {
+            if (!videoElement || !videoElement.src) {
+                throw new Error("有効な動画要素が指定されていません");
+            }
+
             // AudioContext作成（16kHzにリサンプリング）
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
                 sampleRate: this.sampleRate,
             });
 
-            // AudioWorkletプロセッサーをロード
-            await this.audioContext.audioWorklet.addModule("/static/js/audio-processor.js");
+            // 動画要素から音声ストリームを取得
+            const source = this.audioContext.createMediaElementSource(videoElement);
+            const dest = this.audioContext.createMediaStreamDestination();
 
-            const source = this.audioContext.createMediaStreamSource(this.mediaStream);
+            // 動画の音声をスピーカーにも出力（ユーザーが音声を聞けるように）
+            source.connect(this.audioContext.destination);
+            source.connect(dest);
 
-            // AudioWorkletNodeを作成
-            this.workletNode = new AudioWorkletNode(this.audioContext, "voice-analyzer-processor");
+            this.mediaStream = dest.stream;
 
-            // チャンクサイズをワークレットに送信
-            const samplesPerChunk = (this.sampleRate * this.chunkDurationMs) / 1000;
-            this.workletNode.port.postMessage({
-                type: "setChunkSize",
-                chunkSize: samplesPerChunk,
-            });
+            await this._setupAudioProcessing(this.mediaStream, onChunk, onVolumeLevel);
 
-            // ワークレットからのメッセージを処理
-            this.workletNode.port.onmessage = (event) => {
-                this._handleWorkletMessage(event.data);
-            };
-
-            source.connect(this.workletNode);
-            this.workletNode.connect(this.audioContext.destination);
-
-            this.onChunkCallback = onChunk;
-            this.onVolumeLevelCallback = onVolumeLevel;
-            this.isCapturing = true;
-
-            console.log("✅ AudioWorkletベースの音声キャプチャを開始");
+            console.log("✅ AudioWorkletベースの音声キャプチャを開始（動画）");
         } catch (error) {
-            console.error("音声キャプチャ開始エラー:", error);
+            console.error("動画からの音声キャプチャ開始エラー:", error);
             throw error;
         }
+    }
+
+    /**
+     * 音声キャプチャを開始（タブ共有から）
+     *
+     * @param {Function} onChunk - チャンク生成時のコールバック
+     * @param {Function} onVolumeLevel - 音量レベル更新時のコールバック
+     */
+    async startFromTabCapture(onChunk, onVolumeLevel) {
+        try {
+            // タブ共有ダイアログを表示
+            this.mediaStream = await navigator.mediaDevices.getDisplayMedia({
+                video: true, // videoをtrueにしないとChromeでエラーになる場合がある
+                audio: {
+                    sampleRate: this.sampleRate,
+                    channelCount: 1,
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                },
+            });
+
+            // 音声トラックがあるか確認
+            const audioTracks = this.mediaStream.getAudioTracks();
+            if (audioTracks.length === 0) {
+                throw new Error(
+                    "音声トラックが見つかりません。タブ共有時に「音声を共有」にチェックを入れてください。",
+                );
+            }
+
+            console.log("✅ タブ共有の音声トラックを取得:", audioTracks[0].label);
+
+            await this._setupAudioProcessing(this.mediaStream, onChunk, onVolumeLevel);
+
+            console.log("✅ AudioWorkletベースの音声キャプチャを開始（タブ共有）");
+        } catch (error) {
+            console.error("タブ共有からの音声キャプチャ開始エラー:", error);
+
+            // ユーザーがキャンセルした場合
+            if (error.name === "NotAllowedError") {
+                throw new Error("タブ共有がキャンセルされました");
+            }
+
+            throw error;
+        }
+    }
+
+    /**
+     * 音声処理パイプラインのセットアップ（共通処理）
+     *
+     * @param {MediaStream} mediaStream - 音声ストリーム
+     * @param {Function} onChunk - チャンク生成時のコールバック
+     * @param {Function} onVolumeLevel - 音量レベル更新時のコールバック
+     */
+    async _setupAudioProcessing(mediaStream, onChunk, onVolumeLevel) {
+        // AudioContext作成（まだ作成されていない場合）
+        if (!this.audioContext) {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                sampleRate: this.sampleRate,
+            });
+        }
+
+        // AudioWorkletプロセッサーをロード
+        await this.audioContext.audioWorklet.addModule("/static/js/audio-processor.js");
+
+        const source = this.audioContext.createMediaStreamSource(mediaStream);
+
+        // AudioWorkletNodeを作成
+        this.workletNode = new AudioWorkletNode(this.audioContext, "voice-analyzer-processor");
+
+        // チャンクサイズをワークレットに送信
+        const samplesPerChunk = (this.sampleRate * this.chunkDurationMs) / 1000;
+        this.workletNode.port.postMessage({
+            type: "setChunkSize",
+            chunkSize: samplesPerChunk,
+        });
+
+        // ワークレットからのメッセージを処理
+        this.workletNode.port.onmessage = (event) => {
+            this._handleWorkletMessage(event.data);
+        };
+
+        source.connect(this.workletNode);
+        this.workletNode.connect(this.audioContext.destination);
+
+        this.onChunkCallback = onChunk;
+        this.onVolumeLevelCallback = onVolumeLevel;
+        this.isCapturing = true;
     }
 
     /**
