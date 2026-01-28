@@ -4,6 +4,22 @@
 
 主な用途: レシートや買い物メモなどの短い日本語音声から「品名」「数量」「単位」を抽出するプロトタイプ。
 
+## 🎉 NEW: Phase 5.1完了（2026年1月28日）
+
+**動画コンテンツ対応**を実装しました：
+
+- 🎤 **マイク入力**（Phase 5）
+- 🎥 **動画ファイル**（Phase 5.1）- ローカル動画ファイルをアップロードして音声解析
+- 📺 **タブ共有（YouTube等）**（Phase 5.1）- ブラウザで再生中のYouTube等の音声をリアルタイム文字起こし
+
+**使い方：**
+```bash
+docker compose up -d
+open http://localhost:5001/static/index.html
+```
+
+詳細は [PHASE5.1_COMPLETION.md](PHASE5.1_COMPLETION.md) を参照。
+
 ## 特徴
 
 - Whisper（openai/whisper）モデルを用いたローカル文字起こし（`tiny`モデルを想定）

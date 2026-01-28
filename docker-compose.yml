@@ -8,6 +8,7 @@ services:
       - "5001:5001"
     volumes:
       - ./app:/app
+      - ./sample:/sample
       - ./models:/root/.cache/huggingface
       - ./logs:/app/logs
     depends_on:

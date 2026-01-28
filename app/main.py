@@ -868,6 +868,12 @@ if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     logger.info(f"📁 静的ファイル配信を有効化: {static_dir}")
 
+# サンプルファイル配信の設定
+sample_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "sample")
+if os.path.exists(sample_dir):
+    app.mount("/sample", StaticFiles(directory=sample_dir), name="sample")
+    logger.info(f"📁 サンプルファイル配信を有効化: {sample_dir}")
+
 
 @app.get("/")
 async def serve_web_ui():

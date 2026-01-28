@@ -26,9 +26,56 @@
         <main>
             <!-- コントロール -->
             <section class="controls">
-                <div class="device-selector-wrapper">
+                <!-- 入力ソース選択 -->
+                <div class="input-source-selector">
+                    <label>
+                        <input type="radio" name="inputSource" value="microphone" checked />
+                        <span>マイク入力</span>
+                    </label>
+                    <label>
+                        <input type="radio" name="inputSource" value="video" />
+                        <span>動画ファイル</span>
+                    </label>
+                    <label>
+                        <input type="radio" name="inputSource" value="tab" />
+                        <span>タブ共有（YouTube等）</span>
+                    </label>
+                </div>
+
+                <!-- マイク選択（デフォルト表示） -->
+                <div id="microphone-controls" class="device-selector-wrapper">
                     <label for="device-selector">マイク:</label>
                     <select id="device-selector"></select>
+                </div>
+
+                <!-- 動画アップロード欄（デフォルト非表示） -->
+                <div id="video-controls" class="video-upload" style="display: none;">
+                    <label for="video-file-input">動画ファイルを選択:</label>
+                    <input type="file" id="video-file-input" accept="video/*" />
+
+                    <div class="sample-videos">
+                        <p class="sample-label">サンプル動画:</p>
+                        <button class="btn-sample" data-video="/sample/001-sibutomo.mp4">サンプル1（黒）</button>
+                        <button class="btn-sample" data-video="/sample/002-worklife.mp4">サンプル2（青）</button>
+                        <button class="btn-sample" data-video="/sample/003-sikouryou.mp4">サンプル3（緑）</button>
+                    </div>
+
+                    <!-- 動画要素はJavaScriptで動的に作成 -->
+                </div>
+
+                <!-- タブ共有の説明（デフォルト非表示） -->
+                <div id="tab-controls" class="tab-share-info" style="display: none;">
+                    <div class="info-box">
+                        <h4>📺 タブ共有モード</h4>
+                        <p>ブラウザで再生中のYouTube等の音声をリアルタイムで文字起こしします。</p>
+                        <ol>
+                            <li>「開始」ボタンをクリック</li>
+                            <li>共有するタブを選択</li>
+                            <li>「音声を共有」にチェック✅</li>
+                            <li>「共有」ボタンをクリック</li>
+                        </ol>
+                        <p class="note">⚠️ 音声を共有するために、必ず「音声を共有」にチェックを入れてください。</p>
+                    </div>
                 </div>
 
                 <div class="button-group">
