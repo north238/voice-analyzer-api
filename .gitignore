@@ -218,3 +218,11 @@ logs/
 CLAUDE.md
 *_COMPLETION.md
 *_PLAN.md
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Claude CLI directory
+.claude/
