@@ -18,6 +18,7 @@ from dataclasses import dataclass
 # VADライブラリ（オプション）
 try:
     import webrtcvad
+
     VAD_AVAILABLE = True
 except ImportError:
     VAD_AVAILABLE = False
@@ -28,18 +29,19 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AudioConfig:
     """音声キャプチャ設定"""
+
     # 基本設定
-    sample_rate: int = 16000      # Whisper推奨: 16kHz
-    channels: int = 1             # モノラル
-    chunk_duration: float = 3.0   # 固定チャンク長（秒）- VAD無効時に使用
-    dtype: str = 'int16'          # 16-bit PCM
+    sample_rate: int = 16000  # Whisper推奨: 16kHz
+    channels: int = 1  # モノラル
+    chunk_duration: float = 3.0  # 固定チャンク長（秒）- VAD無効時に使用
+    dtype: str = "int16"  # 16-bit PCM
 
     # VAD設定（Phase 3.2）
-    enable_vad: bool = False              # VAD有効化フラグ
-    vad_aggressiveness: int = 2           # VAD感度（0-3、3が最も厳密）
-    silence_duration_ms: int = 500        # 無音判定時間（ミリ秒）
-    min_chunk_duration_ms: int = 500      # 最小チャンク長（ミリ秒）
-    max_chunk_duration_ms: int = 10000    # 最大チャンク長（ミリ秒）
+    enable_vad: bool = False  # VAD有効化フラグ
+    vad_aggressiveness: int = 2  # VAD感度（0-3、3が最も厳密）
+    silence_duration_ms: int = 500  # 無音判定時間（ミリ秒）
+    min_chunk_duration_ms: int = 500  # 最小チャンク長（ミリ秒）
+    max_chunk_duration_ms: int = 10000  # 最大チャンク長（ミリ秒）
 
     @property
     def frames_per_chunk(self) -> int:
@@ -54,12 +56,20 @@ class AudioConfig:
     @property
     def min_chunk_bytes(self) -> int:
         """最小チャンクサイズ（バイト）"""
-        return int(self.sample_rate * self.min_chunk_duration_ms / 1000) * self.channels * 2
+        return (
+            int(self.sample_rate * self.min_chunk_duration_ms / 1000)
+            * self.channels
+            * 2
+        )
 
     @property
     def max_chunk_bytes(self) -> int:
         """最大チャンクサイズ（バイト）"""
-        return int(self.sample_rate * self.max_chunk_duration_ms / 1000) * self.channels * 2
+        return (
+            int(self.sample_rate * self.max_chunk_duration_ms / 1000)
+            * self.channels
+            * 2
+        )
 
     @property
     def silence_frames(self) -> int:
@@ -77,7 +87,7 @@ class AudioConfig:
             WAVフォーマットのバイト列
         """
         buffer = io.BytesIO()
-        with wave.open(buffer, 'wb') as wav_file:
+        with wave.open(buffer, "wb") as wav_file:
             wav_file.setnchannels(self.channels)
             wav_file.setsampwidth(2)  # 16-bit = 2 bytes
             wav_file.setframerate(self.sample_rate)
@@ -164,14 +174,16 @@ class AudioCapture:
         # VAD関連
         self.vad = None
         self.vad_buffer = bytearray()  # VAD判定用バッファ
-        self.silence_frame_count = 0   # 連続無音フレーム数
-        self.is_speaking = False       # 発話中フラグ
-        self.speech_started = False    # 発話開始フラグ
+        self.silence_frame_count = 0  # 連続無音フレーム数
+        self.is_speaking = False  # 発話中フラグ
+        self.speech_started = False  # 発話開始フラグ
 
         # VADフレームサイズ（バイト）
-        self.vad_frame_bytes = int(
-            self.config.sample_rate * self.VAD_FRAME_DURATION_MS / 1000
-        ) * self.config.channels * 2
+        self.vad_frame_bytes = (
+            int(self.config.sample_rate * self.VAD_FRAME_DURATION_MS / 1000)
+            * self.config.channels
+            * 2
+        )
 
         # 無音判定に必要なフレーム数
         self.silence_frames_threshold = int(
@@ -184,14 +196,16 @@ class AudioCapture:
                 self.vad = webrtcvad.Vad(self.config.vad_aggressiveness)
                 logger.info(f"VAD有効化（感度: {self.config.vad_aggressiveness}）")
             else:
-                logger.warning("webrtcvadがインストールされていません。固定長モードで動作します。")
+                logger.warning(
+                    "webrtcvadがインストールされていません。固定長モードで動作します。"
+                )
                 self.config.enable_vad = False
 
     def start(
         self,
         on_chunk: Callable[[bytes], None],
         device_index: Optional[int] = None,
-        on_volume_level: Optional[Callable[[float, bool], None]] = None
+        on_volume_level: Optional[Callable[[float, bool], None]] = None,
     ):
         """
         音声キャプチャを開始
@@ -230,7 +244,7 @@ class AudioCapture:
                 dtype=self.config.dtype,
                 device=device_index,
                 blocksize=1024,  # 内部バッファサイズ（小さめで低遅延）
-                callback=self._audio_callback
+                callback=self._audio_callback,
             )
 
             self.stream.start()
@@ -282,8 +296,8 @@ class AudioCapture:
         # VADフレームサイズ分のデータがあればVAD判定
         is_speech = False
         while len(self.vad_buffer) >= self.vad_frame_bytes:
-            frame = bytes(self.vad_buffer[:self.vad_frame_bytes])
-            self.vad_buffer = self.vad_buffer[self.vad_frame_bytes:]
+            frame = bytes(self.vad_buffer[: self.vad_frame_bytes])
+            self.vad_buffer = self.vad_buffer[self.vad_frame_bytes :]
 
             try:
                 is_speech = self.vad.is_speech(frame, self.config.sample_rate)
@@ -301,7 +315,10 @@ class AudioCapture:
             else:
                 # 無音検出
                 self.silence_frame_count += 1
-                if self.speech_started and self.silence_frame_count >= self.silence_frames_threshold:
+                if (
+                    self.speech_started
+                    and self.silence_frame_count >= self.silence_frames_threshold
+                ):
                     # 無音が閾値を超えた→チャンク確定
                     self.is_speaking = False
 
@@ -322,9 +339,11 @@ class AudioCapture:
             logger.debug("最大チャンクサイズに達したため送信")
 
         # 発話終了＋最小チャンクサイズ以上の場合は送信
-        elif (self.speech_started and
-              not self.is_speaking and
-              buffer_len >= self.config.min_chunk_bytes):
+        elif (
+            self.speech_started
+            and not self.is_speaking
+            and buffer_len >= self.config.min_chunk_bytes
+        ):
             should_send = True
             logger.debug(f"発話終了を検出、チャンク送信（{buffer_len} bytes）")
 
@@ -345,8 +364,8 @@ class AudioCapture:
 
         # チャンクサイズに達したら処理
         if len(self.buffer) >= self.config.bytes_per_chunk:
-            pcm_data = bytes(self.buffer[:self.config.bytes_per_chunk])
-            self.buffer = self.buffer[self.config.bytes_per_chunk:]
+            pcm_data = bytes(self.buffer[: self.config.bytes_per_chunk])
+            self.buffer = self.buffer[self.config.bytes_per_chunk :]
             self._send_chunk_data(pcm_data)
 
     def _send_chunk(self):
@@ -441,6 +460,7 @@ if __name__ == "__main__":
     try:
         capture.start(test_callback)
         import time
+
         # ストリームが動作中は待機
         while capture.is_recording:
             try:

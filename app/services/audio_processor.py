@@ -76,7 +76,7 @@ async def transcribe_audio(file: UploadFile) -> str:
         text = "".join(texts).strip()
 
         # 数字間の不要なスペース（半角・全角）を削除
-        text = re.sub(r'(?<=\d)[\s　]+(?=\d)', '', text)
+        text = re.sub(r"(?<=\d)[\s　]+(?=\d)", "", text)
 
         if not text:
             raise ValueError("音声解析結果が空でした")

@@ -111,8 +111,55 @@ POST /transcribe
 - app/services/text_filter.py - NGワードや簡易ノイズ判定
 - app/services/text_parser.py - 正規表現ベースの品目/数量/単位抽出
 - app/services/llm_processor.py - （追加）OpenAI API を使った抽出結果の補正・正規化
+- app/services/translator.py - Helsinki-NLP/opus-mt-ja-en による日本語→英語翻訳
+- app/services/session_manager.py - セッション管理（チャンク処理用）
+- app/services/websocket_manager.py - WebSocket 接続管理
+- app/utils/normalizer.py - janome 形態素解析を使った日本語→ひらがな変換
 - app/utils/logger.py - 共通ロガー設定
 - Dockerfile / docker-compose.yml - コンテナ化設定
+
+## テスト
+
+本プロジェクトには包括的なテストスイートが用意されています。
+
+### テスト実行方法
+
+#### Dockerコンテナ内での実行（推奨）
+
+```bash
+# すべてのテストを実行
+docker compose exec voice-analyzer pytest /app/tests/ -v
+
+# 特定のテストファイルのみ実行
+docker compose exec voice-analyzer pytest /app/tests/test_translator.py -v
+
+# カバレッジ付き実行
+docker compose exec voice-analyzer pytest /app/tests/ --cov=app --cov-report=html
+```
+
+#### ローカル環境での実行
+
+```bash
+# 仮想環境を有効化
+source .venv/bin/activate
+
+# pytest インストール（初回のみ）
+pip install pytest pytest-cov
+
+# テスト実行
+pytest app/tests/ -v
+```
+
+### テストカバレッジ
+
+| テストファイル | テスト数 | 対象機能 |
+|---------------|---------|---------|
+| test_translator.py | 39 | 日英翻訳機能 |
+| test_session_manager.py | 47 | セッション管理 |
+| test_text_stats.py | 27 | テキスト統計 |
+| test_normalizer.py | 27 | ひらがな正規化（基本） |
+| test_normalizer_comprehensive.py | 39 | ひらがな正規化（包括） |
+| **合計** | **179** | **総合カバレッジ 98.9%** |
 
 ## 注意点 / 制限
 

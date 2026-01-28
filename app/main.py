@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, Form, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from services.audio_processor import transcribe_audio
 from services.text_filter import is_valid_text
 from services.translator import translate_text
@@ -21,6 +22,7 @@ from utils.logger import logger
 from config import settings
 import time
 import json
+import os
 from typing import Optional, Dict
 
 app = FastAPI()
@@ -39,6 +41,7 @@ ws_manager = get_websocket_manager()
 
 # 累積バッファの管理（セッションIDをキーにした辞書）
 cumulative_buffers: Dict[str, CumulativeBuffer] = {}
+
 
 @app.post("/transcribe")
 async def transcribe(
@@ -108,6 +111,7 @@ async def transcribe(
             },
         )
 
+
 @app.post("/translate")
 async def translate(file: UploadFile):
     """
@@ -135,7 +139,9 @@ async def translate(file: UploadFile):
         logger.info(f"📝 句読点挿入後: {text_with_punctuation}")
 
         # ひらがな正規化（句読点付きテキストから）
-        hiragana_text = normalizer.to_hiragana(text_with_punctuation, keep_punctuation=True)
+        hiragana_text = normalizer.to_hiragana(
+            text_with_punctuation, keep_punctuation=True
+        )
         logger.info(f"📝 正規化後（ひらがな）: {hiragana_text}")
 
         # 翻訳実行（句読点付きテキストを使用）
@@ -225,7 +231,9 @@ async def translate_chunk(
 
         # 4. ひらがな正規化
         with monitor.measure("normalization"):
-            hiragana_text = normalizer.to_hiragana(text_with_punctuation, keep_punctuation=True)
+            hiragana_text = normalizer.to_hiragana(
+                text_with_punctuation, keep_punctuation=True
+            )
             logger.info(f"📝 正規化完了: {hiragana_text}")
 
         # 5. 翻訳
@@ -429,12 +437,15 @@ async def process_websocket_chunk(
 
         # 無音チャンクはスキップ（エラーではなく正常終了）
         if not text:
-            await ws_manager.send_json(session_id, {
-                "type": "skipped",
-                "chunk_id": chunk_id,
-                "reason": "silent",
-                "message": "無音チャンク"
-            })
+            await ws_manager.send_json(
+                session_id,
+                {
+                    "type": "skipped",
+                    "chunk_id": chunk_id,
+                    "reason": "silent",
+                    "message": "無音チャンク",
+                },
+            )
             return
 
         transcription_time = monitor.get_last_measurement("transcription")
@@ -453,7 +464,9 @@ async def process_websocket_chunk(
         with monitor.measure("punctuation"):
             text_with_punctuation = await add_punctuation_async(text)
         punctuation_time = monitor.get_last_measurement("punctuation")
-        logger.info(f"📝 句読点挿入完了 ({punctuation_time:.2f}秒): {text_with_punctuation}")
+        logger.info(
+            f"📝 句読点挿入完了 ({punctuation_time:.2f}秒): {text_with_punctuation}"
+        )
 
         # 4. ひらがな正規化
         await ws_manager.send_progress(
@@ -465,9 +478,7 @@ async def process_websocket_chunk(
         logger.info(f"📝 正規化完了 ({normalization_time:.2f}秒): {hiragana_text}")
 
         # 5. 翻訳
-        await ws_manager.send_progress(
-            session_id, "translating", "翻訳中...", chunk_id
-        )
+        await ws_manager.send_progress(session_id, "translating", "翻訳中...", chunk_id)
         with monitor.measure("translation"):
             translated_text = await translate_async(text_with_punctuation)
         translation_time = monitor.get_last_measurement("translation")
@@ -627,19 +638,21 @@ async def process_cumulative_chunk(
         should_transcribe = buffer.add_audio_chunk(audio_data)
 
         # 蓄積中の通知
-        chunks_until_transcription = (
-            buffer.config.transcription_interval_chunks
-            - (buffer.chunk_count % buffer.config.transcription_interval_chunks)
+        chunks_until_transcription = buffer.config.transcription_interval_chunks - (
+            buffer.chunk_count % buffer.config.transcription_interval_chunks
         )
         if chunks_until_transcription == buffer.config.transcription_interval_chunks:
             chunks_until_transcription = 0
 
-        await ws_manager.send_json(session_id, {
-            "type": "accumulating",
-            "chunk_id": chunk_id,
-            "accumulated_seconds": buffer.current_audio_duration,
-            "chunks_until_transcription": chunks_until_transcription,
-        })
+        await ws_manager.send_json(
+            session_id,
+            {
+                "type": "accumulating",
+                "chunk_id": chunk_id,
+                "accumulated_seconds": buffer.current_audio_duration,
+                "chunks_until_transcription": chunks_until_transcription,
+            },
+        )
 
         # 再文字起こしが必要な場合
         if should_transcribe:
@@ -690,9 +703,7 @@ async def perform_cumulative_transcription(
         # 文字起こし実行
         with monitor.measure("transcription"):
             text = await transcribe_async(
-                accumulated_audio,
-                suffix=".wav",
-                initial_prompt=initial_prompt
+                accumulated_audio, suffix=".wav", initial_prompt=initial_prompt
             )
 
         transcription_time = monitor.get_last_measurement("transcription")
@@ -703,20 +714,23 @@ async def perform_cumulative_transcription(
 
         # 無音の場合
         if not text:
-            await ws_manager.send_json(session_id, {
-                "type": "transcription_update",
-                "chunk_id": chunk_id,
-                "transcription": {
-                    "confirmed": buffer.confirmed_text,
-                    "tentative": "",
-                    "full_text": buffer.confirmed_text,
+            await ws_manager.send_json(
+                session_id,
+                {
+                    "type": "transcription_update",
+                    "chunk_id": chunk_id,
+                    "transcription": {
+                        "confirmed": buffer.confirmed_text,
+                        "tentative": "",
+                        "full_text": buffer.confirmed_text,
+                    },
+                    "hiragana": {
+                        "confirmed": buffer.confirmed_hiragana,
+                        "tentative": "",
+                    },
+                    "is_silent": True,
                 },
-                "hiragana": {
-                    "confirmed": buffer.confirmed_hiragana,
-                    "tentative": "",
-                },
-                "is_silent": True,
-            })
+            )
             return
 
         # NGワードフィルタリング
@@ -741,8 +755,7 @@ async def perform_cumulative_transcription(
         )
         with monitor.measure("normalization"):
             result = buffer.update_transcription(
-                text_with_punctuation,
-                hiragana_converter=hiragana_converter
+                text_with_punctuation, hiragana_converter=hiragana_converter
             )
 
         normalization_time = monitor.get_last_measurement("normalization")
@@ -756,25 +769,28 @@ async def perform_cumulative_transcription(
         total_time = time.time() - request_start_time
 
         # 結果を送信
-        await ws_manager.send_json(session_id, {
-            "type": "transcription_update",
-            "chunk_id": chunk_id,
-            "transcription": {
-                "confirmed": result.confirmed_text,
-                "tentative": result.tentative_text,
-                "full_text": result.full_text,
+        await ws_manager.send_json(
+            session_id,
+            {
+                "type": "transcription_update",
+                "chunk_id": chunk_id,
+                "transcription": {
+                    "confirmed": result.confirmed_text,
+                    "tentative": result.tentative_text,
+                    "full_text": result.full_text,
+                },
+                "hiragana": {
+                    "confirmed": result.confirmed_hiragana,
+                    "tentative": result.tentative_hiragana,
+                },
+                "performance": {
+                    "transcription_time": transcription_time,
+                    "total_time": total_time,
+                    "accumulated_audio_seconds": buffer.current_audio_duration,
+                },
+                "is_final": False,
             },
-            "hiragana": {
-                "confirmed": result.confirmed_hiragana,
-                "tentative": result.tentative_hiragana,
-            },
-            "performance": {
-                "transcription_time": transcription_time,
-                "total_time": total_time,
-                "accumulated_audio_seconds": buffer.current_audio_duration,
-            },
-            "is_final": False,
-        })
+        )
 
         logger.info(
             f"✅ 累積文字起こし送信完了: session={session_id}, "
@@ -818,20 +834,23 @@ async def finalize_cumulative_session(session_id: str, connection):
         final_result = buffer.finalize(hiragana_converter=hiragana_converter)
 
         # 最終結果を送信
-        await ws_manager.send_json(session_id, {
-            "type": "session_end",
-            "transcription": {
-                "confirmed": final_result.confirmed_text,
-                "tentative": "",
-                "full_text": final_result.full_text,
+        await ws_manager.send_json(
+            session_id,
+            {
+                "type": "session_end",
+                "transcription": {
+                    "confirmed": final_result.confirmed_text,
+                    "tentative": "",
+                    "full_text": final_result.full_text,
+                },
+                "hiragana": {
+                    "confirmed": final_result.confirmed_hiragana,
+                    "tentative": "",
+                },
+                "statistics": buffer.get_stats(),
+                "is_final": True,
             },
-            "hiragana": {
-                "confirmed": final_result.confirmed_hiragana,
-                "tentative": "",
-            },
-            "statistics": buffer.get_stats(),
-            "is_final": True,
-        })
+        )
 
         logger.info(
             f"🏁 累積バッファセッション終了: session={session_id}, "
@@ -841,3 +860,26 @@ async def finalize_cumulative_session(session_id: str, connection):
     except Exception as e:
         logger.exception(f"❌ セッション終了処理エラー: {e}")
         await ws_manager.send_error(session_id, f"セッション終了処理エラー: {str(e)}")
+
+
+# 静的ファイル配信の設定
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    logger.info(f"📁 静的ファイル配信を有効化: {static_dir}")
+
+
+@app.get("/")
+async def serve_web_ui():
+    """Web UIのHTMLを返す"""
+    html_path = os.path.join(static_dir, "index.html")
+    if os.path.exists(html_path):
+        return FileResponse(html_path)
+    return JSONResponse(
+        status_code=200,
+        content={
+            "message": "Voice Analyzer API",
+            "version": "1.0.0",
+            "web_ui": "Web UIは /static/index.html を配置してください",
+        },
+    )

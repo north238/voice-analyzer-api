@@ -36,7 +36,7 @@ file_handler = TimedRotatingFileHandler(
     when="midnight",  # 毎日午前0時にローテーション
     interval=1,  # 1日ごと
     backupCount=LOG_BACKUP_COUNT,  # 保持する世代数
-    encoding="utf-8"
+    encoding="utf-8",
 )
 # ログファイル名のサフィックス（例: voice-analyzer.log.2026-01-15）
 file_handler.suffix = "%Y-%m-%d"
@@ -48,4 +48,6 @@ logger.addHandler(file_handler)
 logger.propagate = False
 
 # 起動時ログ
-logger.info(f"📁 ログファイル: {LOG_FILE} (日次ローテーション, {LOG_BACKUP_COUNT}日分保持)")
+logger.info(
+    f"📁 ログファイル: {LOG_FILE} (日次ローテーション, {LOG_BACKUP_COUNT}日分保持)"
+)

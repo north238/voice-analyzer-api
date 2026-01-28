@@ -2,6 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# PYTHONPATHを設定（テストとアプリケーション起動の両方で app.xxx 形式のインポートを有効化）
+ENV PYTHONPATH=/
+
 # 必要なパッケージ（音声解析系には ffmpeg が必須）
 RUN apt-get update && apt-get install -y \
     ffmpeg \
@@ -34,6 +37,11 @@ RUN pip install --no-cache-dir \
     torch>=2.0.0 \
     transformers>=4.30.0 \
     sentencepiece>=0.1.99
+
+# テストツール
+RUN pip install --no-cache-dir \
+    pytest>=7.0.0 \
+    pytest-cov>=4.0.0
 
 # アプリケーションコードをコピー
 COPY ./app /app

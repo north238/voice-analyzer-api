@@ -39,7 +39,9 @@ def normalize_numbers(text: str) -> str:
         base = int(NUMBER_MAP.get(num, "1"))
         return str(base * UNIT_MAP[unit])
 
-    pattern = r"(いち|に|さん|よん|し|ご|ろく|なな|しち|はち|きゅう|く)?(じゅう|ひゃく|せん)"
+    pattern = (
+        r"(いち|に|さん|よん|し|ご|ろく|なな|しち|はち|きゅう|く)?(じゅう|ひゃく|せん)"
+    )
     text = re.sub(pattern, replace_units, text)
 
     return text

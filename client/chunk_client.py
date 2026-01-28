@@ -136,9 +136,7 @@ class ChunkTranslationClient:
             print(f"   🔤 ひらがな: {results.get('hiragana_text', '')[:50]}...")
             print(f"   🌐 翻訳: {results.get('translated_text', '')[:50]}...")
             print(f"   ⏱️  処理時間: {performance.get('total_time', 0):.3f}秒")
-            print(
-                f"   📊 累計チャンク: {context.get('total_chunks', 0)}個"
-            )
+            print(f"   📊 累計チャンク: {context.get('total_chunks', 0)}個")
             print()
         else:
             print(f"   ❌ エラー: {result.get('message', 'Unknown error')}")
@@ -159,8 +157,7 @@ class ChunkTranslationClient:
 
         # サーバー側の処理時間集計
         total_server_time = sum(
-            p["server_performance"].get("total_time", 0)
-            for p in self.performance_data
+            p["server_performance"].get("total_time", 0) for p in self.performance_data
         )
         avg_server_time = total_server_time / total_chunks if total_chunks > 0 else 0
 

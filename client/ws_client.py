@@ -57,12 +57,12 @@ class WebSocketTranslationClient:
                 # 終了メッセージを送信
                 await self.websocket.send(json.dumps({"type": "end"}))
                 # 終了応答を待つ
-                response = await asyncio.wait_for(
-                    self.websocket.recv(), timeout=5.0
-                )
+                response = await asyncio.wait_for(self.websocket.recv(), timeout=5.0)
                 data = json.loads(response)
                 if data.get("type") == "session_end":
-                    print(f"\n🏁 セッション終了: 総チャンク数={data.get('total_chunks')}")
+                    print(
+                        f"\n🏁 セッション終了: 総チャンク数={data.get('total_chunks')}"
+                    )
 
                 await self.websocket.close()
             except Exception:
@@ -97,9 +97,7 @@ class WebSocketTranslationClient:
             # 進捗通知と結果を受信
             result = None
             while True:
-                response = await asyncio.wait_for(
-                    self.websocket.recv(), timeout=60.0
-                )
+                response = await asyncio.wait_for(self.websocket.recv(), timeout=60.0)
                 data = json.loads(response)
                 msg_type = data.get("type")
 
@@ -115,11 +113,13 @@ class WebSocketTranslationClient:
                     result["_client_time"] = elapsed_time
 
                     # パフォーマンスデータを記録
-                    self.performance_data.append({
-                        "chunk_id": chunk_id,
-                        "request_time": elapsed_time,
-                        "server_performance": data.get("performance", {}),
-                    })
+                    self.performance_data.append(
+                        {
+                            "chunk_id": chunk_id,
+                            "request_time": elapsed_time,
+                            "server_performance": data.get("performance", {}),
+                        }
+                    )
                     self.chunk_results.append(result)
                     break
 
@@ -218,8 +218,7 @@ class WebSocketTranslationClient:
 
         # サーバー側の処理時間集計
         total_server_time = sum(
-            p["server_performance"].get("total_time", 0)
-            for p in self.performance_data
+            p["server_performance"].get("total_time", 0) for p in self.performance_data
         )
         avg_server_time = total_server_time / total_chunks if total_chunks > 0 else 0
 

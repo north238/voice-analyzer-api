@@ -16,23 +16,25 @@ from utils.logger import logger
 @dataclass
 class CumulativeBufferConfig:
     """累積バッファ設定"""
+
     max_audio_duration_seconds: float = 30.0  # 最大蓄積時間（Whisperの1セグメント上限）
-    transcription_interval_chunks: int = 3    # 何チャンクごとに再文字起こしするか
-    stable_text_threshold: int = 2            # 何回同じ結果が出たら確定とするか
-    sample_rate: int = 16000                  # サンプルレート
-    channels: int = 1                         # チャンネル数
-    sample_width: int = 2                     # サンプル幅（16bit = 2bytes）
+    transcription_interval_chunks: int = 3  # 何チャンクごとに再文字起こしするか
+    stable_text_threshold: int = 2  # 何回同じ結果が出たら確定とするか
+    sample_rate: int = 16000  # サンプルレート
+    channels: int = 1  # チャンネル数
+    sample_width: int = 2  # サンプル幅（16bit = 2bytes）
 
 
 @dataclass
 class TranscriptionResult:
     """文字起こし結果"""
-    confirmed_text: str      # 確定テキスト（変更されない部分）
-    tentative_text: str      # 暫定テキスト（まだ変わる可能性あり）
-    full_text: str           # 全体テキスト
+
+    confirmed_text: str  # 確定テキスト（変更されない部分）
+    tentative_text: str  # 暫定テキスト（まだ変わる可能性あり）
+    full_text: str  # 全体テキスト
     confirmed_hiragana: str  # 確定テキストのひらがな
     tentative_hiragana: str  # 暫定テキストのひらがな
-    is_final: bool           # セッション終了フラグ
+    is_final: bool  # セッション終了フラグ
 
 
 def extract_diff(previous: str, current: str) -> Tuple[str, str]:
@@ -57,12 +59,12 @@ def extract_diff(previous: str, current: str) -> Tuple[str, str]:
 
     if not previous:
         # 前回結果がない場合、句点で終わる文を確定とみなす
-        sentence_pattern = r'(?<=[。！？])'
+        sentence_pattern = r"(?<=[。！？])"
         sentences = re.split(sentence_pattern, current)
 
         # 最後の文以外は確定（句点で終わっている）
         if len(sentences) > 1:
-            confirmed = ''.join(sentences[:-1])
+            confirmed = "".join(sentences[:-1])
             tentative = sentences[-1] if sentences[-1].strip() else ""
         else:
             confirmed = ""
@@ -70,7 +72,7 @@ def extract_diff(previous: str, current: str) -> Tuple[str, str]:
         return confirmed, tentative
 
     # 句点で分割（句点は保持）
-    sentence_pattern = r'(?<=[。！？])'
+    sentence_pattern = r"(?<=[。！？])"
     prev_sentences = [s for s in re.split(sentence_pattern, previous) if s.strip()]
     curr_sentences = [s for s in re.split(sentence_pattern, current) if s.strip()]
 
@@ -78,7 +80,9 @@ def extract_diff(previous: str, current: str) -> Tuple[str, str]:
     confirmed_sentences = []
     for i, (prev_s, curr_s) in enumerate(zip(prev_sentences, curr_sentences)):
         # 句点で終わる文が一致した場合のみ確定
-        if prev_s.strip() == curr_s.strip() and prev_s.rstrip().endswith(('。', '！', '？')):
+        if prev_s.strip() == curr_s.strip() and prev_s.rstrip().endswith(
+            ("。", "！", "？")
+        ):
             confirmed_sentences.append(curr_s)
         else:
             break
@@ -89,17 +93,17 @@ def extract_diff(previous: str, current: str) -> Tuple[str, str]:
         # 確定済みの次の文から、句点で終わるものを確定
         for i in range(len(confirmed_sentences), len(curr_sentences) - 1):
             s = curr_sentences[i]
-            if s.rstrip().endswith(('。', '！', '？')):
+            if s.rstrip().endswith(("。", "！", "？")):
                 confirmed_sentences.append(s)
             else:
                 break
 
     # 確定テキストを結合
-    confirmed = ''.join(confirmed_sentences)
+    confirmed = "".join(confirmed_sentences)
 
     # 暫定テキストは確定部分を除いた残り
     if confirmed:
-        tentative = current[len(confirmed):].lstrip()
+        tentative = current[len(confirmed) :].lstrip()
     else:
         tentative = current
 
@@ -124,13 +128,13 @@ class CumulativeBuffer:
         self.chunk_count: int = 0
 
         # 文字起こし結果
-        self.last_transcription: str = ""           # 前回の文字起こし結果
-        self.confirmed_text: str = ""               # 確定済みテキスト
-        self.confirmed_hiragana: str = ""           # 確定済みひらがな
+        self.last_transcription: str = ""  # 前回の文字起こし結果
+        self.confirmed_text: str = ""  # 確定済みテキスト
+        self.confirmed_hiragana: str = ""  # 確定済みひらがな
 
         # 安定性チェック用
-        self.stable_count: int = 0                  # 同じ結果が続いた回数
-        self.previous_full_text: str = ""           # 前回の全体テキスト
+        self.stable_count: int = 0  # 同じ結果が続いた回数
+        self.previous_full_text: str = ""  # 前回の全体テキスト
 
         # 作成時刻
         self.created_at: datetime = datetime.now()
@@ -155,9 +159,7 @@ class CumulativeBuffer:
     def current_audio_duration(self) -> float:
         """現在の音声長（秒）"""
         return self.total_audio_bytes / (
-            self.config.sample_rate
-            * self.config.channels
-            * self.config.sample_width
+            self.config.sample_rate * self.config.channels * self.config.sample_width
         )
 
     def add_audio_chunk(self, audio_data: bytes) -> bool:
@@ -190,10 +192,10 @@ class CumulativeBuffer:
     def _extract_pcm_from_wav(self, audio_data: bytes) -> bytes:
         """WAVデータからPCMデータを抽出"""
         # WAVヘッダーの確認（"RIFF"で始まる）
-        if audio_data[:4] == b'RIFF':
+        if audio_data[:4] == b"RIFF":
             try:
                 with io.BytesIO(audio_data) as wav_buffer:
-                    with wave.open(wav_buffer, 'rb') as wav_file:
+                    with wave.open(wav_buffer, "rb") as wav_file:
                         return wav_file.readframes(wav_file.getnframes())
             except Exception as e:
                 logger.warning(f"WAV解析失敗、生データとして処理: {e}")
@@ -202,24 +204,24 @@ class CumulativeBuffer:
 
     def _trim_buffer_if_needed(self):
         """バッファが最大サイズを超えた場合、古いデータを削除"""
-        while self.total_audio_bytes > self.max_audio_bytes and len(self.audio_chunks) > 1:
+        while (
+            self.total_audio_bytes > self.max_audio_bytes and len(self.audio_chunks) > 1
+        ):
             removed = self.audio_chunks.pop(0)
             self.total_audio_bytes -= len(removed)
-            logger.debug(
-                f"🗑️ 古いチャンク削除: 残り{self.current_audio_duration:.1f}秒"
-            )
+            logger.debug(f"🗑️ 古いチャンク削除: 残り{self.current_audio_duration:.1f}秒")
 
     def get_accumulated_audio(self) -> bytes:
         """累積音声データをWAV形式で取得"""
         if not self.audio_chunks:
-            return b''
+            return b""
 
         # 全PCMデータを結合
-        all_pcm = b''.join(self.audio_chunks)
+        all_pcm = b"".join(self.audio_chunks)
 
         # WAV形式に変換
         wav_buffer = io.BytesIO()
-        with wave.open(wav_buffer, 'wb') as wav_file:
+        with wave.open(wav_buffer, "wb") as wav_file:
             wav_file.setnchannels(self.config.channels)
             wav_file.setsampwidth(self.config.sample_width)
             wav_file.setframerate(self.config.sample_rate)
@@ -236,14 +238,12 @@ class CumulativeBuffer:
             return None
 
         # 最後の2文程度を返す
-        sentences = re.split(r'(?<=[。！？])', self.confirmed_text)
+        sentences = re.split(r"(?<=[。！？])", self.confirmed_text)
         recent_sentences = [s for s in sentences[-2:] if s.strip()]
-        return ''.join(recent_sentences) if recent_sentences else None
+        return "".join(recent_sentences) if recent_sentences else None
 
     def update_transcription(
-        self,
-        new_text: str,
-        hiragana_converter=None
+        self, new_text: str, hiragana_converter=None
     ) -> TranscriptionResult:
         """文字起こし結果を更新し、差分を計算
 
@@ -261,7 +261,7 @@ class CumulativeBuffer:
         newly_confirmed = ""
         if current_confirmed and len(current_confirmed) > len(self.confirmed_text):
             # 今回の確定部分が既存より長い場合、差分を追加
-            newly_confirmed = current_confirmed[len(self.confirmed_text):]
+            newly_confirmed = current_confirmed[len(self.confirmed_text) :]
             self.confirmed_text = current_confirmed
         elif current_confirmed and not self.confirmed_text:
             # 初回の確定
@@ -300,14 +300,14 @@ class CumulativeBuffer:
             full_text=new_text,
             confirmed_hiragana=self.confirmed_hiragana,
             tentative_hiragana=tentative_hiragana,
-            is_final=False
+            is_final=False,
         )
 
     def finalize(self, hiragana_converter=None) -> TranscriptionResult:
         """セッション終了時に全テキストを確定"""
         # 残りの暫定テキストを確定
         if self.last_transcription:
-            remaining = self.last_transcription[len(self.confirmed_text):]
+            remaining = self.last_transcription[len(self.confirmed_text) :]
             if remaining:
                 self.confirmed_text += remaining
                 if hiragana_converter:
@@ -321,7 +321,7 @@ class CumulativeBuffer:
             full_text=self.confirmed_text,
             confirmed_hiragana=self.confirmed_hiragana,
             tentative_hiragana="",
-            is_final=True
+            is_final=True,
         )
 
     def clear(self):

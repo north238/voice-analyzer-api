@@ -1,6 +1,6 @@
 from transformers import MarianMTModel, MarianTokenizer
-from config import settings
-from utils.logger import logger
+from app.config import settings
+from app.utils.logger import logger
 from typing import Optional
 import re
 
@@ -167,7 +167,9 @@ class Translator:
         for sentence in sentences:
             sentence = sentence.strip()
             if sentence:
-                result.append(sentence + "。" if not sentence.endswith("。") else sentence)
+                result.append(
+                    sentence + "。" if not sentence.endswith("。") else sentence
+                )
         return result
 
     def _translate_long_text(self, text: str) -> str:

@@ -49,9 +49,7 @@ def get_whisper_model() -> WhisperModel:
 
 
 def _transcribe_sync(
-    audio_data: bytes,
-    suffix: str = ".wav",
-    initial_prompt: Optional[str] = None
+    audio_data: bytes, suffix: str = ".wav", initial_prompt: Optional[str] = None
 ) -> str:
     """
     同期的な音声文字起こし処理
@@ -149,9 +147,7 @@ def _transcribe_sync(
 
 
 async def transcribe_async(
-    audio_data: bytes,
-    suffix: str = ".wav",
-    initial_prompt: Optional[str] = None
+    audio_data: bytes, suffix: str = ".wav", initial_prompt: Optional[str] = None
 ) -> str:
     """
     非同期的な音声文字起こし処理
@@ -169,12 +165,8 @@ async def transcribe_async(
 
     # functools.partialでinitial_promptを渡す
     from functools import partial
-    transcribe_func = partial(
-        _transcribe_sync,
-        audio_data,
-        suffix,
-        initial_prompt
-    )
+
+    transcribe_func = partial(_transcribe_sync, audio_data, suffix, initial_prompt)
     return await loop.run_in_executor(executor, transcribe_func)
 
 
@@ -208,9 +200,7 @@ async def normalize_async(text: str, keep_punctuation: bool = True) -> str:
     """
     loop = asyncio.get_event_loop()
     executor = get_executor()
-    return await loop.run_in_executor(
-        executor, _normalize_sync, text, keep_punctuation
-    )
+    return await loop.run_in_executor(executor, _normalize_sync, text, keep_punctuation)
 
 
 def _translate_sync(text: str) -> str:

@@ -172,11 +172,12 @@ class NumberConverter:
             '卵三個'
         """
 
-        # 1. 電話番号を一時的に保護
+        # 1. 電話番号を一時的に保護（日本語括弧とアルファベットを使用してjanomeの誤変換を回避）
         phone_patterns = re.findall(r"\d{2,4}-\d{3,4}-\d{4}", text)
         phone_placeholders = {}
         for i, phone in enumerate(phone_patterns):
-            placeholder = f"__PHONE_{i}__"
+            # 数字の代わりにアルファベット（a, b, c...）を使用
+            placeholder = f"【PHONE{chr(97+i)}】"  # chr(97) = 'a'
             phone_placeholders[placeholder] = phone
             text = text.replace(phone, placeholder, 1)
 

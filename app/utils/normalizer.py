@@ -300,7 +300,7 @@ class JapaneseNormalizer:
 
         for i, token in enumerate(tokens):
             surface = token.surface
-            pos_parts = token.part_of_speech.split(',') if token.part_of_speech else []
+            pos_parts = token.part_of_speech.split(",") if token.part_of_speech else []
             part_of_speech = pos_parts[0] if pos_parts else ""
 
             result_parts.append(surface)
@@ -308,7 +308,11 @@ class JapaneseNormalizer:
             # 次のトークンがあるか確認
             if i < len(tokens) - 1:
                 next_token = tokens[i + 1]
-                next_pos_parts = next_token.part_of_speech.split(',') if next_token.part_of_speech else []
+                next_pos_parts = (
+                    next_token.part_of_speech.split(",")
+                    if next_token.part_of_speech
+                    else []
+                )
                 next_pos = next_pos_parts[0] if next_pos_parts else ""
                 next_surface = next_token.surface
 
@@ -317,7 +321,11 @@ class JapaneseNormalizer:
                 # 1. 接続助詞「ため」「ので」「から」「けれど」の後に読点
                 if surface in ["ため", "ので", "から", "けれど", "けれども", "が"]:
                     # 「が」は接続助詞の場合のみ（「リンゴが」などの格助詞は除外）
-                    if surface == "が" and len(pos_parts) > 1 and pos_parts[1] == "接続助詞":
+                    if (
+                        surface == "が"
+                        and len(pos_parts) > 1
+                        and pos_parts[1] == "接続助詞"
+                    ):
                         result_parts.append("、")
                     elif surface != "が":
                         result_parts.append("、")
@@ -333,7 +341,14 @@ class JapaneseNormalizer:
                     conjugation = pos_parts[5] if len(pos_parts) > 5 else ""
 
                     # 「ます」「です」などの丁寧語の後
-                    if surface in ["ます", "です", "ました", "でした", "ません", "ありません"]:
+                    if surface in [
+                        "ます",
+                        "です",
+                        "ました",
+                        "でした",
+                        "ません",
+                        "ありません",
+                    ]:
                         # 次が名詞・動詞・形容詞・接頭詞で始まる場合は新しい文なので句点
                         if next_pos in ["名詞", "動詞", "形容詞", "副詞", "接頭詞"]:
                             # 「お」で始まる名詞の場合も句点を入れる（「お肌」など）
@@ -350,20 +365,60 @@ class JapaneseNormalizer:
                 # 4. 助動詞「ます」「です」「だ」「た」の後
                 elif part_of_speech == "助動詞":
                     # 「ます」「です」「ました」「でした」の後に接頭詞や名詞が来る場合は句点
-                    if surface in ["ます", "です", "ました", "でした", "ません", "ませんでした", "だった", "まし", "でし"]:
-                        if next_pos in ["名詞", "動詞", "形容詞", "接頭詞", "副詞", "代名詞"]:
+                    if surface in [
+                        "ます",
+                        "です",
+                        "ました",
+                        "でした",
+                        "ません",
+                        "ませんでした",
+                        "だった",
+                        "まし",
+                        "でし",
+                    ]:
+                        if next_pos in [
+                            "名詞",
+                            "動詞",
+                            "形容詞",
+                            "接頭詞",
+                            "副詞",
+                            "代名詞",
+                        ]:
                             # 指示代名詞（「それ」「これ」「あれ」など）の前は必ず句点
-                            if next_surface in ["それ", "これ", "あれ", "その", "この", "あの", "そこ", "ここ", "あそこ"]:
+                            if next_surface in [
+                                "それ",
+                                "これ",
+                                "あれ",
+                                "その",
+                                "この",
+                                "あの",
+                                "そこ",
+                                "ここ",
+                                "あそこ",
+                            ]:
                                 result_parts.append("。")
                             # その他の名詞・動詞・形容詞の前も句点
-                            elif next_pos in ["名詞", "動詞", "形容詞", "接頭詞", "副詞"]:
+                            elif next_pos in [
+                                "名詞",
+                                "動詞",
+                                "形容詞",
+                                "接頭詞",
+                                "副詞",
+                            ]:
                                 result_parts.append("。")
                             # 「まし」「でし」の後に「た」が来て、その先に指示代名詞がある場合
                             # 2トークン先をチェック
                             if surface in ["まし", "でし"] and i + 1 < len(tokens) - 1:
                                 next_next_token = tokens[i + 2]
                                 next_next_surface = next_next_token.surface
-                                if next_surface == "た" and next_next_surface in ["それ", "これ", "あれ", "その", "この", "あの"]:
+                                if next_surface == "た" and next_next_surface in [
+                                    "それ",
+                                    "これ",
+                                    "あれ",
+                                    "その",
+                                    "この",
+                                    "あの",
+                                ]:
                                     # 「まし/でし」の後ではなく「た」の後に句点を入れるため、ここではスキップ
                                     pass
                     # 「た」の後（連体修飾を除外）
@@ -375,10 +430,20 @@ class JapaneseNormalizer:
                         if next_surface == "の":
                             pass  # 句点を入れない
                         # 次が指示代名詞の場合は必ず句点（「ました。それは」など）
-                        elif next_surface in ["それ", "これ", "あれ", "その", "この", "あの"]:
+                        elif next_surface in [
+                            "それ",
+                            "これ",
+                            "あれ",
+                            "その",
+                            "この",
+                            "あの",
+                        ]:
                             result_parts.append("。")
                         # 次が名詞の場合、前が「まし」「でし」でない限り連体修飾の可能性
-                        elif next_pos == "名詞" and prev_surface not in ["まし", "でし"]:
+                        elif next_pos == "名詞" and prev_surface not in [
+                            "まし",
+                            "でし",
+                        ]:
                             pass  # 句点を入れない（連体修飾）
                         # それ以外（動詞、形容詞など）の前は句点
                         elif next_pos in ["動詞", "形容詞", "副詞", "接続詞"]:
@@ -394,10 +459,9 @@ class JapaneseNormalizer:
                 elif part_of_speech == "名詞" and next_pos == "名詞":
                     # カタカナ複合名詞は保護（固有名詞の可能性）
                     # 例: 「シャボン玉石鹸」のようなカタカナを含む複合名詞
-                    is_katakana_compound = (
-                        re.match(r"^[ァ-ヴー]+$", surface) or
-                        re.match(r"^[ァ-ヴー]+$", next_surface)
-                    )
+                    is_katakana_compound = re.match(
+                        r"^[ァ-ヴー]+$", surface
+                    ) or re.match(r"^[ァ-ヴー]+$", next_surface)
 
                     # カタカナ複合名詞の場合は句点を入れない
                     if is_katakana_compound:
@@ -405,14 +469,21 @@ class JapaneseNormalizer:
                     # 前の文脈を見て、動詞や形容詞の後の名詞なら句点を検討
                     elif i > 0:
                         prev_token = tokens[i - 1]
-                        prev_pos = prev_token.part_of_speech.split(',')[0] if prev_token.part_of_speech else ""
+                        prev_pos = (
+                            prev_token.part_of_speech.split(",")[0]
+                            if prev_token.part_of_speech
+                            else ""
+                        )
                         # 直前が助詞でない場合（つまり文節の切れ目の可能性）
                         if prev_pos not in ["助詞", "助動詞"]:
                             # 意味的な切れ目を判断（例：「安心天然」→「安心。天然」）
                             # ただし両方とも漢字2文字以上の場合のみ
-                            if (len(surface) >= 2 and len(next_surface) >= 2 and
-                                re.match(r"^[一-龥]+$", surface) and
-                                re.match(r"^[一-龥]+$", next_surface)):
+                            if (
+                                len(surface) >= 2
+                                and len(next_surface) >= 2
+                                and re.match(r"^[一-龥]+$", surface)
+                                and re.match(r"^[一-龥]+$", next_surface)
+                            ):
                                 result_parts.append("。")
 
         return "".join(result_parts)

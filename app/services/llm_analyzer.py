@@ -44,6 +44,7 @@ SYSTEM_PROMPT = """あなたは日本語のひらがなを漢字かな混じり�
 
 重要: 入力文を要約せず、全ての文字を変換してください。JSONのみを出力してください。"""
 
+
 def call_llm(text: str) -> dict:
     try:
         payload = {
@@ -61,7 +62,9 @@ def call_llm(text: str) -> dict:
             "stream": False,
         }
 
-        response = requests.post(OLLAMA_URL, json=payload, timeout=settings.OLLAMA_TIMEOUT)
+        response = requests.post(
+            OLLAMA_URL, json=payload, timeout=settings.OLLAMA_TIMEOUT
+        )
         response.raise_for_status()
         data = response.json()
 
