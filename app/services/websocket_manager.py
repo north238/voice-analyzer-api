@@ -23,6 +23,13 @@ class WebSocketConnection:
     monitor: PerformanceMonitor = field(default_factory=PerformanceMonitor)
     chunk_count: int = 0
     connected_at: datetime = field(default_factory=datetime.now)
+    processing_options: dict = field(
+        default_factory=lambda: {
+            "hiragana": False,
+            "translation": False,
+            "summary": False,
+        }
+    )
 
     def increment_chunk(self) -> int:
         """チャンクカウントを増加させ、現在のカウントを返す"""

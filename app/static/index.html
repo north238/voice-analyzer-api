@@ -78,9 +78,30 @@
                     </div>
                 </div>
 
+                <!-- 処理オプション -->
+                <div class="processing-options">
+                    <h3>処理オプション</h3>
+                    <div class="options-grid">
+                        <label>
+                            <input type="checkbox" id="enable-hiragana" />
+                            <span>ひらがな正規化</span>
+                        </label>
+                        <label>
+                            <input type="checkbox" id="enable-translation" />
+                            <span>翻訳（日→英）</span>
+                        </label>
+                        <label>
+                            <input type="checkbox" id="enable-summary" disabled />
+                            <span>要約（将来実装予定）</span>
+                        </label>
+                    </div>
+                    <p class="hint">💡 オフにすると処理が高速化されます</p>
+                </div>
+
                 <div class="button-group">
                     <button id="start-button" class="btn btn-primary">開始</button>
                     <button id="stop-button" class="btn btn-secondary" disabled>停止</button>
+                    <button id="download-button" class="btn btn-tertiary" disabled>ダウンロード</button>
                 </div>
 
                 <div id="status-text" class="status info">準備中...</div>
@@ -110,9 +131,24 @@
             </section>
 
             <!-- ひらがな正規化 -->
-            <section class="hiragana-results">
+            <section class="hiragana-results" style="display: none;">
                 <h2>ひらがな正規化</h2>
                 <div id="hiragana-text" class="text-display hiragana"></div>
+            </section>
+
+            <!-- 翻訳結果（オプション） -->
+            <section id="translation-section" class="translation-results" style="display: none;">
+                <h2>翻訳結果</h2>
+
+                <div class="result-box">
+                    <h3>確定翻訳</h3>
+                    <div id="confirmed-translation" class="text-display translation-confirmed"></div>
+                </div>
+
+                <div class="result-box">
+                    <h3>暫定翻訳</h3>
+                    <div id="tentative-translation" class="text-display translation-tentative"></div>
+                </div>
             </section>
 
             <!-- パフォーマンス情報 -->

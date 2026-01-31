@@ -86,6 +86,10 @@ class JapaneseNormalizer:
                     # 漢字なのにreadingがない場合（稀）
                     # 表層形をそのまま使うか、エラーログを出す
                     hiragana_parts.append(surface)
+                elif re.match(r"^[\u30a0-\u30ff]+$", surface):
+                    # カタカナ（readingがない場合）
+                    hiragana = jaconv.kata2hira(surface)
+                    hiragana_parts.append(hiragana)
                 else:
                     # その他の記号
                     if keep_punctuation:
@@ -203,6 +207,10 @@ class JapaneseNormalizer:
                     hiragana_parts.append(surface)
                 elif re.match(r"^[\u4e00-\u9fff]+$", surface):
                     hiragana_parts.append(surface)
+                elif re.match(r"^[\u30a0-\u30ff]+$", surface):
+                    # カタカナ（readingがない場合）
+                    hiragana = jaconv.kata2hira(surface)
+                    hiragana_parts.append(hiragana)
                 else:
                     if keep_punctuation:
                         hiragana_parts.append(surface)

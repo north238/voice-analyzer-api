@@ -8,6 +8,7 @@ class UIController {
         // DOM要素の参照
         this.startButton = document.getElementById("start-button");
         this.stopButton = document.getElementById("stop-button");
+        this.downloadButton = document.getElementById("download-button");
         this.statusText = document.getElementById("status-text");
         this.volumeMeter = document.getElementById("volume-meter");
         this.volumeBar = document.getElementById("volume-bar");
@@ -15,6 +16,11 @@ class UIController {
         this.confirmedText = document.getElementById("confirmed-text");
         this.tentativeText = document.getElementById("tentative-text");
         this.hiraganaText = document.getElementById("hiragana-text");
+
+        this.confirmedTranslation = document.getElementById("confirmed-translation");
+        this.tentativeTranslation = document.getElementById("tentative-translation");
+        this.hiraganaSection = document.querySelector(".hiragana-results");
+        this.translationSection = document.getElementById("translation-section");
 
         this.performanceInfo = document.getElementById("performance-info");
         this.deviceSelector = document.getElementById("device-selector");
@@ -25,11 +31,28 @@ class UIController {
         this.previousTentativeText = "";
         this.previousHiraganaConfirmed = "";
         this.previousHiraganaTentative = "";
+        this.previousConfirmedTranslation = "";
+        this.previousTentativeTranslation = "";
         this.typingTimers = [];
 
         // 現在の確定テキスト（累積）
         this.currentConfirmedText = "";
         this.currentHiraganaConfirmed = "";
+        this.currentConfirmedTranslation = "";
+
+        // セッションデータ（ダウンロード用）
+        this.sessionStartTime = null;
+        this.transcriptionHistory = [];
+    }
+
+    /**
+     * セッション開始
+     * セッション開始時刻を記録
+     */
+    startSession() {
+        this.sessionStartTime = Date.now();
+        this.transcriptionHistory = [];
+        console.log("📝 セッション開始時刻を記録しました");
     }
 
     /**
@@ -83,15 +106,52 @@ class UIController {
             const localFinalText = this.currentConfirmedText + this.previousTentativeText;
             const serverFinalText = newConfirmedText || "";
 
+            let finalText = "";
             if (serverFinalText.length >= localFinalText.length) {
                 // サーバーの最終確定テキストを採用
-                this.currentConfirmedText = serverFinalText;
+                finalText = serverFinalText;
                 this.currentHiraganaConfirmed = newHiraganaConfirmed || "";
             } else {
                 // ローカルの確定+暫定を採用（サーバーのデータが不完全な場合）
-                this.currentConfirmedText = localFinalText;
+                finalText = localFinalText;
                 this.currentHiraganaConfirmed += this.previousHiraganaTentative;
             }
+
+            // 最終的に追加されたテキストを履歴に記録
+            if (finalText.length > this.currentConfirmedText.length) {
+                const addedText = finalText.slice(this.currentConfirmedText.length);
+                const timestamp = this.sessionStartTime
+                    ? (Date.now() - this.sessionStartTime) / 1000
+                    : 0;
+
+                const translation = data.translation || {};
+                const addedTranslation = translation?.confirmed
+                    ? translation.confirmed.slice(this.currentConfirmedTranslation.length)
+                    : "";
+
+                // ひらがな正規化テキストの追加分を取得
+                let addedHiragana = "";
+                const localHiraganaFinal = this.currentHiraganaConfirmed + this.previousHiraganaTentative;
+
+                if (newHiraganaConfirmed && newHiraganaConfirmed.length > this.currentHiraganaConfirmed.length) {
+                    // サーバーからひらがなデータがある場合
+                    addedHiragana = newHiraganaConfirmed.slice(this.currentHiraganaConfirmed.length);
+                } else if (localHiraganaFinal.length > this.currentHiraganaConfirmed.length) {
+                    // サーバーからひらがなデータがない場合は、ローカルのデータを使う
+                    addedHiragana = localHiraganaFinal.slice(this.currentHiraganaConfirmed.length);
+                }
+
+                this.transcriptionHistory.push({
+                    timestamp: timestamp,
+                    text: addedText.trim(),
+                    hiragana: addedHiragana.trim(),
+                    translation: addedTranslation.trim()
+                });
+
+                console.log(`📝 最終履歴記録: [${timestamp.toFixed(1)}s] ${addedText.trim()}`);
+            }
+
+            this.currentConfirmedText = finalText;
 
             // 確定テキスト欄を更新
             this.confirmedText.textContent = this.currentConfirmedText;
@@ -104,12 +164,65 @@ class UIController {
 
             // ひらがな表示を更新
             this._updateHiraganaDisplay("", this.currentHiraganaConfirmed);
+
+            // 翻訳の暫定→確定移行
+            const translation = data.translation || {};
+            const newConfirmedTranslation = translation.confirmed || "";
+            const newTentativeTranslation = translation.tentative || "";
+
+            if (this.confirmedTranslation && this.tentativeTranslation) {
+                // サーバーからの最終確定翻訳と、ローカルの確定+暫定を比較
+                const localFinalTranslation = this.currentConfirmedTranslation + this.previousTentativeTranslation;
+                const serverFinalTranslation = newConfirmedTranslation || "";
+
+                if (serverFinalTranslation.length >= localFinalTranslation.length) {
+                    // サーバーの最終確定翻訳を採用
+                    this.currentConfirmedTranslation = serverFinalTranslation;
+                } else {
+                    // ローカルの確定+暫定を採用
+                    this.currentConfirmedTranslation = localFinalTranslation;
+                }
+
+                // 確定翻訳欄を更新
+                this.confirmedTranslation.textContent = this.currentConfirmedTranslation;
+
+                // 暫定翻訳をクリア
+                this.tentativeTranslation.textContent = "";
+                this.previousTentativeTranslation = "";
+                this.previousConfirmedTranslation = this.currentConfirmedTranslation;
+
+                console.log("✅ 翻訳の暫定→確定移行完了");
+            }
+
             return;
         }
 
         // 確定テキストが更新された場合（追記のみ、減少は無視）
         if (newConfirmedText && newConfirmedText.length > this.currentConfirmedText.length) {
             console.log("✅ 確定テキスト追加:", newConfirmedText);
+
+            // タイムスタンプ付きで履歴に記録
+            const addedText = newConfirmedText.slice(this.currentConfirmedText.length);
+            const timestamp = this.sessionStartTime
+                ? (Date.now() - this.sessionStartTime) / 1000
+                : 0;
+
+            const addedTranslation = translation?.confirmed
+                ? translation.confirmed.slice(this.currentConfirmedTranslation.length)
+                : "";
+
+            const addedHiragana = newHiraganaConfirmed
+                ? newHiraganaConfirmed.slice(this.currentHiraganaConfirmed.length)
+                : "";
+
+            this.transcriptionHistory.push({
+                timestamp: timestamp,
+                text: addedText.trim(),
+                hiragana: addedHiragana.trim(),
+                translation: addedTranslation.trim()
+            });
+
+            console.log(`📝 履歴記録: [${timestamp.toFixed(1)}s] ${addedText.trim()}`);
 
             // 確定テキストを保存・表示（追記のみ）
             this.currentConfirmedText = newConfirmedText;
@@ -147,6 +260,36 @@ class UIController {
             newHiraganaTentative !== this.previousHiraganaTentative) {
             this._updateHiraganaDisplay(newHiraganaTentative, newHiraganaConfirmed);
             this.previousHiraganaTentative = newHiraganaTentative;
+        }
+
+        // 翻訳結果の更新
+        const translation = data.translation || {};
+        const newConfirmedTranslation = translation.confirmed || "";
+        const newTentativeTranslation = translation.tentative || "";
+
+        if (this.confirmedTranslation && this.tentativeTranslation) {
+            // 確定翻訳（追記のみ）
+            if (newConfirmedTranslation && newConfirmedTranslation.length > this.currentConfirmedTranslation.length) {
+                this.currentConfirmedTranslation = newConfirmedTranslation;
+                this._typeText(
+                    this.confirmedTranslation,
+                    this.previousConfirmedTranslation,
+                    newConfirmedTranslation,
+                    50
+                );
+                this.previousConfirmedTranslation = newConfirmedTranslation;
+            }
+
+            // 暫定翻訳
+            if (newTentativeTranslation !== this.previousTentativeTranslation) {
+                this._typeText(
+                    this.tentativeTranslation,
+                    this.previousTentativeTranslation,
+                    newTentativeTranslation,
+                    50
+                );
+                this.previousTentativeTranslation = newTentativeTranslation;
+            }
         }
 
         // パフォーマンス情報
@@ -278,6 +421,11 @@ class UIController {
     setButtonsState(isRecording) {
         this.startButton.disabled = isRecording;
         this.stopButton.disabled = !isRecording;
+
+        // 録音中はダウンロードボタンを無効化
+        if (isRecording && this.downloadButton) {
+            this.downloadButton.disabled = true;
+        }
     }
 
     /**
@@ -359,5 +507,204 @@ class UIController {
         const div = document.createElement("div");
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    /**
+     * ひらがなセクションの表示/非表示を切り替え
+     *
+     * @param {boolean} enabled - 表示するかどうか
+     */
+    toggleHiraganaSection(enabled) {
+        if (this.hiraganaSection) {
+            this.hiraganaSection.style.display = enabled ? "block" : "none";
+        }
+    }
+
+    /**
+     * 翻訳セクションの表示/非表示を切り替え
+     *
+     * @param {boolean} enabled - 表示するかどうか
+     */
+    toggleTranslationSection(enabled) {
+        if (this.translationSection) {
+            this.translationSection.style.display = enabled ? "block" : "none";
+        }
+    }
+
+    /**
+     * すべてのテキスト表示をクリア
+     * 新しい録音セッション開始時に呼び出される
+     */
+    clearAllText() {
+        // テキスト表示をクリア
+        this.confirmedText.textContent = "";
+        this.tentativeText.textContent = "";
+        this.hiraganaText.innerHTML = "";
+
+        if (this.confirmedTranslation) {
+            this.confirmedTranslation.textContent = "";
+        }
+        if (this.tentativeTranslation) {
+            this.tentativeTranslation.textContent = "";
+        }
+
+        // パフォーマンス情報をクリア
+        this.performanceInfo.innerHTML = "";
+
+        // 内部状態をリセット
+        this.previousConfirmedText = "";
+        this.previousTentativeText = "";
+        this.previousHiraganaConfirmed = "";
+        this.previousHiraganaTentative = "";
+        this.previousConfirmedTranslation = "";
+        this.previousTentativeTranslation = "";
+
+        this.currentConfirmedText = "";
+        this.currentHiraganaConfirmed = "";
+        this.currentConfirmedTranslation = "";
+
+        // セッションデータをリセット
+        this.sessionStartTime = null;
+        this.transcriptionHistory = [];
+
+        // タイピングアニメーションをキャンセル
+        this._cancelTypingAnimations();
+
+        console.log("✨ すべてのテキスト表示をクリアしました");
+    }
+
+    /**
+     * タイムスタンプをフォーマット
+     *
+     * @param {number} seconds - 秒数
+     * @returns {string} - [HH:MM:SS] 形式の文字列
+     */
+    _formatTimestamp(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+
+        const hh = String(hours).padStart(2, "0");
+        const mm = String(minutes).padStart(2, "0");
+        const ss = String(secs).padStart(2, "0");
+
+        return `[${hh}:${mm}:${ss}]`;
+    }
+
+    /**
+     * メタデータヘッダーを生成
+     *
+     * @param {string} inputSource - 入力ソース
+     * @param {Object} processingOptions - 処理オプション
+     * @returns {string} - ヘッダー文字列
+     */
+    _generateMetadataHeader(inputSource, processingOptions) {
+        const now = new Date();
+        const dateStr = now.toLocaleString("ja-JP", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit"
+        });
+
+        const sourceLabels = {
+            microphone: "マイク入力",
+            video: "動画ファイル",
+            tab: "タブ共有"
+        };
+
+        const hiraganaStatus = processingOptions.enableHiragana ? "ON" : "OFF";
+        const translationStatus = processingOptions.enableTranslation ? "ON" : "OFF";
+
+        return `===========================
+文字起こし結果
+日時: ${dateStr}
+入力ソース: ${sourceLabels[inputSource] || inputSource}
+処理: ひらがな正規化=${hiraganaStatus}, 翻訳=${translationStatus}
+===========================
+
+`;
+    }
+
+    /**
+     * ファイル名を生成
+     *
+     * @returns {string} - transcript_YYYYMMDD_HHMMSS.txt 形式のファイル名
+     */
+    _generateFileName() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, "0");
+        const day = String(now.getDate()).padStart(2, "0");
+        const hours = String(now.getHours()).padStart(2, "0");
+        const minutes = String(now.getMinutes()).padStart(2, "0");
+        const seconds = String(now.getSeconds()).padStart(2, "0");
+
+        return `transcript_${year}${month}${day}_${hours}${minutes}${seconds}.txt`;
+    }
+
+    /**
+     * 文字起こし結果のテキストを生成
+     *
+     * @param {string} inputSource - 入力ソース
+     * @param {Object} processingOptions - 処理オプション
+     * @returns {string} - ファイル内容
+     */
+    generateTranscriptText(inputSource, processingOptions) {
+        let content = this._generateMetadataHeader(inputSource, processingOptions);
+
+        // 履歴データから本文を生成
+        for (const entry of this.transcriptionHistory) {
+            const timestamp = this._formatTimestamp(entry.timestamp);
+            content += `${timestamp} ${entry.text}\n`;
+
+            // ひらがな正規化がある場合は追加
+            if (processingOptions.enableHiragana && entry.hiragana) {
+                content += `${entry.hiragana}\n`;
+            }
+
+            // 翻訳がある場合は追加
+            if (processingOptions.enableTranslation && entry.translation) {
+                content += `${entry.translation}\n`;
+            }
+
+            content += "\n";
+        }
+
+        return content;
+    }
+
+    /**
+     * 文字起こし結果をダウンロード
+     *
+     * @param {string} inputSource - 入力ソース
+     * @param {Object} processingOptions - 処理オプション
+     */
+    downloadTranscript(inputSource, processingOptions) {
+        if (this.transcriptionHistory.length === 0) {
+            this.showToast("ダウンロードするデータがありません", "warning");
+            return;
+        }
+
+        const textContent = this.generateTranscriptText(inputSource, processingOptions);
+
+        // UTF-8 BOM付きでBlob生成（Excel対応）
+        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const blob = new Blob([bom, textContent], { type: "text/plain;charset=utf-8" });
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = this._generateFileName();
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        this.showToast(`ファイルをダウンロードしました: ${link.download}`, "success");
+        console.log("📥 ダウンロード完了:", link.download);
     }
 }

@@ -233,37 +233,6 @@ async def translate_async(text: str) -> str:
     return await loop.run_in_executor(executor, _translate_sync, text)
 
 
-def _add_punctuation_sync(text: str) -> str:
-    """
-    同期的な句読点挿入処理
-
-    Args:
-        text: 句読点を挿入するテキスト
-
-    Returns:
-        str: 句読点が挿入されたテキスト
-    """
-    from utils.normalizer import JapaneseNormalizer
-
-    normalizer = JapaneseNormalizer()
-    return normalizer.add_punctuation(text)
-
-
-async def add_punctuation_async(text: str) -> str:
-    """
-    非同期的な句読点挿入処理
-
-    Args:
-        text: 句読点を挿入するテキスト
-
-    Returns:
-        str: 句読点が挿入されたテキスト
-    """
-    loop = asyncio.get_event_loop()
-    executor = get_executor()
-    return await loop.run_in_executor(executor, _add_punctuation_sync, text)
-
-
 def shutdown_executor():
     """エグゼキューターをシャットダウン"""
     global _executor

@@ -61,6 +61,12 @@ class AudioCapture {
                 throw new Error("有効な動画要素が指定されていません");
             }
 
+            // 既存のAudioContextがあれば閉じる
+            if (this.audioContext) {
+                await this.audioContext.close();
+                this.audioContext = null;
+            }
+
             // AudioContext作成（16kHzにリサンプリング）
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
                 sampleRate: this.sampleRate,

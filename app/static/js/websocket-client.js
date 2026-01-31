@@ -113,6 +113,15 @@ class WebSocketClient {
                 }
                 break;
 
+            case "options_received":
+                console.log("✅ 処理オプション受信確認");
+                break;
+
+            case "skipped":
+                // 無音チャンクのスキップ通知（ログのみ）
+                console.log("⏭️ チャンクスキップ:", data.reason);
+                break;
+
             default:
                 console.warn("⚠️ 未知のメッセージタイプ:", data.type);
         }
@@ -126,6 +135,25 @@ class WebSocketClient {
     sendAudioChunk(arrayBuffer) {
         if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(arrayBuffer);
+        }
+    }
+
+    /**
+     * 処理オプションを送信
+     *
+     * @param {Object} options - 処理オプション
+     */
+    sendOptions(options) {
+        if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
+            console.log("📤 処理オプション送信:", options);
+            this.ws.send(
+                JSON.stringify({
+                    type: "options",
+                    hiragana: options.enableHiragana,
+                    translation: options.enableTranslation,
+                    summary: options.enableSummary,
+                })
+            );
         }
     }
 
