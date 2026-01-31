@@ -10,7 +10,6 @@ from services.async_processor import (
     transcribe_async,
     normalize_async,
     translate_async,
-    add_punctuation_async,
 )
 from services.cumulative_buffer import (
     CumulativeBuffer,
@@ -134,19 +133,13 @@ async def translate(file: UploadFile):
                 },
             )
 
-        # 句読点を挿入（翻訳精度向上のため）
-        text_with_punctuation = normalizer.add_punctuation(text)
-        logger.info(f"📝 句読点挿入後: {text_with_punctuation}")
-
-        # ひらがな正規化（句読点付きテキストから）
-        hiragana_text = normalizer.to_hiragana(
-            text_with_punctuation, keep_punctuation=True
-        )
+        # ひらがな正規化
+        hiragana_text = normalizer.to_hiragana(text, keep_punctuation=False)
         logger.info(f"📝 正規化後（ひらがな）: {hiragana_text}")
 
-        # 翻訳実行（句読点付きテキストを使用）
+        # 翻訳実行
         logger.info("🌐 翻訳を実行します")
-        translated_text = translate_text(text_with_punctuation)
+        translated_text = translate_text(text)
         logger.info(f"✅ 翻訳完了: {translated_text}")
 
         return JSONResponse(
@@ -155,7 +148,6 @@ async def translate(file: UploadFile):
                 "status": "success",
                 "message": "音声翻訳に成功しました",
                 "original_text": text,
-                "text_with_punctuation": text_with_punctuation,
                 "hiragana_text": hiragana_text,
                 "translated_text": translated_text,
             },
@@ -224,21 +216,14 @@ async def translate_chunk(
                     },
                 )
 
-        # 3. 句読点挿入
-        with monitor.measure("punctuation"):
-            text_with_punctuation = normalizer.add_punctuation(text)
-            logger.info(f"📝 句読点挿入完了: {text_with_punctuation}")
-
-        # 4. ひらがな正規化
+        # 3. ひらがな正規化
         with monitor.measure("normalization"):
-            hiragana_text = normalizer.to_hiragana(
-                text_with_punctuation, keep_punctuation=True
-            )
+            hiragana_text = normalizer.to_hiragana(text, keep_punctuation=False)
             logger.info(f"📝 正規化完了: {hiragana_text}")
 
-        # 5. 翻訳
+        # 4. 翻訳
         with monitor.measure("translation"):
-            translated_text = translate_text(text_with_punctuation)
+            translated_text = translate_text(text)
             logger.info(f"✅ 翻訳完了: {translated_text}")
 
         # 処理時間の計算
@@ -457,30 +442,19 @@ async def process_websocket_chunk(
             await ws_manager.send_error(session_id, f"無効な音声内容です: {text}")
             return
 
-        # 3. 句読点挿入
-        await ws_manager.send_progress(
-            session_id, "punctuation", "句読点挿入中...", chunk_id
-        )
-        with monitor.measure("punctuation"):
-            text_with_punctuation = await add_punctuation_async(text)
-        punctuation_time = monitor.get_last_measurement("punctuation")
-        logger.info(
-            f"📝 句読点挿入完了 ({punctuation_time:.2f}秒): {text_with_punctuation}"
-        )
-
-        # 4. ひらがな正規化
+        # 3. ひらがな正規化
         await ws_manager.send_progress(
             session_id, "normalizing", "ひらがな変換中...", chunk_id
         )
         with monitor.measure("normalization"):
-            hiragana_text = await normalize_async(text_with_punctuation)
+            hiragana_text = await normalize_async(text, keep_punctuation=False)
         normalization_time = monitor.get_last_measurement("normalization")
         logger.info(f"📝 正規化完了 ({normalization_time:.2f}秒): {hiragana_text}")
 
-        # 5. 翻訳
+        # 4. 翻訳
         await ws_manager.send_progress(session_id, "translating", "翻訳中...", chunk_id)
         with monitor.measure("translation"):
-            translated_text = await translate_async(text_with_punctuation)
+            translated_text = await translate_async(text)
         translation_time = monitor.get_last_measurement("translation")
         logger.info(f"✅ 翻訳完了 ({translation_time:.2f}秒): {translated_text}")
 
@@ -757,19 +731,12 @@ async def perform_cumulative_transcription(
         connection = ws_manager.connections.get(session_id)
         options = connection.processing_options if connection else {}
 
-        # 句読点挿入
-        await ws_manager.send_progress(
-            session_id, "punctuation", "句読点挿入中...", chunk_id
-        )
-        with monitor.measure("punctuation"):
-            text_with_punctuation = await add_punctuation_async(text)
-
         # ひらがな正規化（オプション）
         result = None
         if options.get("hiragana", False):
             # ひらがな変換関数
             def hiragana_converter(t: str) -> str:
-                return normalizer.to_hiragana(t, keep_punctuation=True)
+                return normalizer.to_hiragana(t, keep_punctuation=False)
 
             # 差分抽出と結果更新
             await ws_manager.send_progress(
@@ -777,7 +744,7 @@ async def perform_cumulative_transcription(
             )
             with monitor.measure("normalization"):
                 result = buffer.update_transcription(
-                    text_with_punctuation, hiragana_converter=hiragana_converter
+                    text, hiragana_converter=hiragana_converter
                 )
 
             normalization_time = monitor.get_last_measurement("normalization")
@@ -788,7 +755,7 @@ async def perform_cumulative_transcription(
             )
         else:
             # ひらがな変換をスキップ
-            result = buffer.update_transcription(text_with_punctuation)
+            result = buffer.update_transcription(text)
             logger.info(f"⏭️  ひらがな正規化スキップ")
 
         # 翻訳（オプション）
@@ -888,7 +855,7 @@ async def finalize_cumulative_session(session_id: str, connection):
         if options.get("hiragana", False):
             # ひらがな変換関数
             def hiragana_converter(t: str) -> str:
-                return normalizer.to_hiragana(t, keep_punctuation=True)
+                return normalizer.to_hiragana(t, keep_punctuation=False)
 
             # セッション終了、全テキストを確定
             final_result = buffer.finalize(hiragana_converter=hiragana_converter)

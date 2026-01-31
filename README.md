@@ -4,13 +4,19 @@
 
 主な用途: レシートや買い物メモなどの短い日本語音声から「品名」「数量」「単位」を抽出するプロトタイプ。
 
-## 🎉 NEW: Phase 5.1完了（2026年1月28日）
+## 🎉 NEW: Phase 5.2完了（2026年1月30日）
 
-**動画コンテンツ対応**を実装しました：
+**処理オプション機能**を実装しました：
 
+### 入力ソース（Phase 5系）
 - 🎤 **マイク入力**（Phase 5）
 - 🎥 **動画ファイル**（Phase 5.1）- ローカル動画ファイルをアップロードして音声解析
 - 📺 **タブ共有（YouTube等）**（Phase 5.1）- ブラウザで再生中のYouTube等の音声をリアルタイム文字起こし
+
+### 処理オプション（Phase 5.2）
+- ✅ **ひらがな正規化**: オン/オフ切り替え可能
+- ✅ **翻訳（日→英）**: オン/オフ切り替え可能
+- ⚡ **負荷軽減**: 翻訳オフで約30%削減、全オフで約40%削減
 
 **使い方：**
 ```bash
@@ -18,7 +24,7 @@ docker compose up -d
 open http://localhost:5001/static/index.html
 ```
 
-詳細は [PHASE5.1_COMPLETION.md](PHASE5.1_COMPLETION.md) を参照。
+詳細は [docs/PHASE5.1_COMPLETION.md](docs/PHASE5.1_COMPLETION.md) および [CLAUDE.md](CLAUDE.md) を参照。
 
 ## 特徴
 
@@ -187,6 +193,25 @@ pytest app/tests/ -v
 ## ロギング
 
 標準出力に INFO レベルでログを出します。コンテナ内で動かすと Docker ログに流れます。
+
+## 参考ドキュメント
+
+詳細な実装内容・計画は`docs/`配下を参照してください：
+
+### 完了報告
+- [docs/PHASE1_COMPLETION.md](docs/PHASE1_COMPLETION.md) - Phase 1 (チャンク処理)
+- [docs/PHASE2_COMPLETION.md](docs/PHASE2_COMPLETION.md) - Phase 2 (WebSocketストリーミング)
+- [docs/PHASE3_COMPLETION.md](docs/PHASE3_COMPLETION.md) - Phase 3 (リアルタイム音声入力)
+- [docs/PHASE4.1_COMPLETION.md](docs/PHASE4.1_COMPLETION.md) - Phase 4.1 (累積バッファ方式)
+- [docs/PHASE5.1_COMPLETION.md](docs/PHASE5.1_COMPLETION.md) - Phase 5.1 (動画コンテンツ対応)
+
+### 実装計画・学習資料
+- [docs/IMPLEMENTION_PLAN.md](docs/IMPLEMENTION_PLAN.md) - 全体実装計画
+- [docs/PHASE3_PLAN.md](docs/PHASE3_PLAN.md) - Phase 3の実装計画
+- [docs/LEARNING_PLAN.md](docs/LEARNING_PLAN.md) - 学習資料・参考情報
+
+### プロジェクト全体ガイド
+- [CLAUDE.md](CLAUDE.md) - Claude Codeへの指示・プロジェクト概要
 
 ## ライセンス
 
