@@ -382,6 +382,18 @@ section h2 {
     transform: translateY(-1px);
 }
 
+.btn-tertiary {
+    background: #10b981;
+    color: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.btn-tertiary:hover:not(:disabled) {
+    background: #059669;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    transform: translateY(-1px);
+}
+
 .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;

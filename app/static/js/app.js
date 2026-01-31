@@ -78,6 +78,13 @@ class RealtimeTranscriptionApp {
                 this.stop();
             });
 
+            this.uiController.downloadButton.addEventListener("click", () => {
+                this.uiController.downloadTranscript(
+                    this.inputSource,
+                    this.processingOptions
+                );
+            });
+
             this.uiController.setStatus("準備完了。「開始」ボタンを押してください。", "success");
             this.uiController.showToast("準備完了。「開始」ボタンを押してください。", "success");
         } catch (error) {
@@ -248,6 +255,7 @@ class RealtimeTranscriptionApp {
 
             this.wsClient.on("connected", (sessionId) => {
                 console.log("セッション開始:", sessionId);
+                this.uiController.startSession();
                 this.uiController.showToast("セッション開始", "success");
             });
 
@@ -282,6 +290,12 @@ class RealtimeTranscriptionApp {
 
                 this.uiController.setStatus("セッション終了", "success");
                 this.uiController.showToast("処理が完了しました", "success");
+
+                // ダウンロードボタンを有効化
+                if (this.uiController.transcriptionHistory.length > 0) {
+                    this.uiController.downloadButton.disabled = false;
+                    console.log("📥 ダウンロードボタンを有効化しました");
+                }
 
                 // session_end受信後にクリーンアップ
                 this.forceCleanup();
@@ -321,6 +335,67 @@ class RealtimeTranscriptionApp {
                 if (!this.videoElement || !this.videoElement.src) {
                     throw new Error("動画ファイルを選択してください");
                 }
+
+                // video要素を再作成（createMediaElementSourceのエラー回避）
+                // Web Audio APIの制約: 一度使われたvideo要素は再利用できない
+                const oldSrc = this.videoElement.src;
+
+                // 古い要素を削除
+                this.videoElement.pause();
+                this.videoElement.remove();
+
+                // 新しい要素を作成
+                const videoControls = document.getElementById("video-controls");
+                const newVideoElement = document.createElement("video");
+                newVideoElement.id = "video-player";
+                newVideoElement.controls = true;
+                newVideoElement.style.display = "block";
+                newVideoElement.src = oldSrc;
+                videoControls.appendChild(newVideoElement);
+
+                this.videoElement = newVideoElement;
+
+                // 動画終了時の自動停止イベントを再設定
+                this.videoElement.addEventListener("ended", () => {
+                    if (this.isRecording) {
+                        console.log("🎬 動画再生終了 - 自動停止します");
+                        this.uiController.showToast("動画が終了しました。自動的に停止します。", "info");
+                        this.stop();
+                    }
+                });
+
+                // 動画のロードを待つ
+                console.log("🎥 動画ロード開始...");
+                await new Promise((resolve, reject) => {
+                    // 既にロード済みの場合
+                    if (this.videoElement.readyState >= 2) {
+                        console.log("✅ 動画は既にロード済み");
+                        resolve();
+                        return;
+                    }
+
+                    // ロード待機
+                    const onLoadedData = () => {
+                        console.log("✅ 動画ロード完了");
+                        cleanup();
+                        resolve();
+                    };
+
+                    const onError = (error) => {
+                        console.error("❌ 動画ロードエラー:", error);
+                        cleanup();
+                        reject(new Error("動画の読み込みに失敗しました"));
+                    };
+
+                    const cleanup = () => {
+                        this.videoElement.removeEventListener("loadeddata", onLoadedData);
+                        this.videoElement.removeEventListener("error", onError);
+                    };
+
+                    this.videoElement.addEventListener("loadeddata", onLoadedData, { once: true });
+                    this.videoElement.addEventListener("error", onError, { once: true });
+                    this.videoElement.load();
+                });
 
                 await this.audioCapture.startFromVideo(
                     this.videoElement,
