@@ -131,14 +131,14 @@ class UIController {
 
                 // ひらがな正規化テキストの追加分を取得
                 let addedHiragana = "";
-                if (serverFinalText.length >= localFinalText.length) {
-                    // サーバーの最終確定を採用した場合
-                    addedHiragana = newHiraganaConfirmed
-                        ? newHiraganaConfirmed.slice(this.currentHiraganaConfirmed.length)
-                        : "";
-                } else {
-                    // ローカルの確定+暫定を採用した場合
-                    addedHiragana = this.previousHiraganaTentative || "";
+                const localHiraganaFinal = this.currentHiraganaConfirmed + this.previousHiraganaTentative;
+
+                if (newHiraganaConfirmed && newHiraganaConfirmed.length > this.currentHiraganaConfirmed.length) {
+                    // サーバーからひらがなデータがある場合
+                    addedHiragana = newHiraganaConfirmed.slice(this.currentHiraganaConfirmed.length);
+                } else if (localHiraganaFinal.length > this.currentHiraganaConfirmed.length) {
+                    // サーバーからひらがなデータがない場合は、ローカルのデータを使う
+                    addedHiragana = localHiraganaFinal.slice(this.currentHiraganaConfirmed.length);
                 }
 
                 this.transcriptionHistory.push({
