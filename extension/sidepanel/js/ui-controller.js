@@ -88,11 +88,14 @@ class UIController {
 
         const transcription = data.transcription || {};
         const hiragana = data.hiragana || {};
+        const translation = data.translation || {};
 
         const newConfirmedText = transcription.confirmed || "";
         const newTentativeText = transcription.tentative || "";
         const newHiraganaConfirmed = hiragana.confirmed || "";
         const newHiraganaTentative = hiragana.tentative || "";
+        const newConfirmedTranslation = translation.confirmed || "";
+        const newTentativeTranslation = translation.tentative || "";
 
         // 既存のタイピングアニメーションをキャンセル
         this._cancelTypingAnimations();
@@ -124,9 +127,8 @@ class UIController {
                     ? (Date.now() - this.sessionStartTime) / 1000
                     : 0;
 
-                const translation = data.translation || {};
-                const addedTranslation = translation?.confirmed
-                    ? translation.confirmed.slice(this.currentConfirmedTranslation.length)
+                const addedTranslation = newConfirmedTranslation
+                    ? newConfirmedTranslation.slice(this.currentConfirmedTranslation.length)
                     : "";
 
                 // ひらがな正規化テキストの追加分を取得
@@ -166,10 +168,6 @@ class UIController {
             this._updateHiraganaDisplay("", this.currentHiraganaConfirmed);
 
             // 翻訳の暫定→確定移行
-            const translation = data.translation || {};
-            const newConfirmedTranslation = translation.confirmed || "";
-            const newTentativeTranslation = translation.tentative || "";
-
             if (this.confirmedTranslation && this.tentativeTranslation) {
                 // サーバーからの最終確定翻訳と、ローカルの確定+暫定を比較
                 const localFinalTranslation = this.currentConfirmedTranslation + this.previousTentativeTranslation;
@@ -207,8 +205,8 @@ class UIController {
                 ? (Date.now() - this.sessionStartTime) / 1000
                 : 0;
 
-            const addedTranslation = translation?.confirmed
-                ? translation.confirmed.slice(this.currentConfirmedTranslation.length)
+            const addedTranslation = newConfirmedTranslation
+                ? newConfirmedTranslation.slice(this.currentConfirmedTranslation.length)
                 : "";
 
             const addedHiragana = newHiraganaConfirmed
@@ -263,10 +261,6 @@ class UIController {
         }
 
         // 翻訳結果の更新
-        const translation = data.translation || {};
-        const newConfirmedTranslation = translation.confirmed || "";
-        const newTentativeTranslation = translation.tentative || "";
-
         if (this.confirmedTranslation && this.tentativeTranslation) {
             // 確定翻訳（追記のみ）
             if (newConfirmedTranslation && newConfirmedTranslation.length > this.currentConfirmedTranslation.length) {
