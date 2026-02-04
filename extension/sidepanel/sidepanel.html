@@ -4,13 +4,13 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>リアルタイム音声文字起こし</title>
+    <title>音声文字起こし</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
         href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap"
         rel="stylesheet" />
-    <link rel="stylesheet" href="/static/css/style.css" />
+    <link rel="stylesheet" href="css/sidepanel.css" />
 </head>
 
 <body>
@@ -19,65 +19,13 @@
 
     <div class="container">
         <header>
-            <h1>🎤 リアルタイム音声文字起こし</h1>
-            <p class="subtitle">累積バッファ方式による日本語音声認識</p>
+            <h1>🎤 音声文字起こし</h1>
+            <p class="subtitle">このタブの音声をリアルタイム認識</p>
         </header>
 
         <main>
             <!-- コントロール -->
             <section class="controls">
-                <!-- 入力ソース選択 -->
-                <div class="input-source-selector">
-                    <label>
-                        <input type="radio" name="inputSource" value="microphone" checked />
-                        <span>マイク入力</span>
-                    </label>
-                    <label>
-                        <input type="radio" name="inputSource" value="video" />
-                        <span>動画ファイル</span>
-                    </label>
-                    <label>
-                        <input type="radio" name="inputSource" value="tab" />
-                        <span>タブ共有（YouTube等）</span>
-                    </label>
-                </div>
-
-                <!-- マイク選択（デフォルト表示） -->
-                <div id="microphone-controls" class="device-selector-wrapper">
-                    <label for="device-selector">マイク:</label>
-                    <select id="device-selector"></select>
-                </div>
-
-                <!-- 動画アップロード欄（デフォルト非表示） -->
-                <div id="video-controls" class="video-upload" style="display: none;">
-                    <label for="video-file-input">動画ファイルを選択:</label>
-                    <input type="file" id="video-file-input" accept="video/*" />
-
-                    <div class="sample-videos">
-                        <p class="sample-label">サンプル動画:</p>
-                        <button class="btn-sample" data-video="/sample/001-sibutomo.mp4">サンプル1（黒）</button>
-                        <button class="btn-sample" data-video="/sample/002-worklife.mp4">サンプル2（青）</button>
-                        <button class="btn-sample" data-video="/sample/003-sikouryou.mp4">サンプル3（緑）</button>
-                    </div>
-
-                    <!-- 動画要素はJavaScriptで動的に作成 -->
-                </div>
-
-                <!-- タブ共有の説明（デフォルト非表示） -->
-                <div id="tab-controls" class="tab-share-info" style="display: none;">
-                    <div class="info-box">
-                        <h4>📺 タブ共有モード</h4>
-                        <p>ブラウザで再生中のYouTube等の音声をリアルタイムで文字起こしします。</p>
-                        <ol>
-                            <li>「開始」ボタンをクリック</li>
-                            <li>共有するタブを選択</li>
-                            <li>「音声を共有」にチェック✅</li>
-                            <li>「共有」ボタンをクリック</li>
-                        </ol>
-                        <p class="note">⚠️ 音声を共有するために、必ず「音声を共有」にチェックを入れてください。</p>
-                    </div>
-                </div>
-
                 <!-- 処理オプション -->
                 <div class="processing-options">
                     <h3>処理オプション</h3>
@@ -90,10 +38,6 @@
                             <input type="checkbox" id="enable-translation" />
                             <span>翻訳（日→英）</span>
                         </label>
-                        <label>
-                            <input type="checkbox" id="enable-summary" disabled />
-                            <span>要約（将来実装予定）</span>
-                        </label>
                     </div>
                     <p class="hint">💡 オフにすると処理が高速化されます</p>
                 </div>
@@ -101,10 +45,12 @@
                 <div class="button-group">
                     <button id="start-button" class="btn btn-primary">開始</button>
                     <button id="stop-button" class="btn btn-secondary" disabled>停止</button>
+                </div>
+                <div class="button-group">
                     <button id="download-button" class="btn btn-tertiary" disabled>ダウンロード</button>
                 </div>
 
-                <div id="status-text" class="status info">準備中...</div>
+                <div id="status-text" class="status info">準備完了</div>
             </section>
 
             <!-- 音量メーター -->
@@ -163,10 +109,10 @@
         </footer>
     </div>
 
-    <script src="/static/js/audio-capture.js"></script>
-    <script src="/static/js/websocket-client.js"></script>
-    <script src="/static/js/ui-controller.js"></script>
-    <script src="/static/js/app.js"></script>
+    <script src="js/audio-capture.js"></script>
+    <script src="js/websocket-client.js"></script>
+    <script src="js/ui-controller.js"></script>
+    <script src="sidepanel.js"></script>
 </body>
 
 </html>
