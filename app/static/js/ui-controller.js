@@ -294,9 +294,10 @@ class UIController {
 
         // パフォーマンス情報
         const perf = data.performance || {};
+        const recordingTime = perf.session_elapsed_seconds ?? perf.accumulated_audio_seconds ?? 0;
         this.performanceInfo.innerHTML = `
             <div>文字起こし: ${(perf.transcription_time || 0).toFixed(2)}秒</div>
-            <div>累積音声: ${(perf.accumulated_audio_seconds || 0).toFixed(1)}秒</div>
+            <div>録音時間: ${recordingTime.toFixed(1)}秒</div>
             <div>合計: ${(perf.total_time || 0).toFixed(2)}秒</div>
         `;
     }

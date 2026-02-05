@@ -639,6 +639,7 @@ async def process_cumulative_chunk(
                 "type": "accumulating",
                 "chunk_id": chunk_id,
                 "accumulated_seconds": buffer.current_audio_duration,
+                "session_elapsed_seconds": buffer.session_elapsed_seconds,
                 "chunks_until_transcription": chunks_until_transcription,
             },
         )
@@ -794,6 +795,7 @@ async def perform_cumulative_transcription(
                 "transcription_time": transcription_time,
                 "total_time": total_time,
                 "accumulated_audio_seconds": buffer.current_audio_duration,
+                "session_elapsed_seconds": buffer.session_elapsed_seconds,
             },
             "is_final": False,
         }

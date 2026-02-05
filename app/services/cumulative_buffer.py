@@ -41,70 +41,68 @@ def extract_diff(previous: str, current: str) -> Tuple[str, str]:
     """
     前回の結果と今回の結果を比較し、確定部分と暫定部分を抽出
 
-    アルゴリズム:
-    1. 両方のテキストを文単位（句点区切り）で分割
-    2. 前回存在した句点終わりの文で、今回も同じ形で存在するものを確定
-    3. 残りを暫定とする
+    アルゴリズム（句点に依存しない新しいロジック）:
+    1. 前回と今回で一致する先頭部分を確定とする
+    2. Whisperは通常、前回の結果を含んで長くなる性質を利用
+    3. 単語の途中で切れないように配慮
 
     例:
-    前回: "これはテストです。システムを"
-    今回: "これはテストです。システムを構築しています。"
+    前回: "これはテストですシステムを"
+    今回: "これはテストですシステムを構築しています"
 
     結果:
-    確定: "これはテストです。"
-    暫定: "システムを構築しています。"
+    確定: "これはテストですシステムを"
+    暫定: "構築しています"
     """
     if not current:
         return "", ""
 
     if not previous:
-        # 前回結果がない場合、句点で終わる文を確定とみなす
-        sentence_pattern = r"(?<=[。！？])"
-        sentences = re.split(sentence_pattern, current)
+        # 前回結果がない場合、全て暫定
+        logger.debug(f"🔍 extract_diff: 前回なし → 全て暫定")
+        return "", current
 
-        # 最後の文以外は確定（句点で終わっている）
-        if len(sentences) > 1:
-            confirmed = "".join(sentences[:-1])
-            tentative = sentences[-1] if sentences[-1].strip() else ""
-        else:
-            confirmed = ""
-            tentative = current
-        return confirmed, tentative
+    # 前回と今回の共通接頭辞を探す
+    min_len = min(len(previous), len(current))
+    match_len = 0
 
-    # 句点で分割（句点は保持）
-    sentence_pattern = r"(?<=[。！？])"
-    prev_sentences = [s for s in re.split(sentence_pattern, previous) if s.strip()]
-    curr_sentences = [s for s in re.split(sentence_pattern, current) if s.strip()]
-
-    # 前回と今回で一致する句点終わりの文を確定
-    confirmed_sentences = []
-    for i, (prev_s, curr_s) in enumerate(zip(prev_sentences, curr_sentences)):
-        # 句点で終わる文が一致した場合のみ確定
-        if prev_s.strip() == curr_s.strip() and prev_s.rstrip().endswith(
-            ("。", "！", "？")
-        ):
-            confirmed_sentences.append(curr_s)
+    for i in range(min_len):
+        if previous[i] == current[i]:
+            match_len = i + 1
         else:
             break
 
-    # さらに、今回のテキストで句点で終わり、確定済みでない文も確定候補に
-    # （前回より文が増えた場合）
-    if len(curr_sentences) > len(confirmed_sentences):
-        # 確定済みの次の文から、句点で終わるものを確定
-        for i in range(len(confirmed_sentences), len(curr_sentences) - 1):
-            s = curr_sentences[i]
-            if s.rstrip().endswith(("。", "！", "？")):
-                confirmed_sentences.append(s)
+    logger.debug(f"🔍 extract_diff: 一致長={match_len}, 前回長={len(previous)}, 今回長={len(current)}")
+
+    # 完全一致の場合は前回のテキスト全体を確定
+    if match_len == len(previous) and len(current) >= len(previous):
+        confirmed = previous
+        tentative = current[len(previous):]
+    elif match_len > 0:
+        # 一部一致の場合、一致した部分を確定
+        # ただし、単語の途中で切れないように、句読点か空白まで戻る
+        confirmed = current[:match_len]
+
+        # 句読点で終わっていない場合、最後の句読点または空白まで戻る
+        if match_len < len(current) and not confirmed.endswith(("。", "！", "？", " ", "　")):
+            # 最後の句読点または空白を探す
+            last_break = max(
+                confirmed.rfind("。"),
+                confirmed.rfind("！"),
+                confirmed.rfind("？"),
+                confirmed.rfind(" "),
+                confirmed.rfind("　")
+            )
+            if last_break > 0:
+                confirmed = confirmed[:last_break + 1]
             else:
-                break
+                # 区切りが見つからない場合は確定なし
+                confirmed = ""
 
-    # 確定テキストを結合
-    confirmed = "".join(confirmed_sentences)
-
-    # 暫定テキストは確定部分を除いた残り
-    if confirmed:
-        tentative = current[len(confirmed) :].lstrip()
+        tentative = current[len(confirmed):] if confirmed else current
     else:
+        # 一致なし（文字起こし結果が大きく変わった）
+        confirmed = ""
         tentative = current
 
     return confirmed, tentative
@@ -161,6 +159,11 @@ class CumulativeBuffer:
         return self.total_audio_bytes / (
             self.config.sample_rate * self.config.channels * self.config.sample_width
         )
+
+    @property
+    def session_elapsed_seconds(self) -> float:
+        """セッション開始からの実際の経過時間（秒）"""
+        return (datetime.now() - self.created_at).total_seconds()
 
     def add_audio_chunk(self, audio_data: bytes) -> bool:
         """音声チャンクを追加
@@ -237,10 +240,18 @@ class CumulativeBuffer:
         if not self.confirmed_text:
             return None
 
-        # 最後の2文程度を返す
+        # 最後の10文程度を返す（文脈強化）
         sentences = re.split(r"(?<=[。！？])", self.confirmed_text)
-        recent_sentences = [s for s in sentences[-2:] if s.strip()]
-        return "".join(recent_sentences) if recent_sentences else None
+        recent_sentences = [s for s in sentences[-10:] if s.strip()]
+        prompt = "".join(recent_sentences)
+
+        # 長さ制限（Whisperのトークン制限を考慮: 224トークン ≈ 200文字）
+        max_length = 200
+        if len(prompt) > max_length:
+            # 末尾から切り取る
+            prompt = prompt[-max_length:]
+
+        return prompt if prompt else None
 
     def update_transcription(
         self, new_text: str, hiragana_converter=None
@@ -254,19 +265,91 @@ class CumulativeBuffer:
         Returns:
             TranscriptionResult: 確定/暫定テキストを含む結果
         """
-        # 差分抽出（今回のテキスト全体から確定部分と暫定部分を分離）
-        current_confirmed, tentative = extract_diff(self.last_transcription, new_text)
+        # デバッグログ
+        logger.debug(f"🔍 update_transcription呼び出し")
+        logger.debug(f"   前回: {self.last_transcription[:50] if self.last_transcription else '(なし)'}...")
+        logger.debug(f"   今回: {new_text[:50] if new_text else '(なし)'}...")
+        logger.debug(f"   既存確定: {self.confirmed_text[:50] if self.confirmed_text else '(なし)'}...")
 
-        # 新しく確定された部分を計算（既存の確定テキストとの差分）
+        # 新しいアプローチ: 安定性ベースの確定
         newly_confirmed = ""
-        if current_confirmed and len(current_confirmed) > len(self.confirmed_text):
-            # 今回の確定部分が既存より長い場合、差分を追加
-            newly_confirmed = current_confirmed[len(self.confirmed_text) :]
-            self.confirmed_text = current_confirmed
-        elif current_confirmed and not self.confirmed_text:
-            # 初回の確定
-            newly_confirmed = current_confirmed
-            self.confirmed_text = current_confirmed
+        tentative = new_text
+
+        # 安定性チェック（同じ結果が連続して出現したら確定）
+        if new_text == self.previous_full_text:
+            self.stable_count += 1
+            logger.debug(f"   安定カウント: {self.stable_count}")
+
+            # 閾値を超えたら、前回のテキストを確定に追加
+            if self.stable_count >= self.config.stable_text_threshold:
+                # 前回のテキストから既に確定済みの部分を除く
+                if self.confirmed_text:
+                    # 既存の確定テキストが新しいテキストに含まれているか確認
+                    if self.confirmed_text in new_text:
+                        idx = new_text.find(self.confirmed_text) + len(self.confirmed_text)
+                        remaining = new_text[idx:]
+
+                        # 残りの部分から、適切な区切りまでを確定に追加
+                        # 句読点・空白で区切る
+                        break_points = []
+                        for char in ["。", "！", "？", " ", "　"]:
+                            pos = remaining.find(char)
+                            if pos > 0:
+                                break_points.append(pos + 1)
+
+                        if break_points:
+                            # 最初の区切りまでを確定
+                            cut_pos = min(break_points)
+                            newly_confirmed = remaining[:cut_pos]
+                            self.confirmed_text += newly_confirmed
+                            tentative = new_text[len(self.confirmed_text):]
+                            logger.debug(f"   新規確定: {newly_confirmed[:30]}...")
+                        else:
+                            # 区切りがない場合、残り全体を暫定のまま
+                            tentative = remaining
+                    else:
+                        # 確定テキストが含まれていない場合、新しいテキスト全体を暫定
+                        tentative = new_text
+                        logger.debug(f"   警告: 確定テキストが新しいテキストに含まれていない")
+                else:
+                    # 初回の確定: 適切な区切りまでを確定
+                    break_points = []
+                    for char in ["。", "！", "？"]:
+                        pos = new_text.find(char)
+                        if pos > 0:
+                            break_points.append(pos + 1)
+
+                    if break_points:
+                        cut_pos = min(break_points)
+                        newly_confirmed = new_text[:cut_pos]
+                        self.confirmed_text = newly_confirmed
+                        tentative = new_text[cut_pos:]
+                        logger.debug(f"   初回確定: {newly_confirmed[:30]}...")
+                    else:
+                        # 句読点がない場合、全て暫定のまま
+                        tentative = new_text
+        else:
+            # テキストが変わった場合
+            self.stable_count = 0
+            logger.debug(f"   テキスト変更 → 安定カウントリセット")
+
+            # 既存の確定テキストが新しいテキストに含まれているか確認
+            if self.confirmed_text and self.confirmed_text in new_text:
+                idx = new_text.find(self.confirmed_text) + len(self.confirmed_text)
+                tentative = new_text[idx:]
+                logger.debug(f"   確定テキストは維持")
+            elif self.confirmed_text:
+                # 確定テキストが含まれていない → 認識結果が大きく変わった
+                # 既存の確定テキストは維持、新しいテキスト全体を暫定として扱う
+                tentative = new_text
+                logger.debug(f"   警告: 確定テキストが新しいテキストに含まれていない（維持）")
+            else:
+                # 確定テキストがまだない場合、全て暫定
+                tentative = new_text
+
+        # 前回結果を更新
+        self.previous_full_text = new_text
+        self.last_transcription = new_text
 
         # ひらがな変換
         confirmed_hiragana = ""
@@ -278,20 +361,11 @@ class CumulativeBuffer:
             if tentative:
                 tentative_hiragana = hiragana_converter(tentative)
 
-        # 前回結果を更新
-        self.last_transcription = new_text
-
-        # 安定性チェック（同じ結果が続いたらより多くを確定）
-        if new_text == self.previous_full_text:
-            self.stable_count += 1
-        else:
-            self.stable_count = 0
-        self.previous_full_text = new_text
-
         logger.info(
             f"📝 文字起こし更新: "
             f"確定={len(self.confirmed_text)}文字, "
-            f"暫定={len(tentative)}文字"
+            f"暫定={len(tentative)}文字, "
+            f"安定={self.stable_count}"
         )
 
         return TranscriptionResult(

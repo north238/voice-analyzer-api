@@ -268,7 +268,8 @@ class RealtimeTranscriptionApp {
             });
 
             this.wsClient.on("accumulating", (data) => {
-                this.uiController.setStatus(`音声蓄積中... (${data.accumulated_seconds.toFixed(1)}秒)`, "info");
+                const elapsedTime = data.session_elapsed_seconds ?? data.accumulated_seconds;
+                this.uiController.setStatus(`録音中... (${elapsedTime.toFixed(1)}秒)`, "info");
             });
 
             this.wsClient.on("error", (message) => {
