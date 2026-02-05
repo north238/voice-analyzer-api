@@ -218,6 +218,8 @@ logs/
 CLAUDE.md
 *_COMPLETION.md
 *_PLAN.md
+*_INVESTIGATION.md
+*_SPECIFICATIONS.md
 
 # macOS system files
 .DS_Store
