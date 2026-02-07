@@ -522,7 +522,26 @@ async def websocket_transcribe_stream_cumulative(websocket: WebSocket):
             transcription_interval_chunks=settings.CUMULATIVE_TRANSCRIPTION_INTERVAL,
             stable_text_threshold=settings.CUMULATIVE_STABLE_THRESHOLD,
         )
-        cumulative_buffers[session_id] = CumulativeBuffer(buffer_config)
+        buffer = CumulativeBuffer(buffer_config)
+
+        # トリミング前コールバックを設定
+        def on_before_trim():
+            """バッファトリミング前に暫定テキストを確定に移行"""
+            # 処理オプションを取得
+            conn = ws_manager.connections.get(session_id)
+            hiragana_converter = None
+
+            if conn and conn.processing_options.get("hiragana", False):
+                # ひらがな変換関数
+                hiragana_converter = lambda t: normalizer.to_hiragana(
+                    t, keep_punctuation=False
+                )
+
+            # 暫定テキストを強制確定
+            buffer.force_finalize_pending_text(hiragana_converter=hiragana_converter)
+
+        buffer.set_on_before_trim_callback(on_before_trim)
+        cumulative_buffers[session_id] = buffer
 
         logger.info(f"🚀 累積バッファセッション開始: {session_id}")
 

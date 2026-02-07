@@ -134,6 +134,9 @@ class CumulativeBuffer:
         self.stable_count: int = 0  # 同じ結果が続いた回数
         self.previous_full_text: str = ""  # 前回の全体テキスト
 
+        # トリミング前コールバック
+        self.on_before_trim_callback: Optional[callable] = None
+
         # 作成時刻
         self.created_at: datetime = datetime.now()
 
@@ -207,6 +210,14 @@ class CumulativeBuffer:
 
     def _trim_buffer_if_needed(self):
         """バッファが最大サイズを超えた場合、古いデータを削除"""
+        # トリミングが必要かチェック
+        if self.total_audio_bytes > self.max_audio_bytes and len(self.audio_chunks) > 1:
+            # トリミング前に暫定テキストを確定に移行
+            if self.on_before_trim_callback:
+                logger.debug("🔔 トリミング前コールバック実行")
+                self.on_before_trim_callback()
+
+        # トリミング実行
         while (
             self.total_audio_bytes > self.max_audio_bytes and len(self.audio_chunks) > 1
         ):
@@ -231,6 +242,50 @@ class CumulativeBuffer:
             wav_file.writeframes(all_pcm)
 
         return wav_buffer.getvalue()
+
+    def set_on_before_trim_callback(self, callback: callable):
+        """トリミング前に呼ばれるコールバックを設定
+
+        Args:
+            callback: トリミング前に実行される関数
+        """
+        self.on_before_trim_callback = callback
+        logger.info("🔔 トリミング前コールバックを設定しました")
+
+    def force_finalize_pending_text(self, hiragana_converter=None) -> bool:
+        """暫定テキストを強制的に確定テキストに移行
+
+        バッファトリミング時に呼ばれることを想定。
+        Phase 6.5のfinalize()メソッドと同様のロジックを使用。
+
+        Args:
+            hiragana_converter: ひらがな変換関数（省略可）
+
+        Returns:
+            bool: 確定テキストに移行したかどうか
+        """
+        if not self.last_transcription:
+            return False
+
+        # 確定済みテキストを除いた残り（暫定部分）
+        remaining = self.last_transcription[len(self.confirmed_text) :]
+
+        if not remaining:
+            return False
+
+        # 暫定テキストを確定に追加
+        self.confirmed_text += remaining
+
+        # ひらがな変換も更新
+        if hiragana_converter:
+            self.confirmed_hiragana += hiragana_converter(remaining)
+
+        logger.info(
+            f"🔒 暫定テキストを強制確定（トリミング前）: "
+            f"+{len(remaining)}文字, 合計{len(self.confirmed_text)}文字"
+        )
+
+        return True
 
     def get_initial_prompt(self) -> Optional[str]:
         """次回の文字起こし用initial_promptを取得
