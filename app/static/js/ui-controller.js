@@ -97,8 +97,8 @@ class UIController {
         // 既存のタイピングアニメーションをキャンセル
         this._cancelTypingAnimations();
 
-        // セッション終了時（暫定が空で確定が来た場合）は、最終確定テキストを反映
-        const isSessionEnd = !newTentativeText && this.previousTentativeText;
+        // セッション終了時（is_finalフラグまたは暫定が空で確定が来た場合）は、最終確定テキストを反映
+        const isSessionEnd = data.is_final || (!newTentativeText && this.previousTentativeText);
         if (isSessionEnd) {
             console.log("🏁 セッション終了: 暫定テキストを確定に移行");
 
@@ -294,9 +294,10 @@ class UIController {
 
         // パフォーマンス情報
         const perf = data.performance || {};
+        const recordingTime = perf.session_elapsed_seconds ?? perf.accumulated_audio_seconds ?? 0;
         this.performanceInfo.innerHTML = `
             <div>文字起こし: ${(perf.transcription_time || 0).toFixed(2)}秒</div>
-            <div>累積音声: ${(perf.accumulated_audio_seconds || 0).toFixed(1)}秒</div>
+            <div>録音時間: ${recordingTime.toFixed(1)}秒</div>
             <div>合計: ${(perf.total_time || 0).toFixed(2)}秒</div>
         `;
     }
@@ -706,5 +707,56 @@ class UIController {
 
         this.showToast(`ファイルをダウンロードしました: ${link.download}`, "success");
         console.log("📥 ダウンロード完了:", link.download);
+    }
+
+    /**
+     * 強制確定処理（タイムアウト時用）
+     * 現在の暫定テキストを確定テキストに強制的に移行します。
+     */
+    forceFinalize() {
+        console.log("⚠️ 強制確定処理を実行");
+
+        // 暫定テキストが存在する場合のみ処理
+        if (this.previousTentativeText) {
+            // 暫定テキストを確定テキストに追加
+            this.currentConfirmedText += this.previousTentativeText;
+            this.confirmedText.textContent = this.currentConfirmedText;
+
+            // 履歴に記録
+            const timestamp = this.sessionStartTime
+                ? (Date.now() - this.sessionStartTime) / 1000
+                : 0;
+
+            this.transcriptionHistory.push({
+                timestamp: timestamp,
+                text: this.previousTentativeText.trim(),
+                hiragana: this.previousHiraganaTentative.trim(),
+                translation: this.previousTentativeTranslation.trim()
+            });
+
+            console.log(`📝 強制確定履歴記録: [${timestamp.toFixed(1)}s] ${this.previousTentativeText.trim()}`);
+
+            // 暫定テキストをクリア
+            this.tentativeText.textContent = "";
+            this.previousTentativeText = "";
+            this.previousConfirmedText = this.currentConfirmedText;
+
+            console.log("✅ 強制確定完了: 暫定→確定移行");
+        }
+
+        // ひらがなの暫定を確定に移行
+        if (this.previousHiraganaTentative) {
+            this.currentHiraganaConfirmed += this.previousHiraganaTentative;
+            this._updateHiraganaDisplay("", this.currentHiraganaConfirmed);
+            this.previousHiraganaTentative = "";
+        }
+
+        // 翻訳の暫定を確定に移行
+        if (this.previousTentativeTranslation && this.confirmedTranslation && this.tentativeTranslation) {
+            this.currentConfirmedTranslation += this.previousTentativeTranslation;
+            this.confirmedTranslation.textContent = this.currentConfirmedTranslation;
+            this.tentativeTranslation.textContent = "";
+            this.previousTentativeTranslation = "";
+        }
     }
 }

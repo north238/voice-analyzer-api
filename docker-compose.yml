@@ -10,12 +10,15 @@ services:
       - ./app:/app
       - ./sample:/sample
       - ./models:/root/.cache/huggingface
-      - ./logs:/app/logs
+      - ./logs:/logs
     depends_on:
       - local-llm
     environment:
       - TZ=Asia/Tokyo
       - LOG_LEVEL=DEBUG
+      - ENV=development
+      - LOG_BACKUP_COUNT=14
+      - LOG_DIR=/logs
     networks:
       - voice_analysis_network
 
@@ -31,7 +34,7 @@ services:
 
 networks:
   voice_analysis_network:
-    external: true  # 既存の voice_analysis_network を再利用（同一ネットワークで通信）
+    external: true # 既存の voice_analysis_network を再利用（同一ネットワークで通信）
 
 volumes:
   ollama_data:

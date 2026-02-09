@@ -93,7 +93,8 @@ class WebSocketClient {
                 break;
 
             case "accumulating":
-                console.log("📦 音声蓄積中:", data.accumulated_seconds, "秒");
+                const elapsedTime = data.session_elapsed_seconds ?? data.accumulated_seconds;
+                console.log("📦 録音中:", elapsedTime, "秒");
                 if (this.onAccumulatingCallback) {
                     this.onAccumulatingCallback(data);
                 }

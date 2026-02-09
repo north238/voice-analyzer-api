@@ -1,6 +1,6 @@
 from transformers import MarianMTModel, MarianTokenizer
-from app.config import settings
-from app.utils.logger import logger
+from config import settings
+from utils.logger import logger
 from typing import Optional
 import re
 
