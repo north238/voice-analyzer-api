@@ -77,7 +77,7 @@ class TestCallbackSetup:
         """コールバックは省略可能"""
         # コールバックなしでもエラーにならない
         audio = create_dummy_audio(0.5)
-        buffer.add_audio_chunk(audio)
+        should_transcribe, should_trim = buffer.add_audio_chunk(audio)
         assert True  # エラーが発生しなければOK
 
 
@@ -94,9 +94,15 @@ class TestTrimWithCallback:
         buffer.set_on_before_trim_callback(test_callback)
 
         # トリミングが発生するまで音声を追加（1秒を超える）
+        should_trim = False
         for i in range(3):
             audio = create_dummy_audio(0.5)  # 0.5秒 × 3 = 1.5秒
-            buffer.add_audio_chunk(audio)
+            should_transcribe, should_trim = buffer.add_audio_chunk(audio)
+
+        # Phase 7.0: トリミングはupdate_transcription内で実行される
+        # should_trimがTrueの場合、update_transcriptionを呼ぶ必要がある
+        if should_trim:
+            buffer.update_transcription("テストテキスト", should_trim=True)
 
         # コールバックが呼ばれたことを確認
         assert len(callback_called) > 0, "コールバックが呼ばれませんでした"
@@ -112,7 +118,13 @@ class TestTrimWithCallback:
 
         # トリミングが発生しない範囲で音声を追加
         audio = create_dummy_audio(0.5)  # 0.5秒 < 1秒（上限）
-        buffer.add_audio_chunk(audio)
+        should_transcribe, should_trim = buffer.add_audio_chunk(audio)
+
+        # Phase 7.0: should_trimがFalseなのでトリミング不要
+        assert should_trim is False
+
+        # update_transcriptionを呼んでもコールバックは呼ばれない
+        buffer.update_transcription("テストテキスト", should_trim=False)
 
         # コールバックは呼ばれない
         assert len(callback_called) == 0
@@ -206,9 +218,14 @@ class TestTrimWithForceFinalize:
         buffer.last_transcription = "皆さんおはようございます"
 
         # トリミングが発生するまで音声を追加
+        should_trim = False
         for i in range(3):
             audio = create_dummy_audio(0.5)
-            buffer.add_audio_chunk(audio)
+            should_transcribe, should_trim = buffer.add_audio_chunk(audio)
+
+        # Phase 7.0: トリミングはupdate_transcription内で実行される
+        if should_trim:
+            buffer.update_transcription("皆さんおはようございます", should_trim=True)
 
         # 確定テキストが保存されていることを確認
         assert len(finalized_texts) > 0
@@ -224,15 +241,24 @@ class TestTrimWithForceFinalize:
 
         # 1回目のトリミング
         buffer.last_transcription = "最初のテキスト"
+        should_trim1 = False
         for i in range(3):
             audio = create_dummy_audio(0.5)
-            buffer.add_audio_chunk(audio)
+            should_transcribe, should_trim1 = buffer.add_audio_chunk(audio)
+
+        # Phase 7.0: トリミングはupdate_transcription内で実行される
+        if should_trim1:
+            buffer.update_transcription("最初のテキスト", should_trim=True)
 
         # 2回目のトリミング
         buffer.last_transcription = "最初のテキスト2回目のテキスト"
+        should_trim2 = False
         for i in range(3):
             audio = create_dummy_audio(0.5)
-            buffer.add_audio_chunk(audio)
+            should_transcribe, should_trim2 = buffer.add_audio_chunk(audio)
+
+        if should_trim2:
+            buffer.update_transcription("最初のテキスト2回目のテキスト", should_trim=True)
 
         # 確定テキストが蓄積されていることを確認
         assert "最初のテキスト" in buffer.confirmed_text
@@ -254,9 +280,14 @@ class TestBufferStats:
         buffer.last_transcription = "テストテキスト"
 
         # トリミング発生まで音声追加
+        should_trim = False
         for i in range(3):
             audio = create_dummy_audio(0.5)
-            buffer.add_audio_chunk(audio)
+            should_transcribe, should_trim = buffer.add_audio_chunk(audio)
+
+        # Phase 7.0: トリミングはupdate_transcription内で実行される
+        if should_trim:
+            buffer.update_transcription("テストテキスト", should_trim=True)
 
         stats = buffer.get_stats()
 

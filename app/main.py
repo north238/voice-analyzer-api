@@ -642,8 +642,8 @@ async def process_cumulative_chunk(
         return
 
     try:
-        # 音声をバッファに追加
-        should_transcribe = buffer.add_audio_chunk(audio_data)
+        # 音声をバッファに追加（トリミング判定のみ）
+        should_transcribe, should_trim = buffer.add_audio_chunk(audio_data)
 
         # 蓄積中の通知
         chunks_until_transcription = buffer.config.transcription_interval_chunks - (
@@ -670,6 +670,7 @@ async def process_cumulative_chunk(
                 chunk_id=chunk_id,
                 buffer=buffer,
                 monitor=monitor,
+                should_trim=should_trim,
             )
 
     except Exception as e:
@@ -682,6 +683,7 @@ async def perform_cumulative_transcription(
     chunk_id: int,
     buffer: CumulativeBuffer,
     monitor: PerformanceMonitor,
+    should_trim: bool = False,
 ):
     """
     累積音声の全体文字起こしを実行
@@ -691,6 +693,7 @@ async def perform_cumulative_transcription(
         chunk_id: チャンクID
         buffer: 累積バッファ
         monitor: パフォーマンスモニター
+        should_trim: トリミングが必要かどうか（デフォルトFalse）
     """
     request_start_time = time.time()
 
@@ -764,7 +767,7 @@ async def perform_cumulative_transcription(
             )
             with monitor.measure("normalization"):
                 result = buffer.update_transcription(
-                    text, hiragana_converter=hiragana_converter
+                    text, hiragana_converter=hiragana_converter, should_trim=should_trim
                 )
 
             normalization_time = monitor.get_last_measurement("normalization")
@@ -775,7 +778,7 @@ async def perform_cumulative_transcription(
             )
         else:
             # ひらがな変換をスキップ
-            result = buffer.update_transcription(text)
+            result = buffer.update_transcription(text, should_trim=should_trim)
             logger.info(f"⏭️  ひらがな正規化スキップ")
 
         # 翻訳（オプション）

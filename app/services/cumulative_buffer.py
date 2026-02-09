@@ -168,14 +168,14 @@ class CumulativeBuffer:
         """セッション開始からの実際の経過時間（秒）"""
         return (datetime.now() - self.created_at).total_seconds()
 
-    def add_audio_chunk(self, audio_data: bytes) -> bool:
+    def add_audio_chunk(self, audio_data: bytes) -> tuple[bool, bool]:
         """音声チャンクを追加
 
         Args:
             audio_data: 生PCMデータまたはWAVデータ
 
         Returns:
-            再文字起こしが必要ならTrue
+            (should_transcribe, should_trim): 再文字起こしが必要ならTrue, トリミングが必要ならTrue
         """
         # WAVヘッダーがある場合は除去してPCMデータを取得
         pcm_data = self._extract_pcm_from_wav(audio_data)
@@ -189,11 +189,17 @@ class CumulativeBuffer:
             f"累積{self.current_audio_duration:.1f}秒"
         )
 
-        # 最大バッファサイズを超えた場合、古いデータを削除
-        self._trim_buffer_if_needed()
+        # トリミングが必要かチェック（実行はしない）
+        should_trim = (
+            self.total_audio_bytes > self.max_audio_bytes and len(self.audio_chunks) > 1
+        )
 
         # 再文字起こしが必要かどうか判定
-        return self.chunk_count % self.config.transcription_interval_chunks == 0
+        should_transcribe = (
+            self.chunk_count % self.config.transcription_interval_chunks == 0
+        )
+
+        return should_transcribe, should_trim
 
     def _extract_pcm_from_wav(self, audio_data: bytes) -> bytes:
         """WAVデータからPCMデータを抽出"""
@@ -208,15 +214,14 @@ class CumulativeBuffer:
                 return audio_data
         return audio_data
 
-    def _trim_buffer_if_needed(self):
-        """バッファが最大サイズを超えた場合、古いデータを削除"""
-        # トリミングが必要かチェック
-        if self.total_audio_bytes > self.max_audio_bytes and len(self.audio_chunks) > 1:
-            # トリミング前に暫定テキストを確定に移行
-            if self.on_before_trim_callback:
-                logger.debug("🔔 トリミング前コールバック実行")
-                self.on_before_trim_callback()
+    def _trim_buffer_before_update(self):
+        """トリミング前コールバックを実行（update_transcription内で呼ばれる）"""
+        if self.on_before_trim_callback:
+            logger.debug("🔔 トリミング前コールバック実行")
+            self.on_before_trim_callback()
 
+    def _trim_buffer_if_needed(self):
+        """バッファが最大サイズを超えた場合、古いデータを削除（update_transcription内で呼ばれる）"""
         # トリミング実行
         while (
             self.total_audio_bytes > self.max_audio_bytes and len(self.audio_chunks) > 1
@@ -309,19 +314,20 @@ class CumulativeBuffer:
         return prompt if prompt else None
 
     def update_transcription(
-        self, new_text: str, hiragana_converter=None
+        self, new_text: str, hiragana_converter=None, should_trim: bool = False
     ) -> TranscriptionResult:
         """文字起こし結果を更新し、差分を計算
 
         Args:
             new_text: 新しい文字起こし結果
             hiragana_converter: ひらがな変換関数（省略可）
+            should_trim: トリミングが必要かどうか（デフォルトFalse）
 
         Returns:
             TranscriptionResult: 確定/暫定テキストを含む結果
         """
         # デバッグログ
-        logger.debug(f"🔍 update_transcription呼び出し")
+        logger.debug(f"🔍 update_transcription呼び出し (should_trim={should_trim})")
         logger.debug(f"   前回: {self.last_transcription[:50] if self.last_transcription else '(なし)'}...")
         logger.debug(f"   今回: {new_text[:50] if new_text else '(なし)'}...")
         logger.debug(f"   既存確定: {self.confirmed_text[:50] if self.confirmed_text else '(なし)'}...")
@@ -406,6 +412,21 @@ class CumulativeBuffer:
         self.previous_full_text = new_text
         self.last_transcription = new_text
 
+        # ✅ トリミング前コールバックを実行（この時点でlast_transcriptionは最新）
+        if should_trim:
+            self._trim_buffer_before_update()
+
+            # ✅ 強制確定後に暫定テキストを再計算
+            if self.confirmed_text:
+                if self.confirmed_text in new_text:
+                    idx = new_text.find(self.confirmed_text) + len(self.confirmed_text)
+                    tentative = new_text[idx:]
+                    logger.debug(f"   トリミング後の暫定テキスト再計算: {len(tentative)}文字")
+                else:
+                    # 確定テキストが含まれていない場合（通常は起きない）
+                    tentative = new_text
+                    logger.warning(f"   警告: 強制確定後、確定テキストが新しいテキストに含まれていない")
+
         # ひらがな変換
         confirmed_hiragana = ""
         tentative_hiragana = ""
@@ -415,6 +436,10 @@ class CumulativeBuffer:
                 self.confirmed_hiragana += confirmed_hiragana
             if tentative:
                 tentative_hiragana = hiragana_converter(tentative)
+
+        # ✅ トリミングを実行（強制確定後にチャンク削除）
+        if should_trim:
+            self._trim_buffer_if_needed()
 
         logger.info(
             f"📝 文字起こし更新: "
