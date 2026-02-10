@@ -101,6 +101,63 @@ body {
     }
 }
 
+/* トリミングインジケーター */
+.trim-indicator {
+    position: fixed;
+    top: 70px;
+    right: 16px;
+    background: rgba(59, 130, 246, 0.9);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: fadeInOut 0.3s ease-in-out;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    z-index: 9998;
+}
+
+.trim-icon {
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes fadeInOut {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+}
+
 .container {
     max-width: 100%;
     width: 100%;
@@ -382,13 +439,51 @@ section h2 {
     gap: 8px;
 }
 
-.performance-info div {
-    padding: 10px;
+.perf-item {
+    display: grid;
+    grid-template-columns: 80px 60px 1fr;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
     background: #f9fafb;
     border-radius: 6px;
     border-left: 3px solid #3b82f6;
     font-size: 0.75rem;
+}
+
+.perf-item.perf-total {
+    background: #eff6ff;
+    border-left-color: #2563eb;
+    font-weight: 600;
+}
+
+.perf-label {
+    font-weight: 500;
     color: #374151;
+}
+
+.perf-value {
+    font-weight: 600;
+    color: #1f2937;
+    text-align: right;
+}
+
+.perf-bar {
+    height: 6px;
+    background: #e5e7eb;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.perf-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #2563eb);
+    transition: width 0.3s ease;
+    border-radius: 3px;
+}
+
+.perf-item.hidden {
+    display: none;
 }
 
 /* フッター */
@@ -418,6 +513,27 @@ footer {
 
 ::-webkit-scrollbar-thumb:hover {
     background: #9ca3af;
+}
+
+/* 確定移行時のハイライト */
+.text-finalized {
+    animation: finalize-highlight 1.5s ease-out;
+}
+
+@keyframes finalize-highlight {
+    0% {
+        background-color: rgba(251, 191, 36, 0.3); /* 淡い黄色 */
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
+/* アクセシビリティ: アニメーション無効設定に対応 */
+@media (prefers-reduced-motion: reduce) {
+    .text-finalized {
+        animation: none;
+    }
 }
 
 /* 処理オプション */

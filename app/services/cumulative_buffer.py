@@ -11,13 +11,14 @@ from dataclasses import dataclass, field
 from typing import Optional, Tuple, List
 from datetime import datetime
 from utils.logger import logger
+from services.text_filter import is_valid_text
 
 
 @dataclass
 class CumulativeBufferConfig:
     """累積バッファ設定"""
 
-    max_audio_duration_seconds: float = 30.0  # 最大蓄積時間（Whisperの1セグメント上限）
+    max_audio_duration_seconds: float = 25.0  # 最大蓄積時間（Whisperの30秒制限を考慮し余裕を持たせる）
     transcription_interval_chunks: int = 3  # 何チャンクごとに再文字起こしするか
     stable_text_threshold: int = 2  # 何回同じ結果が出たら確定とするか
     sample_rate: int = 16000  # サンプルレート
@@ -296,6 +297,7 @@ class CumulativeBuffer:
         """次回の文字起こし用initial_promptを取得
 
         確定済みテキストの末尾を返す（文脈として使用）
+        ハルシネーション対策: 無効なテキストは除外
         """
         if not self.confirmed_text:
             return None
@@ -310,6 +312,11 @@ class CumulativeBuffer:
         if len(prompt) > max_length:
             # 末尾から切り取る
             prompt = prompt[-max_length:]
+
+        # ハルシネーション対策: 無効なテキスト（繰り返しパターン等）は除外
+        if prompt and not is_valid_text(prompt):
+            logger.warning("⚠️ initial_promptに無効なテキストを検出、除外します")
+            return None
 
         return prompt if prompt else None
 
