@@ -101,6 +101,63 @@ body {
     }
 }
 
+/* トリミングインジケーター */
+.trim-indicator {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    background: rgba(59, 130, 246, 0.9);
+    color: white;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: fadeInOut 0.3s ease-in-out;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 9998;
+}
+
+.trim-icon {
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes fadeInOut {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+}
+
 .container {
     max-width: 1000px;
     margin: 0 auto;
@@ -566,18 +623,56 @@ section h2 {
 
 /* パフォーマンス情報 */
 .performance-info {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
-.performance-info div {
-    padding: 16px;
+.perf-item {
+    display: grid;
+    grid-template-columns: 100px 70px 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
     background: #f9fafb;
     border-radius: 8px;
     border-left: 3px solid #3b82f6;
     font-size: 0.875rem;
+}
+
+.perf-item.perf-total {
+    background: #eff6ff;
+    border-left-color: #2563eb;
+    font-weight: 600;
+}
+
+.perf-label {
+    font-weight: 500;
     color: #374151;
+}
+
+.perf-value {
+    font-weight: 600;
+    color: #1f2937;
+    text-align: right;
+}
+
+.perf-bar {
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.perf-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #2563eb);
+    transition: width 0.3s ease;
+    border-radius: 4px;
+}
+
+.perf-item.hidden {
+    display: none;
 }
 
 /* フッター */
@@ -665,6 +760,27 @@ footer {
 
 ::-webkit-scrollbar-thumb:hover {
     background: #9ca3af;
+}
+
+/* 確定移行時のハイライト */
+.text-finalized {
+    animation: finalize-highlight 1.5s ease-out;
+}
+
+@keyframes finalize-highlight {
+    0% {
+        background-color: rgba(251, 191, 36, 0.3); /* 淡い黄色 */
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
+/* アクセシビリティ: アニメーション無効設定に対応 */
+@media (prefers-reduced-motion: reduce) {
+    .text-finalized {
+        animation: none;
+    }
 }
 
 /* 処理オプション */

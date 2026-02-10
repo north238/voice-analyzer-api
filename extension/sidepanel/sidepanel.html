@@ -17,6 +17,12 @@
     <!-- トースト通知エリア -->
     <div id="toast-container" class="toast-container"></div>
 
+    <!-- トリミングインジケーター -->
+    <div id="trim-indicator" class="trim-indicator" style="display: none;">
+        <span class="trim-icon">⚙️</span>
+        <span class="trim-text">整理中...</span>
+    </div>
+
     <div class="container">
         <header>
             <h1>🎤 音声文字起こし</h1>
@@ -100,7 +106,37 @@
             <!-- パフォーマンス情報 -->
             <section class="performance">
                 <h2>処理時間</h2>
-                <div id="performance-info" class="performance-info"></div>
+                <div id="performance-info" class="performance-info">
+                    <div class="perf-item">
+                        <span class="perf-label">文字起こし:</span>
+                        <span class="perf-value" id="perf-transcription">-</span>
+                        <div class="perf-bar">
+                            <div class="perf-bar-fill" id="perf-bar-transcription"></div>
+                        </div>
+                    </div>
+                    <div class="perf-item hidden" id="perf-item-normalization">
+                        <span class="perf-label">正規化:</span>
+                        <span class="perf-value" id="perf-normalization">-</span>
+                        <div class="perf-bar">
+                            <div class="perf-bar-fill" id="perf-bar-normalization"></div>
+                        </div>
+                    </div>
+                    <div class="perf-item hidden" id="perf-item-translation">
+                        <span class="perf-label">翻訳:</span>
+                        <span class="perf-value" id="perf-translation">-</span>
+                        <div class="perf-bar">
+                            <div class="perf-bar-fill" id="perf-bar-translation"></div>
+                        </div>
+                    </div>
+                    <div class="perf-item perf-total">
+                        <span class="perf-label">合計:</span>
+                        <span class="perf-value" id="perf-total">-</span>
+                    </div>
+                    <div class="perf-item">
+                        <span class="perf-label">録音時間:</span>
+                        <span class="perf-value" id="perf-recording">-</span>
+                    </div>
+                </div>
             </section>
         </main>
 

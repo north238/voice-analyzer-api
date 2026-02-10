@@ -88,11 +88,14 @@ class UIController {
 
         const transcription = data.transcription || {};
         const hiragana = data.hiragana || {};
+        const translation = data.translation || {};
 
         const newConfirmedText = transcription.confirmed || "";
         const newTentativeText = transcription.tentative || "";
         const newHiraganaConfirmed = hiragana.confirmed || "";
         const newHiraganaTentative = hiragana.tentative || "";
+        const newConfirmedTranslation = translation.confirmed || "";
+        const newTentativeTranslation = translation.tentative || "";
 
         // 既存のタイピングアニメーションをキャンセル
         this._cancelTypingAnimations();
@@ -228,11 +231,12 @@ class UIController {
             this.currentConfirmedText = newConfirmedText;
             this.currentHiraganaConfirmed = newHiraganaConfirmed;
 
-            // タイピングアニメーションで表示
-            this._typeText(
+            // タイピングアニメーション + ハイライト効果で表示
+            this._typeTextWithHighlight(
                 this.confirmedText,
                 this.previousConfirmedText,
                 newConfirmedText,
+                addedText,
                 50,
             );
 
@@ -263,10 +267,6 @@ class UIController {
         }
 
         // 翻訳結果の更新
-        const translation = data.translation || {};
-        const newConfirmedTranslation = translation.confirmed || "";
-        const newTentativeTranslation = translation.tentative || "";
-
         if (this.confirmedTranslation && this.tentativeTranslation) {
             // 確定翻訳（追記のみ）
             if (newConfirmedTranslation && newConfirmedTranslation.length > this.currentConfirmedTranslation.length) {
@@ -294,12 +294,7 @@ class UIController {
 
         // パフォーマンス情報
         const perf = data.performance || {};
-        const recordingTime = perf.session_elapsed_seconds ?? perf.accumulated_audio_seconds ?? 0;
-        this.performanceInfo.innerHTML = `
-            <div>文字起こし: ${(perf.transcription_time || 0).toFixed(2)}秒</div>
-            <div>録音時間: ${recordingTime.toFixed(1)}秒</div>
-            <div>合計: ${(perf.total_time || 0).toFixed(2)}秒</div>
-        `;
+        this._updatePerformanceInfo(perf);
     }
 
     /**
@@ -339,6 +334,72 @@ class UIController {
             // 全く異なるテキストの場合は、一度にすべて表示
             element.textContent = newText;
         }
+    }
+
+    /**
+     * テキストをタイピングアニメーション + ハイライト効果で表示
+     *
+     * @param {HTMLElement} element - 対象要素
+     * @param {string} oldText - 既存のテキスト
+     * @param {string} newText - 新しいテキスト
+     * @param {string} addedText - 追加されたテキスト
+     * @param {number} interval - 1文字あたりの表示間隔（ミリ秒）
+     */
+    _typeTextWithHighlight(element, oldText, newText, addedText, interval = 30) {
+        // 既存のテキストで始まっている場合は、差分だけを追加
+        if (newText.startsWith(oldText)) {
+            const additionalText = newText.slice(oldText.length);
+            let currentIndex = 0;
+
+            const typeNextChar = () => {
+                if (currentIndex < additionalText.length) {
+                    element.textContent += additionalText[currentIndex];
+                    currentIndex++;
+                    const timer = setTimeout(typeNextChar, interval);
+                    this.typingTimers.push(timer);
+                } else {
+                    // タイピング完了後、ハイライト効果を適用
+                    this._applyFinalizeHighlight(element, oldText.length, newText.length);
+                }
+            };
+
+            element.textContent = oldText;
+            typeNextChar();
+        } else {
+            // 全く異なるテキストの場合は、一度にすべて表示
+            element.textContent = newText;
+        }
+    }
+
+    /**
+     * 確定移行ハイライト効果を適用
+     *
+     * @param {HTMLElement} element - 対象要素
+     * @param {number} startIndex - ハイライト開始位置
+     * @param {number} endIndex - ハイライト終了位置
+     */
+    _applyFinalizeHighlight(element, startIndex, endIndex) {
+        const fullText = element.textContent;
+        const beforeText = fullText.slice(0, startIndex);
+        const highlightText = fullText.slice(startIndex, endIndex);
+        const afterText = fullText.slice(endIndex);
+
+        // ハイライト部分をspanタグで囲む
+        element.innerHTML =
+            this._escapeHtml(beforeText) +
+            `<span class="text-finalized">${this._escapeHtml(highlightText)}</span>` +
+            this._escapeHtml(afterText);
+
+        // 1.5秒後にクリーンアップ（プレーンテキストに戻す）
+        // ただし、テキストが変更されていない場合のみ
+        setTimeout(() => {
+            // 現在のテキストコンテンツを取得（HTMLタグを除く）
+            const currentText = element.textContent;
+            // fullTextと一致する場合のみプレーンテキストに戻す
+            if (currentText === fullText) {
+                element.textContent = fullText;
+            }
+        }, 1500);
     }
 
     /**
@@ -450,6 +511,78 @@ class UIController {
     }
 
     /**
+     * パフォーマンス情報を更新
+     *
+     * @param {Object} perf - パフォーマンスデータ
+     */
+    _updatePerformanceInfo(perf) {
+        const transcriptionTime = perf.transcription_time || 0;
+        const normalizationTime = perf.normalization_time || 0;
+        const translationTime = perf.translation_time || 0;
+        const totalTime = perf.total_time || 0;
+        const recordingTime = perf.session_elapsed_seconds ?? perf.accumulated_audio_seconds ?? 0;
+
+        // 各処理時間の表示（要素が存在する場合のみ）
+        const perfTranscription = document.getElementById("perf-transcription");
+        const perfNormalization = document.getElementById("perf-normalization");
+        const perfTranslation = document.getElementById("perf-translation");
+        const perfTotal = document.getElementById("perf-total");
+        const perfRecording = document.getElementById("perf-recording");
+
+        if (perfTranscription) perfTranscription.textContent = `${transcriptionTime.toFixed(2)}秒`;
+        if (perfNormalization) perfNormalization.textContent = `${normalizationTime.toFixed(2)}秒`;
+        if (perfTranslation) perfTranslation.textContent = `${translationTime.toFixed(2)}秒`;
+        if (perfTotal) perfTotal.textContent = `${totalTime.toFixed(2)}秒`;
+        if (perfRecording) perfRecording.textContent = `${recordingTime.toFixed(1)}秒`;
+
+        // バーグラフの幅を相対的に計算（最大値を100%とする）
+        const maxTime = Math.max(transcriptionTime, normalizationTime, translationTime);
+        if (maxTime > 0) {
+            const transcriptionWidth = (transcriptionTime / maxTime) * 100;
+            const normalizationWidth = (normalizationTime / maxTime) * 100;
+            const translationWidth = (translationTime / maxTime) * 100;
+
+            const perfBarTranscription = document.getElementById("perf-bar-transcription");
+            const perfBarNormalization = document.getElementById("perf-bar-normalization");
+            const perfBarTranslation = document.getElementById("perf-bar-translation");
+
+            if (perfBarTranscription) perfBarTranscription.style.width = `${transcriptionWidth}%`;
+            if (perfBarNormalization) perfBarNormalization.style.width = `${normalizationWidth}%`;
+            if (perfBarTranslation) perfBarTranslation.style.width = `${translationWidth}%`;
+        }
+
+        // 処理オプションに応じて表示/非表示を更新
+        this._updatePerformanceVisibility();
+    }
+
+    /**
+     * パフォーマンス情報の表示/非表示を更新
+     */
+    _updatePerformanceVisibility() {
+        const enableHiragana = document.getElementById("enable-hiragana").checked;
+        const enableTranslation = document.getElementById("enable-translation").checked;
+
+        const normalizationItem = document.getElementById("perf-item-normalization");
+        const translationItem = document.getElementById("perf-item-translation");
+
+        if (normalizationItem) {
+            if (enableHiragana) {
+                normalizationItem.classList.remove("hidden");
+            } else {
+                normalizationItem.classList.add("hidden");
+            }
+        }
+
+        if (translationItem) {
+            if (enableTranslation) {
+                translationItem.classList.remove("hidden");
+            } else {
+                translationItem.classList.add("hidden");
+            }
+        }
+    }
+
+    /**
      * エラーメッセージを表示
      *
      * @param {string} message - エラーメッセージ
@@ -519,6 +652,8 @@ class UIController {
         if (this.hiraganaSection) {
             this.hiraganaSection.style.display = enabled ? "block" : "none";
         }
+        // パフォーマンス情報の表示も更新
+        this._updatePerformanceVisibility();
     }
 
     /**
@@ -530,6 +665,8 @@ class UIController {
         if (this.translationSection) {
             this.translationSection.style.display = enabled ? "block" : "none";
         }
+        // パフォーマンス情報の表示も更新
+        this._updatePerformanceVisibility();
     }
 
     /**
@@ -707,6 +844,31 @@ class UIController {
 
         this.showToast(`ファイルをダウンロードしました: ${link.download}`, "success");
         console.log("📥 ダウンロード完了:", link.download);
+    }
+
+    /**
+     * トリミングインジケーターを表示
+     */
+    showTrimIndicator() {
+        const indicator = document.getElementById("trim-indicator");
+        if (indicator) {
+            indicator.style.display = "flex";
+        }
+    }
+
+    /**
+     * トリミングインジケーターを非表示
+     */
+    hideTrimIndicator() {
+        const indicator = document.getElementById("trim-indicator");
+        if (indicator) {
+            // フェードアウトアニメーション
+            indicator.style.animation = "fadeOut 0.3s ease-in-out";
+            setTimeout(() => {
+                indicator.style.display = "none";
+                indicator.style.animation = "fadeInOut 0.3s ease-in-out";
+            }, 300);
+        }
     }
 
     /**

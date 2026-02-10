@@ -46,8 +46,9 @@ class Settings:
     MAX_CHUNKS_PER_SESSION: int = int(os.getenv("MAX_CHUNKS_PER_SESSION", "100"))
 
     # 累積バッファ設定
+    # Phase 8修正: 30秒 → 25秒（処理遅延を考慮してWhisperの30秒制限を超えないように）
     CUMULATIVE_MAX_AUDIO_SECONDS: float = float(
-        os.getenv("CUMULATIVE_MAX_AUDIO_SECONDS", "30.0")
+        os.getenv("CUMULATIVE_MAX_AUDIO_SECONDS", "25.0")
     )
     CUMULATIVE_TRANSCRIPTION_INTERVAL: int = int(
         os.getenv("CUMULATIVE_TRANSCRIPTION_INTERVAL", "3")

@@ -761,6 +761,17 @@ async def perform_cumulative_transcription(
             def hiragana_converter(t: str) -> str:
                 return normalizer.to_hiragana(t, keep_punctuation=False)
 
+            # トリミング開始通知
+            if should_trim:
+                await ws_manager.send_json(
+                    session_id,
+                    {
+                        "type": "buffer_trim_start",
+                        "chunk_id": chunk_id,
+                        "message": "バッファ整理中..."
+                    }
+                )
+
             # 差分抽出と結果更新
             await ws_manager.send_progress(
                 session_id, "normalizing", "ひらがな変換中...", chunk_id
@@ -776,10 +787,43 @@ async def perform_cumulative_transcription(
                 f"確定={len(result.confirmed_text)}文字, "
                 f"暫定={len(result.tentative_text)}文字"
             )
+
+            # トリミング完了通知
+            if should_trim:
+                await ws_manager.send_json(
+                    session_id,
+                    {
+                        "type": "buffer_trim_complete",
+                        "chunk_id": chunk_id,
+                        "message": "バッファ整理完了"
+                    }
+                )
         else:
+            # トリミング開始通知
+            if should_trim:
+                await ws_manager.send_json(
+                    session_id,
+                    {
+                        "type": "buffer_trim_start",
+                        "chunk_id": chunk_id,
+                        "message": "バッファ整理中..."
+                    }
+                )
+
             # ひらがな変換をスキップ
             result = buffer.update_transcription(text, should_trim=should_trim)
             logger.info(f"⏭️  ひらがな正規化スキップ")
+
+            # トリミング完了通知
+            if should_trim:
+                await ws_manager.send_json(
+                    session_id,
+                    {
+                        "type": "buffer_trim_complete",
+                        "chunk_id": chunk_id,
+                        "message": "バッファ整理完了"
+                    }
+                )
 
         # 翻訳（オプション）
         translated_confirmed = ""
@@ -815,6 +859,8 @@ async def perform_cumulative_transcription(
             },
             "performance": {
                 "transcription_time": transcription_time,
+                "normalization_time": monitor.get_last_measurement("normalization") or 0.0,
+                "translation_time": monitor.get_last_measurement("translation") or 0.0,
                 "total_time": total_time,
                 "accumulated_audio_seconds": buffer.current_audio_duration,
                 "session_elapsed_seconds": buffer.session_elapsed_seconds,

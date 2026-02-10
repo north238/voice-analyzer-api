@@ -123,6 +123,20 @@ class WebSocketClient {
                 console.log("⏭️ チャンクスキップ:", data.reason);
                 break;
 
+            case "buffer_trim_start":
+                console.log("⚙️ バッファトリミング開始:", data.message);
+                if (this.uiController) {
+                    this.uiController.showTrimIndicator();
+                }
+                break;
+
+            case "buffer_trim_complete":
+                console.log("✅ バッファトリミング完了:", data.message);
+                if (this.uiController) {
+                    this.uiController.hideTrimIndicator();
+                }
+                break;
+
             default:
                 console.warn("⚠️ 未知のメッセージタイプ:", data.type);
         }
