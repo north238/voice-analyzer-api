@@ -36,7 +36,7 @@ def is_valid_text(text: str) -> bool:
     return True
 
 
-def _has_repeated_phrases(text: str, min_phrase_len: int = 3, max_phrase_len: int = 15) -> bool:
+def _has_repeated_phrases(text: str, min_phrase_len: int = 3, max_phrase_len: int = 30) -> bool:
     """繰り返し単語・フレーズが異常に多いかチェック
 
     Args:
@@ -68,8 +68,8 @@ def _has_repeated_phrases(text: str, min_phrase_len: int = 3, max_phrase_len: in
         # そのN-gramが占める文字数の割合
         coverage = (freq * phrase_len) / text_len
 
-        # 60%以上を同一のN-gramが占める場合は異常
-        if coverage > 0.6:
+        # 50%以上を同一のN-gramが占める場合は異常（閾値を厳しく）
+        if coverage > 0.5:
             return True
 
     return False

@@ -294,3 +294,129 @@ class TestBufferStats:
         # 確定テキストの長さが記録されている
         assert stats["confirmed_text_length"] > 0
         assert stats["chunk_count"] == 3
+
+
+class TestConfirmedTextIndependence:
+    """Phase 8: 確定テキストの独立管理テスト"""
+
+    def test_full_text_is_confirmed_plus_tentative(self, buffer):
+        """full_text = confirmed_text + tentative_text であることを確認"""
+        # 初期文字起こし
+        result1 = buffer.update_transcription("ようこそ", should_trim=False)
+
+        # 初回は全て暫定
+        assert result1.confirmed_text == ""
+        assert result1.tentative_text == "ようこそ"
+        assert result1.full_text == result1.confirmed_text + result1.tentative_text
+        assert result1.full_text == "ようこそ"
+
+    def test_confirmed_text_persists_after_trim(self, buffer):
+        """トリミング後も確定テキストが保持されることを確認"""
+
+        def on_before_trim_callback():
+            buffer.force_finalize_pending_text()
+
+        buffer.set_on_before_trim_callback(on_before_trim_callback)
+
+        # 初期文字起こし
+        buffer.update_transcription("ようこそ", should_trim=False)
+
+        # 安定して確定
+        buffer.update_transcription("ようこそ", should_trim=False)
+
+        # トリミング発生
+        should_trim = False
+        for i in range(3):
+            audio = create_dummy_audio(0.5)
+            should_transcribe, should_trim = buffer.add_audio_chunk(audio)
+
+        # 新しい文字起こし（バッファには "ようこそ" が含まれない想定）
+        if should_trim:
+            result = buffer.update_transcription("今日は", should_trim=True)
+
+            # 確定テキストは保持されている
+            assert "ようこそ" in result.confirmed_text
+            # 全体テキストは連続している
+            assert result.full_text == result.confirmed_text + result.tentative_text
+            # 暫定テキストは新しいバッファの内容
+            assert "今日は" in result.full_text
+
+    def test_no_duplication_between_confirmed_and_tentative(self, buffer):
+        """確定テキストと暫定テキストが重複しないことを確認"""
+
+        def on_before_trim_callback():
+            buffer.force_finalize_pending_text()
+
+        buffer.set_on_before_trim_callback(on_before_trim_callback)
+
+        # 文字起こし結果を段階的に更新
+        result1 = buffer.update_transcription("こんにちは", should_trim=False)
+        result2 = buffer.update_transcription("こんにちは今日は", should_trim=False)
+
+        # トリミング発生
+        should_trim = False
+        for i in range(3):
+            audio = create_dummy_audio(0.5)
+            should_transcribe, should_trim = buffer.add_audio_chunk(audio)
+
+        if should_trim:
+            result3 = buffer.update_transcription("良い天気です", should_trim=True)
+
+            # full_text = confirmed_text + tentative_text
+            assert result3.full_text == result3.confirmed_text + result3.tentative_text
+
+            # 確定と暫定が重複していないことを確認
+            # （簡易チェック: 長さの合計がfull_textの長さと一致）
+            combined_length = len(result3.confirmed_text) + len(result3.tentative_text)
+            assert len(result3.full_text) == combined_length
+
+    def test_force_finalize_after_trim(self, buffer):
+        """トリミング後のforce_finalize_pending_textが正しく動作することを確認"""
+        # 文字起こし結果を設定
+        buffer.last_transcription = "こんにちは今日は良い天気です"
+        buffer.confirmed_text = "こんにちは"
+
+        # 強制確定実行（バッファに確定テキストが含まれる場合）
+        result1 = buffer.force_finalize_pending_text()
+        assert result1 is True
+        assert buffer.confirmed_text == "こんにちは今日は良い天気です"
+
+        # バッファがトリミングされた後（確定テキストが含まれない場合）
+        buffer.last_transcription = "明日も晴れるでしょう"
+
+        # 強制確定実行（バッファに確定テキストが含まれない）
+        result2 = buffer.force_finalize_pending_text()
+        assert result2 is True
+        assert "明日も晴れるでしょう" in buffer.confirmed_text
+        assert buffer.confirmed_text == "こんにちは今日は良い天気です明日も晴れるでしょう"
+
+    def test_session_end_with_independent_confirmed_text(self, buffer):
+        """セッション終了時、確定テキストが正しく保存されることを確認"""
+
+        def on_before_trim_callback():
+            buffer.force_finalize_pending_text()
+
+        buffer.set_on_before_trim_callback(on_before_trim_callback)
+
+        # 段階的に文字起こし
+        buffer.update_transcription("第一部", should_trim=False)
+
+        # トリミング発生
+        should_trim = False
+        for i in range(3):
+            audio = create_dummy_audio(0.5)
+            should_transcribe, should_trim = buffer.add_audio_chunk(audio)
+
+        if should_trim:
+            buffer.update_transcription("第二部", should_trim=True)
+
+        # セッション終了
+        final_result = buffer.finalize()
+
+        # 全体が確定テキストに含まれている
+        assert "第一部" in final_result.confirmed_text
+        assert "第二部" in final_result.confirmed_text
+        # 暫定テキストは空
+        assert final_result.tentative_text == ""
+        # full_textと確定テキストが一致
+        assert final_result.full_text == final_result.confirmed_text

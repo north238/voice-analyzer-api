@@ -258,6 +258,62 @@ class CumulativeBuffer:
         self.on_before_trim_callback = callback
         logger.info("🔔 トリミング前コールバックを設定しました")
 
+    def _remove_confirmed_overlap(self, confirmed: str, new: str) -> str:
+        """confirmed_textとnew_textの重複部分を除外してtentativeを返す（類似度ベース対応）"""
+        if not confirmed:
+            return new
+
+        # 方法1: 最長一致（完全一致）
+        overlap_len = 0
+        max_overlap = min(len(confirmed), len(new))
+
+        # 最長一致を探す（後ろから前へ）
+        for i in range(max_overlap, 0, -1):
+            if confirmed[-i:] == new[:i]:
+                overlap_len = i
+                break
+
+        if overlap_len > 0:
+            result = new[overlap_len:]
+            logger.debug(f"   重複除外（完全一致）: {overlap_len}文字一致, 残り={len(result)}文字")
+            return result
+
+        # 方法2: 類似度ベースの重複検出（Whisperの表記揺れ対応）
+        from difflib import SequenceMatcher
+
+        # confirmed_textの末尾とnew_textの先頭を比較
+        # 比較範囲: 50〜150文字
+        compare_len = min(150, len(confirmed), len(new))
+        if compare_len >= 50:
+            confirmed_tail = confirmed[-compare_len:]
+            new_head = new[:compare_len]
+
+            # 類似度を計算（0.0〜1.0）
+            similarity = SequenceMatcher(None, confirmed_tail, new_head).ratio()
+
+            # 類似度が75%以上の場合、重複と判定
+            if similarity >= 0.75:
+                # 重複部分の長さを推定（類似度に基づく）
+                estimated_overlap = int(compare_len * similarity)
+                result = new[estimated_overlap:]
+                logger.debug(f"   重複除外（類似度{similarity:.2%}）: {estimated_overlap}文字スキップ, 残り={len(result)}文字")
+                logger.info(f"   💡 表記揺れを検出しました（類似度: {similarity:.2%}）")
+                return result
+
+        # 方法3: 文字数ベース推定（上記が失敗した場合）
+        if len(new) > len(confirmed):
+            # new_textがconfirmed_textより長い場合、confirmed_textの長さ分スキップ
+            estimated_skip = len(confirmed)
+            result = new[estimated_skip:]
+            logger.debug(f"   重複除外（文字数推定）: {estimated_skip}文字スキップ, 残り={len(result)}文字")
+            logger.warning(f"   ⚠️ 完全一致・類似度検出失敗、文字数ベースで推定しました")
+            return result
+        else:
+            # new_textがconfirmed_text以下の場合、トリミング後の新しいバッファと判断
+            # new_text全体を返す（独立した新しい内容）
+            logger.debug(f"   重複除外: new_textが短い（{len(new)} <= {len(confirmed)}）→ 新しいバッファと判断")
+            return new
+
     def force_finalize_pending_text(self, hiragana_converter=None) -> bool:
         """暫定テキストを強制的に確定テキストに移行
 
@@ -273,13 +329,14 @@ class CumulativeBuffer:
         if not self.last_transcription:
             return False
 
-        # 確定済みテキストを除いた残り（暫定部分）
-        remaining = self.last_transcription[len(self.confirmed_text) :]
+        # ✅ 確定済みテキストを除いた残り（重複除外ロジックを使用）
+        remaining = self._remove_confirmed_overlap(self.confirmed_text, self.last_transcription)
 
         if not remaining:
+            logger.debug("   強制確定: 残りなし（スキップ）")
             return False
 
-        # 暫定テキストを確定に追加
+        # 暫定テキストを確定に追加（追記のみ）
         self.confirmed_text += remaining
 
         # ひらがな変換も更新
@@ -343,6 +400,11 @@ class CumulativeBuffer:
         newly_confirmed = ""
         tentative = new_text
 
+        # ✅ confirmed_textとnew_textの重複を検出（クラスメソッドを使用）
+        def remove_confirmed_overlap(confirmed: str, new: str) -> str:
+            """confirmed_textとnew_textの重複部分を除外してtentativeを返す（ラッパー）"""
+            return self._remove_confirmed_overlap(confirmed, new)
+
         # 安定性チェック（同じ結果が連続して出現したら確定）
         if new_text == self.previous_full_text:
             self.stable_count += 1
@@ -352,11 +414,10 @@ class CumulativeBuffer:
             if self.stable_count >= self.config.stable_text_threshold:
                 # 前回のテキストから既に確定済みの部分を除く
                 if self.confirmed_text:
-                    # 既存の確定テキストが新しいテキストに含まれているか確認
-                    if self.confirmed_text in new_text:
-                        idx = new_text.find(self.confirmed_text) + len(self.confirmed_text)
-                        remaining = new_text[idx:]
+                    # ✅ 重複除外ロジックを使用
+                    remaining = remove_confirmed_overlap(self.confirmed_text, new_text)
 
+                    if remaining:
                         # 残りの部分から、適切な区切りまでを確定に追加
                         # 句読点・空白で区切る
                         break_points = []
@@ -370,15 +431,15 @@ class CumulativeBuffer:
                             cut_pos = min(break_points)
                             newly_confirmed = remaining[:cut_pos]
                             self.confirmed_text += newly_confirmed
-                            tentative = new_text[len(self.confirmed_text):]
+                            tentative = remaining[cut_pos:]
                             logger.debug(f"   新規確定: {newly_confirmed[:30]}...")
                         else:
                             # 区切りがない場合、残り全体を暫定のまま
                             tentative = remaining
                     else:
-                        # 確定テキストが含まれていない場合、新しいテキスト全体を暫定
-                        tentative = new_text
-                        logger.debug(f"   警告: 確定テキストが新しいテキストに含まれていない")
+                        # 重複除外後に残りがない場合
+                        tentative = ""
+                        logger.debug(f"   重複除外後、残りなし")
                 else:
                     # 初回の確定: 適切な区切りまでを確定
                     break_points = []
@@ -401,38 +462,25 @@ class CumulativeBuffer:
             self.stable_count = 0
             logger.debug(f"   テキスト変更 → 安定カウントリセット")
 
-            # 既存の確定テキストが新しいテキストに含まれているか確認
-            if self.confirmed_text and self.confirmed_text in new_text:
-                idx = new_text.find(self.confirmed_text) + len(self.confirmed_text)
-                tentative = new_text[idx:]
-                logger.debug(f"   確定テキストは維持")
-            elif self.confirmed_text:
-                # 確定テキストが含まれていない → 認識結果が大きく変わった
-                # 既存の確定テキストは維持、新しいテキスト全体を暫定として扱う
-                tentative = new_text
-                logger.debug(f"   警告: 確定テキストが新しいテキストに含まれていない（維持）")
+            # ✅ 重複除外ロジックを使用
+            if self.confirmed_text:
+                tentative = remove_confirmed_overlap(self.confirmed_text, new_text)
             else:
                 # 確定テキストがまだない場合、全て暫定
                 tentative = new_text
 
-        # 前回結果を更新
-        self.previous_full_text = new_text
-        self.last_transcription = new_text
-
-        # ✅ トリミング前コールバックを実行（この時点でlast_transcriptionは最新）
+        # ✅ トリミング前コールバックを実行（この時点でlast_transcriptionは古い値）
         if should_trim:
             self._trim_buffer_before_update()
 
-            # ✅ 強制確定後に暫定テキストを再計算
-            if self.confirmed_text:
-                if self.confirmed_text in new_text:
-                    idx = new_text.find(self.confirmed_text) + len(self.confirmed_text)
-                    tentative = new_text[idx:]
-                    logger.debug(f"   トリミング後の暫定テキスト再計算: {len(tentative)}文字")
-                else:
-                    # 確定テキストが含まれていない場合（通常は起きない）
-                    tentative = new_text
-                    logger.warning(f"   警告: 強制確定後、確定テキストが新しいテキストに含まれていない")
+        # 前回結果を更新（トリミング後に更新）
+        self.previous_full_text = new_text
+        self.last_transcription = new_text
+
+        # ✅ 強制確定後に暫定テキストを再計算（重複除外ロジックを再利用）
+        if should_trim:
+            tentative = remove_confirmed_overlap(self.confirmed_text, new_text)
+            logger.debug(f"   トリミング後の暫定テキスト: {len(tentative)}文字")
 
         # ひらがな変換
         confirmed_hiragana = ""
@@ -448,17 +496,37 @@ class CumulativeBuffer:
         if should_trim:
             self._trim_buffer_if_needed()
 
+        # 全体テキスト = 確定 + 暫定（常に連続）
+        full_text = self.confirmed_text + tentative
+
+        # デバッグログ: 先頭50文字を出力
+        logger.debug(f"   確定テキスト（先頭50文字）: {self.confirmed_text[:50] if self.confirmed_text else '(なし)'}...")
+        logger.debug(f"   暫定テキスト（先頭50文字）: {tentative[:50] if tentative else '(なし)'}...")
+        logger.debug(f"   全体テキスト（先頭50文字）: {full_text[:50] if full_text else '(なし)'}...")
+
         logger.info(
             f"📝 文字起こし更新: "
             f"確定={len(self.confirmed_text)}文字, "
             f"暫定={len(tentative)}文字, "
+            f"全体={len(full_text)}文字, "
             f"安定={self.stable_count}"
         )
+
+        # デバッグログ: 返却する確定テキストの詳細
+        logger.info(f"=" * 80)
+        logger.info(f"📤 サーバー→クライアント送信データ:")
+        logger.info(f"   confirmed_text.length: {len(self.confirmed_text)}")
+        logger.info(f"   confirmed_text (全文):")
+        logger.info(f"   「{self.confirmed_text}」")
+        logger.info(f"   tentative_text.length: {len(tentative)}")
+        logger.info(f"   tentative_text (先頭100文字): {tentative[:100] if tentative else '(なし)'}")
+        logger.info(f"   full_text.length: {len(full_text)}")
+        logger.info(f"=" * 80)
 
         return TranscriptionResult(
             confirmed_text=self.confirmed_text,
             tentative_text=tentative,
-            full_text=new_text,
+            full_text=full_text,
             confirmed_hiragana=self.confirmed_hiragana,
             tentative_hiragana=tentative_hiragana,
             is_final=False,
@@ -468,7 +536,13 @@ class CumulativeBuffer:
         """セッション終了時に全テキストを確定"""
         # 残りの暫定テキストを確定
         if self.last_transcription:
-            remaining = self.last_transcription[len(self.confirmed_text) :]
+            # 確定済みテキストを除いた残り（暫定部分）
+            if self.confirmed_text in self.last_transcription:
+                remaining = self.last_transcription[len(self.confirmed_text) :]
+            else:
+                # バッファがトリミングされた場合、全体を確定に追加
+                remaining = self.last_transcription
+
             if remaining:
                 self.confirmed_text += remaining
                 if hiragana_converter:

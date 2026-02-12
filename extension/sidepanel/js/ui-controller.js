@@ -97,6 +97,14 @@ class UIController {
         const newConfirmedTranslation = translation.confirmed || "";
         const newTentativeTranslation = translation.tentative || "";
 
+        // デバッグログ: WebSocket受信データを確認
+        if (newConfirmedText) {
+            console.log("🔍 WebSocket受信データ:");
+            console.log("  confirmed.length:", newConfirmedText.length);
+            console.log("  confirmed (先頭100文字):", newConfirmedText.slice(0, 100));
+            console.log("  confirmed (末尾100文字):", newConfirmedText.slice(-100));
+        }
+
         // 既存のタイピングアニメーションをキャンセル
         this._cancelTypingAnimations();
 
@@ -197,10 +205,15 @@ class UIController {
 
         // 確定テキストが更新された場合（追記のみ、減少は無視）
         if (newConfirmedText && newConfirmedText.length > this.currentConfirmedText.length) {
-            console.log("✅ 確定テキスト追加:", newConfirmedText);
+            // デバッグログ: currentConfirmedTextの値を確認
+            console.log("🔍 確定テキスト計算:");
+            console.log("  this.currentConfirmedText.length:", this.currentConfirmedText.length);
+            console.log("  newConfirmedText.length:", newConfirmedText.length);
+            console.log("  this.currentConfirmedText (先頭50文字):", this.currentConfirmedText.slice(0, 50) || "(空)");
 
             // タイムスタンプ付きで履歴に記録
             const addedText = newConfirmedText.slice(this.currentConfirmedText.length);
+            console.log("✅ 確定テキスト追加:", addedText.trim());
             const timestamp = this.sessionStartTime
                 ? (Date.now() - this.sessionStartTime) / 1000
                 : 0;
@@ -225,6 +238,12 @@ class UIController {
             // 確定テキストを保存・表示（追記のみ）
             this.currentConfirmedText = newConfirmedText;
             this.currentHiraganaConfirmed = newHiraganaConfirmed;
+
+            // デバッグログ: タイピングアニメーションの引数を確認
+            console.log("🔍 タイピングアニメーション:");
+            console.log("  previousConfirmedText (先頭50文字):", this.previousConfirmedText?.slice(0, 50) || "(なし)");
+            console.log("  newConfirmedText (先頭50文字):", newConfirmedText?.slice(0, 50) || "(なし)");
+            console.log("  addedText (先頭50文字):", addedText?.slice(0, 50) || "(なし)");
 
             // タイピングアニメーション + ハイライト効果で表示
             this._typeTextWithHighlight(
