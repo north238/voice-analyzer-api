@@ -371,9 +371,6 @@ class UIController {
                     currentIndex++;
                     const timer = setTimeout(typeNextChar, interval);
                     this.typingTimers.push(timer);
-                } else {
-                    // タイピング完了後、ハイライト効果を適用
-                    this._applyFinalizeHighlight(element, oldText.length, newText.length);
                 }
             };
 
@@ -383,37 +380,6 @@ class UIController {
             // 全く異なるテキストの場合は、一度にすべて表示
             element.textContent = newText;
         }
-    }
-
-    /**
-     * 確定移行ハイライト効果を適用
-     *
-     * @param {HTMLElement} element - 対象要素
-     * @param {number} startIndex - ハイライト開始位置
-     * @param {number} endIndex - ハイライト終了位置
-     */
-    _applyFinalizeHighlight(element, startIndex, endIndex) {
-        const fullText = element.textContent;
-        const beforeText = fullText.slice(0, startIndex);
-        const highlightText = fullText.slice(startIndex, endIndex);
-        const afterText = fullText.slice(endIndex);
-
-        // ハイライト部分をspanタグで囲む
-        element.innerHTML =
-            this._escapeHtml(beforeText) +
-            `<span class="text-finalized">${this._escapeHtml(highlightText)}</span>` +
-            this._escapeHtml(afterText);
-
-        // 1.5秒後にクリーンアップ（プレーンテキストに戻す）
-        // ただし、テキストが変更されていない場合のみ
-        setTimeout(() => {
-            // 現在のテキストコンテンツを取得（HTMLタグを除く）
-            const currentText = element.textContent;
-            // fullTextと一致する場合のみプレーンテキストに戻す
-            if (currentText === fullText) {
-                element.textContent = fullText;
-            }
-        }, 1500);
     }
 
     /**

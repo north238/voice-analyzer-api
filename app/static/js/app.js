@@ -524,15 +524,56 @@ class RealtimeTranscriptionApp {
             this.wsClient.sendEndMessage();
 
             // タイムアウト処理: 20秒待ってもsession_endが来なければ強制切断
-            this.disconnectTimeout = setTimeout(() => {
+            this.disconnectTimeout = setTimeout(async () => {
                 console.warn("⚠️ session_end待機タイムアウト。強制切断します。");
 
                 // タイムアウト時に暫定テキストを強制的に確定に移行
                 this.uiController.forceFinalize();
 
+                // ひらがな・翻訳を一括処理（サーバーに問い合わせ）
+                await this._processFinalText();
+
                 this.forceCleanup();
                 this.uiController.showToast("タイムアウトにより接続を切断しました", "warning");
             }, 20000);
+        }
+    }
+
+    /**
+     * セッション終了時にひらがな・翻訳を一括処理
+     */
+    async _processFinalText() {
+        const confirmedText = this.uiController.currentConfirmedText;
+        if (!confirmedText) return;
+
+        const options = this.processingOptions || {};
+        const needsHiragana = options.enableHiragana;
+        const needsTranslation = options.enableTranslation;
+        if (!needsHiragana && !needsTranslation) return;
+
+        try {
+            const apiUrl = `http://${window.location.host}/process-text`;
+            const response = await fetch(apiUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    text: confirmedText,
+                    hiragana: !!needsHiragana,
+                    translation: !!needsTranslation,
+                }),
+            });
+            if (!response.ok) return;
+            const result = await response.json();
+            if (result.hiragana) {
+                this.uiController._updateHiraganaDisplay(result.hiragana);
+            }
+            if (result.translation && this.uiController.translationText) {
+                this.uiController.translationText.classList.remove("processing");
+                this.uiController.translationText.textContent = result.translation;
+            }
+            console.log("✅ タイムアウト後の一括処理完了");
+        } catch (e) {
+            console.warn("⚠️ タイムアウト後の一括処理に失敗:", e);
         }
     }
 

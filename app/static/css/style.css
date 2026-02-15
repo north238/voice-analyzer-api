@@ -568,25 +568,38 @@ section h2 {
     background: #fafbfc;
 }
 
-.text-display.confirmed {
+.text-display.transcription {
     background: white;
     border-color: #3b82f6;
-    font-weight: 500;
     color: #1f2937;
+    max-height: 300px;
 }
 
-.text-display.tentative {
-    background: #f9fafb;
-    border-color: #d1d5db;
-    border-style: dashed;
-    font-style: italic;
-    color: #6b7280;
+.text-display.transcription .tentative {
+    color: #9ca3af;
 }
 
 .text-display.hiragana {
     background: #fffbeb;
     border-color: #fcd34d;
     color: #92400e;
+}
+
+.text-display.hiragana.processing {
+    color: #b45309;
+    font-style: italic;
+}
+
+@keyframes processing-dots {
+    0%   { content: "変換中"; }
+    33%  { content: "変換中."; }
+    66%  { content: "変換中.."; }
+    100% { content: "変換中..."; }
+}
+
+.text-display.hiragana.processing::after {
+    content: "変換中";
+    animation: processing-dots 1.2s steps(1) infinite;
 }
 
 .text-display .confirmed {
@@ -630,7 +643,7 @@ section h2 {
 
 .perf-item {
     display: grid;
-    grid-template-columns: 100px 70px 1fr;
+    grid-template-columns: 100px 60px 1fr;
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
@@ -638,12 +651,6 @@ section h2 {
     border-radius: 8px;
     border-left: 3px solid #3b82f6;
     font-size: 0.875rem;
-}
-
-.perf-item.perf-total {
-    background: #eff6ff;
-    border-left-color: #2563eb;
-    font-weight: 600;
 }
 
 .perf-label {
@@ -655,6 +662,7 @@ section h2 {
     font-weight: 600;
     color: #1f2937;
     text-align: right;
+    font-variant-numeric: tabular-nums;
 }
 
 .perf-bar {
@@ -666,13 +674,10 @@ section h2 {
 
 .perf-bar-fill {
     height: 100%;
+    width: 0%;
     background: linear-gradient(90deg, #3b82f6, #2563eb);
-    transition: width 0.3s ease;
+    transition: width 0.5s ease;
     border-radius: 4px;
-}
-
-.perf-item.hidden {
-    display: none;
 }
 
 /* フッター */
@@ -762,26 +767,7 @@ footer {
     background: #9ca3af;
 }
 
-/* 確定移行時のハイライト */
-.text-finalized {
-    animation: finalize-highlight 1.5s ease-out;
-}
 
-@keyframes finalize-highlight {
-    0% {
-        background-color: rgba(251, 191, 36, 0.3); /* 淡い黄色 */
-    }
-    100% {
-        background-color: transparent;
-    }
-}
-
-/* アクセシビリティ: アニメーション無効設定に対応 */
-@media (prefers-reduced-motion: reduce) {
-    .text-finalized {
-        animation: none;
-    }
-}
 
 /* 処理オプション */
 .processing-options {
@@ -860,12 +846,15 @@ footer {
     font-weight: 500;
 }
 
-.text-display.translation-tentative {
-    background: #fef3c7;
-    border-color: #fcd34d;
-    border-style: dashed;
-    color: #92400e;
+.text-display.translation-confirmed.processing {
+    color: #b45309;
     font-style: italic;
+    font-weight: normal;
+}
+
+.text-display.translation-confirmed.processing::after {
+    content: "翻訳中";
+    animation: processing-dots 1.2s steps(1) infinite;
 }
 
 /* モバイル対応（処理オプション） */

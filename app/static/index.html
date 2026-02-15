@@ -126,13 +126,7 @@
                 <h2>文字起こし結果</h2>
 
                 <div class="result-box">
-                    <h3>確定テキスト</h3>
-                    <div id="confirmed-text" class="text-display confirmed"></div>
-                </div>
-
-                <div class="result-box">
-                    <h3>暫定テキスト</h3>
-                    <div id="tentative-text" class="text-display tentative"></div>
+                    <div id="transcription-text" class="text-display transcription"></div>
                 </div>
             </section>
 
@@ -145,50 +139,21 @@
             <!-- 翻訳結果（オプション） -->
             <section id="translation-section" class="translation-results" style="display: none;">
                 <h2>翻訳結果</h2>
-
                 <div class="result-box">
-                    <h3>確定翻訳</h3>
-                    <div id="confirmed-translation" class="text-display translation-confirmed"></div>
-                </div>
-
-                <div class="result-box">
-                    <h3>暫定翻訳</h3>
-                    <div id="tentative-translation" class="text-display translation-tentative"></div>
+                    <div id="translation-text" class="text-display translation-confirmed"></div>
                 </div>
             </section>
 
-            <!-- パフォーマンス情報 -->
+            <!-- 録音時間 -->
             <section class="performance">
-                <h2>処理時間</h2>
+                <h2>録音時間</h2>
                 <div id="performance-info" class="performance-info">
-                    <div class="perf-item">
-                        <span class="perf-label">文字起こし:</span>
-                        <span class="perf-value" id="perf-transcription">-</span>
-                        <div class="perf-bar">
-                            <div class="perf-bar-fill" id="perf-bar-transcription"></div>
-                        </div>
-                    </div>
-                    <div class="perf-item hidden" id="perf-item-normalization">
-                        <span class="perf-label">正規化:</span>
-                        <span class="perf-value" id="perf-normalization">-</span>
-                        <div class="perf-bar">
-                            <div class="perf-bar-fill" id="perf-bar-normalization"></div>
-                        </div>
-                    </div>
-                    <div class="perf-item hidden" id="perf-item-translation">
-                        <span class="perf-label">翻訳:</span>
-                        <span class="perf-value" id="perf-translation">-</span>
-                        <div class="perf-bar">
-                            <div class="perf-bar-fill" id="perf-bar-translation"></div>
-                        </div>
-                    </div>
-                    <div class="perf-item perf-total">
-                        <span class="perf-label">合計:</span>
-                        <span class="perf-value" id="perf-total">-</span>
-                    </div>
-                    <div class="perf-item">
+                    <div class="perf-item perf-recording-item">
                         <span class="perf-label">録音時間:</span>
-                        <span class="perf-value" id="perf-recording">-</span>
+                        <span class="perf-value" id="perf-recording">--:--</span>
+                        <div class="perf-bar">
+                            <div class="perf-bar-fill" id="perf-bar-recording"></div>
+                        </div>
                     </div>
                 </div>
             </section>
