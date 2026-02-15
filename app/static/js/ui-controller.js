@@ -20,7 +20,6 @@ class UIController {
         this.hiraganaSection = document.querySelector(".hiragana-results");
         this.translationSection = document.getElementById("translation-section");
 
-        this.performanceInfo = document.getElementById("performance-info");
         this.deviceSelector = document.getElementById("device-selector");
         this.toastContainer = document.getElementById("toast-container");
 
@@ -249,9 +248,6 @@ class UIController {
 
 
 
-        // パフォーマンス情報
-        const perf = data.performance || {};
-        this._updatePerformanceInfo(perf);
     }
 
     /**
@@ -372,30 +368,6 @@ class UIController {
     }
 
     /**
-     * パフォーマンス情報を更新
-     *
-     * @param {Object} perf - パフォーマンスデータ
-     */
-    _updatePerformanceInfo(perf) {
-        const recordingTime = perf.session_elapsed_seconds ?? perf.accumulated_audio_seconds ?? 0;
-
-        const perfRecording = document.getElementById("perf-recording");
-        const perfBarRecording = document.getElementById("perf-bar-recording");
-
-        if (perfRecording) {
-            // MM:SS 形式で表示
-            const minutes = Math.floor(recordingTime / 60);
-            const seconds = Math.floor(recordingTime % 60);
-            perfRecording.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-        }
-
-        // ゲージ: 最大30秒を100%として表示
-        if (perfBarRecording) {
-            perfBarRecording.style.width = `${Math.min(recordingTime / 30 * 100, 100)}%`;
-        }
-    }
-
-    /**
      * エラーメッセージを表示
      *
      * @param {string} message - エラーメッセージ
@@ -493,8 +465,7 @@ class UIController {
             this.translationText.textContent = "";
         }
 
-        // パフォーマンス情報をクリア
-        this.performanceInfo.innerHTML = "";
+
 
         // 内部状態をリセット
         this.previousConfirmedText = "";

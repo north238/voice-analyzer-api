@@ -867,6 +867,7 @@ async def finalize_cumulative_session(session_id: str, connection):
                 "full_text": final_result.full_text,
             },
             "statistics": buffer.get_stats(),
+            "session_elapsed_seconds": buffer.session_elapsed_seconds,
             "is_final": True,
         }
 

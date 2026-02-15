@@ -285,7 +285,7 @@ class RealtimeTranscriptionApp {
                         transcription: data.transcription || {},
                         hiragana: data.hiragana || {},
                         translation: data.translation || {},
-                        performance: data.performance || {},
+                        is_final: true,
                     });
                 }
 
