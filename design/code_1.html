@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>正規化・翻訳プレビュー</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style type="text/tailwindcss">
+        :root {
+            --bg-calm: #f8fafc;
+            --card-bg: #ffffff;
+            --accent-soft: #64748b;
+            --accent-blue: #3b82f6;
+            --text-main: #334155;
+            --text-muted: #94a3b8;
+            --border-light: #f1f5f9;
+        }
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: var(--bg-calm);
+            color: var(--text-main);
+            -webkit-font-smoothing: antialiased;
+        }
+        .segmented-control input:checked + span {
+            background-color: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            color: var(--accent-blue);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+        .ios-card {
+            @apply bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-slate-50/50;
+        }
+    </style>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen flex flex-col items-center">
+<div class="w-full max-w-lg px-5 py-8 space-y-6">
+<header class="flex flex-col items-center space-y-1 mb-2">
+<h1 class="text-xl font-medium tracking-tight text-slate-800">音声文字起こし</h1>
+<div class="flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+<p class="text-[10px] uppercase tracking-[0.15em] text-slate-400 font-medium">リアルタイム処理中</p>
+</div>
+</header>
+<main class="space-y-4">
+<section class="ios-card p-6">
+<div class="space-y-6">
+<div class="inline-flex p-1 bg-slate-100/50 rounded-2xl w-full">
+<label class="segmented-control flex-1 cursor-pointer">
+<input checked="" class="hidden" name="inputSource" type="radio" value="microphone"/>
+<span class="block text-center py-2 rounded-xl text-xs font-medium transition-all text-slate-400">マイク</span>
+</label>
+<label class="segmented-control flex-1 cursor-pointer">
+<input class="hidden" name="inputSource" type="radio" value="video"/>
+<span class="block text-center py-2 rounded-xl text-xs font-medium transition-all text-slate-400">ビデオ</span>
+</label>
+<label class="segmented-control flex-1 cursor-pointer">
+<input class="hidden" name="inputSource" type="radio" value="tab"/>
+<span class="block text-center py-2 rounded-xl text-xs font-medium transition-all text-slate-400">共有</span>
+</label>
+</div>
+<div class="min-h-[140px] flex flex-col justify-center">
+<div class="text-lg leading-relaxed text-slate-700 font-light custom-scrollbar overflow-y-auto max-h-[180px]" id="transcription-text">
+                        今日はとても良い天気ですね。これから翻訳と正規化の機能を確認します。
+                    </div>
+</div>
+<div class="flex items-center justify-between pt-4 border-t border-slate-50">
+<div class="flex gap-3">
+<button class="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-400 rounded-full hover:bg-slate-100 transition-colors">
+<span class="material-symbols-outlined text-xl">settings</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-400 rounded-full hover:bg-slate-100 transition-colors">
+<span class="material-symbols-outlined text-xl">download</span>
+</button>
+</div>
+<button class="w-14 h-14 flex items-center justify-center bg-blue-500 text-white rounded-full shadow-lg shadow-blue-100 hover:bg-blue-600 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-2xl">stop</span>
+</button>
+</div>
+</div>
+</section>
+<div class="grid grid-cols-1 gap-4">
+<section class="ios-card p-6 overflow-hidden">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-blue-400 text-sm">auto_fix_high</span>
+<h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">正規化</h3>
+</div>
+<div class="flex gap-1.5">
+<span class="px-2 py-0.5 bg-slate-50 text-[9px] font-medium text-slate-500 rounded-full border border-slate-100">ひらがな</span>
+</div>
+</div>
+<div class="text-sm leading-relaxed text-slate-500 font-light custom-scrollbar overflow-y-auto max-h-[120px]" id="hiragana-text">
+                    きょうは　とても　よい　てんきですね。これから　ほんやく　と　せいきか　の　きのうを　かくにんします。
+                </div>
+</section>
+<section class="ios-card p-6 overflow-hidden">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-blue-400 text-sm">translate</span>
+<h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">翻訳</h3>
+</div>
+<div class="flex gap-1.5">
+<span class="px-2 py-0.5 bg-blue-50/50 text-[9px] font-bold text-blue-500/80 rounded-full border border-blue-100/50">英語 (米国)</span>
+</div>
+</div>
+<div class="text-sm leading-relaxed text-slate-500 font-light custom-scrollbar overflow-y-auto max-h-[120px]" id="translation-text">
+                    The weather is very nice today. We will now check the translation and normalization features.
+                </div>
+</section>
+</div>
+<div class="flex flex-wrap justify-center gap-3 pt-2">
+<button class="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-100 shadow-sm transition-all active:bg-slate-50">
+<div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+<span class="text-xs text-slate-600 font-medium">正規化</span>
+</button>
+<button class="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-100 shadow-sm transition-all active:bg-slate-50">
+<div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+<span class="text-xs text-slate-600 font-medium">翻訳</span>
+</button>
+<button class="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-50/50 border border-transparent transition-all opacity-50">
+<div class="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+<span class="text-xs text-slate-400 font-medium">要約</span>
+</button>
+</div>
+</main>
+<footer class="text-center pt-8 pb-4">
+<p class="text-[9px] text-slate-300 uppercase tracking-[0.2em] font-medium">Voice Intelligent Interface v2.5</p>
+</footer>
+</div>
+
+</body></html>

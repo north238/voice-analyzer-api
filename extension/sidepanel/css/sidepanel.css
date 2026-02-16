@@ -515,26 +515,7 @@ footer {
     background: #9ca3af;
 }
 
-/* 確定移行時のハイライト */
-.text-finalized {
-    animation: finalize-highlight 1.5s ease-out;
-}
 
-@keyframes finalize-highlight {
-    0% {
-        background-color: rgba(251, 191, 36, 0.3); /* 淡い黄色 */
-    }
-    100% {
-        background-color: transparent;
-    }
-}
-
-/* アクセシビリティ: アニメーション無効設定に対応 */
-@media (prefers-reduced-motion: reduce) {
-    .text-finalized {
-        animation: none;
-    }
-}
 
 /* 処理オプション */
 .processing-options {

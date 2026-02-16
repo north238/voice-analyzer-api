@@ -43,6 +43,8 @@ class UIController {
         // セッションデータ（ダウンロード用）
         this.sessionStartTime = null;
         this.transcriptionHistory = [];
+        this.finalHiragana = "";
+        this.finalTranslation = "";
     }
 
     /**
@@ -52,6 +54,8 @@ class UIController {
     startSession() {
         this.sessionStartTime = Date.now();
         this.transcriptionHistory = [];
+        this.finalHiragana = "";
+        this.finalTranslation = "";
         console.log("📝 セッション開始時刻を記録しました");
     }
 
@@ -96,6 +100,14 @@ class UIController {
         const newHiraganaTentative = hiragana.tentative || "";
         const newConfirmedTranslation = translation.confirmed || "";
         const newTentativeTranslation = translation.tentative || "";
+
+        // デバッグログ: WebSocket受信データを確認
+        if (newConfirmedText) {
+            console.log("🔍 WebSocket受信データ:");
+            console.log("  confirmed.length:", newConfirmedText.length);
+            console.log("  confirmed (先頭100文字):", newConfirmedText.slice(0, 100));
+            console.log("  confirmed (末尾100文字):", newConfirmedText.slice(-100));
+        }
 
         // 既存のタイピングアニメーションをキャンセル
         this._cancelTypingAnimations();
@@ -197,10 +209,15 @@ class UIController {
 
         // 確定テキストが更新された場合（追記のみ、減少は無視）
         if (newConfirmedText && newConfirmedText.length > this.currentConfirmedText.length) {
-            console.log("✅ 確定テキスト追加:", newConfirmedText);
+            // デバッグログ: currentConfirmedTextの値を確認
+            console.log("🔍 確定テキスト計算:");
+            console.log("  this.currentConfirmedText.length:", this.currentConfirmedText.length);
+            console.log("  newConfirmedText.length:", newConfirmedText.length);
+            console.log("  this.currentConfirmedText (先頭50文字):", this.currentConfirmedText.slice(0, 50) || "(空)");
 
             // タイムスタンプ付きで履歴に記録
             const addedText = newConfirmedText.slice(this.currentConfirmedText.length);
+            console.log("✅ 確定テキスト追加:", addedText.trim());
             const timestamp = this.sessionStartTime
                 ? (Date.now() - this.sessionStartTime) / 1000
                 : 0;
@@ -225,6 +242,12 @@ class UIController {
             // 確定テキストを保存・表示（追記のみ）
             this.currentConfirmedText = newConfirmedText;
             this.currentHiraganaConfirmed = newHiraganaConfirmed;
+
+            // デバッグログ: タイピングアニメーションの引数を確認
+            console.log("🔍 タイピングアニメーション:");
+            console.log("  previousConfirmedText (先頭50文字):", this.previousConfirmedText?.slice(0, 50) || "(なし)");
+            console.log("  newConfirmedText (先頭50文字):", newConfirmedText?.slice(0, 50) || "(なし)");
+            console.log("  addedText (先頭50文字):", addedText?.slice(0, 50) || "(なし)");
 
             // タイピングアニメーション + ハイライト効果で表示
             this._typeTextWithHighlight(
@@ -352,9 +375,6 @@ class UIController {
                     currentIndex++;
                     const timer = setTimeout(typeNextChar, interval);
                     this.typingTimers.push(timer);
-                } else {
-                    // タイピング完了後、ハイライト効果を適用
-                    this._applyFinalizeHighlight(element, oldText.length, newText.length);
                 }
             };
 
@@ -364,37 +384,6 @@ class UIController {
             // 全く異なるテキストの場合は、一度にすべて表示
             element.textContent = newText;
         }
-    }
-
-    /**
-     * 確定移行ハイライト効果を適用
-     *
-     * @param {HTMLElement} element - 対象要素
-     * @param {number} startIndex - ハイライト開始位置
-     * @param {number} endIndex - ハイライト終了位置
-     */
-    _applyFinalizeHighlight(element, startIndex, endIndex) {
-        const fullText = element.textContent;
-        const beforeText = fullText.slice(0, startIndex);
-        const highlightText = fullText.slice(startIndex, endIndex);
-        const afterText = fullText.slice(endIndex);
-
-        // ハイライト部分をspanタグで囲む
-        element.innerHTML =
-            this._escapeHtml(beforeText) +
-            `<span class="text-finalized">${this._escapeHtml(highlightText)}</span>` +
-            this._escapeHtml(afterText);
-
-        // 1.5秒後にクリーンアップ（プレーンテキストに戻す）
-        // ただし、テキストが変更されていない場合のみ
-        setTimeout(() => {
-            // 現在のテキストコンテンツを取得（HTMLタグを除く）
-            const currentText = element.textContent;
-            // fullTextと一致する場合のみプレーンテキストに戻す
-            if (currentText === fullText) {
-                element.textContent = fullText;
-            }
-        }, 1500);
     }
 
     /**
@@ -689,6 +678,8 @@ class UIController {
         // セッションデータをリセット
         this.sessionStartTime = null;
         this.transcriptionHistory = [];
+        this.finalHiragana = "";
+        this.finalTranslation = "";
 
         // タイピングアニメーションをキャンセル
         this._cancelTypingAnimations();
@@ -778,25 +769,37 @@ class UIController {
     generateTranscriptText(inputSource, processingOptions) {
         let content = this._generateMetadataHeader(inputSource, processingOptions);
 
-        // 履歴データから本文を生成
+        // 履歴データから本文を生成（文字起こしのみ）
         for (const entry of this.transcriptionHistory) {
             const timestamp = this._formatTimestamp(entry.timestamp);
             content += `${timestamp} ${entry.text}\n`;
+        }
 
-            // ひらがな正規化がある場合は追加
-            if (processingOptions.enableHiragana && entry.hiragana) {
-                content += `${entry.hiragana}\n`;
-            }
+        // ひらがな正規化セクション（セッション終了時に一括処理された全体テキスト）
+        if (processingOptions.enableHiragana && this.finalHiragana) {
+            content += "\n--- ひらがな正規化 ---\n";
+            content += `${this.finalHiragana}\n`;
+        }
 
-            // 翻訳がある場合は追加
-            if (processingOptions.enableTranslation && entry.translation) {
-                content += `${entry.translation}\n`;
-            }
-
-            content += "\n";
+        // 翻訳セクション（セッション終了時に一括処理された全体テキスト）
+        if (processingOptions.enableTranslation && this.finalTranslation) {
+            content += "\n--- 翻訳 ---\n";
+            content += `${this.finalTranslation}\n`;
         }
 
         return content;
+    }
+
+    /**
+     * セッション終了時の最終ひらがな・翻訳を保存
+     *
+     * @param {string} hiragana - ひらがな全体テキスト
+     * @param {string} translation - 翻訳全体テキスト
+     */
+    setFinalResults(hiragana, translation) {
+        this.finalHiragana = hiragana || "";
+        this.finalTranslation = translation || "";
+        console.log(`📝 最終結果を保存: ひらがな=${this.finalHiragana.length}文字, 翻訳=${this.finalTranslation.length}文字`);
     }
 
     /**
