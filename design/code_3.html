@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>解析履歴一覧</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style type="text/tailwindcss">
+        :root {
+            --bg-calm: #f8fafc;
+            --card-bg: #ffffff;
+            --accent-soft: #64748b;
+            --accent-blue: #3b82f6;
+            --text-main: #334155;
+            --text-muted: #94a3b8;
+            --border-light: #f1f5f9;
+        }
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: var(--bg-calm);
+            color: var(--text-main);
+            -webkit-font-smoothing: antialiased;
+        }
+        .ios-card {
+            @apply bg-white rounded-[1.5rem] shadow-[0_4px_20px_rgb(0,0,0,0.02)] border border-slate-50/80 active:scale-[0.98] transition-transform duration-200;
+        }
+        .tag-normalized {
+            @apply px-2 py-0.5 bg-blue-50 text-[9px] font-medium text-blue-500 rounded-full border border-blue-100/50;
+        }
+        .tag-translated {
+            @apply px-2 py-0.5 bg-indigo-50 text-[9px] font-medium text-indigo-500 rounded-full border border-indigo-100/50;
+        }
+        .tag-summarized {
+            @apply px-2 py-0.5 bg-slate-50 text-[9px] font-medium text-slate-500 rounded-full border border-slate-100;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen flex flex-col items-center">
+<div class="w-full max-w-lg px-5 py-8 flex flex-col min-h-screen relative">
+<header class="flex items-center justify-between mb-8 px-1">
+<h1 class="text-xl font-medium tracking-tight text-slate-800">解析履歴</h1>
+<button class="w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm border border-slate-100 text-slate-400">
+<span class="material-symbols-outlined text-xl">search</span>
+</button>
+</header>
+<main class="flex-1 space-y-4 pb-24">
+<div class="ios-card p-5">
+<div class="flex justify-between items-start mb-2">
+<h2 class="text-sm font-medium text-slate-700">週次進捗ミーティング</h2>
+<span class="text-[10px] text-slate-400 font-light">14:30</span>
+</div>
+<p class="text-xs leading-relaxed text-slate-500 font-light line-clamp-2 mb-3">
+                    今週のプロジェクトの進捗状況について共有します。開発フェーズは予定通り進行しており、来週からはテスト期間に入ります。
+                </p>
+<div class="flex gap-2">
+<span class="tag-normalized">正規化済み</span>
+<span class="tag-translated">翻訳済み</span>
+</div>
+</div>
+<div class="py-2 px-1">
+<p class="text-[10px] font-bold text-slate-300 uppercase tracking-widest">昨日 - 2024年5月23日</p>
+</div>
+<div class="ios-card p-5">
+<div class="flex justify-between items-start mb-2">
+<h2 class="text-sm font-medium text-slate-700">新機能のアイデア出し</h2>
+<span class="text-[10px] text-slate-400 font-light">18:15</span>
+</div>
+<p class="text-xs leading-relaxed text-slate-500 font-light line-clamp-2 mb-3">
+                    ユーザーからのフィードバックに基づき、UIの改善と通知機能の強化を検討しています。特にiOSのウィジェット対応は優先度が高いです。
+                </p>
+<div class="flex gap-2">
+<span class="tag-normalized">正規化済み</span>
+<span class="tag-summarized">要約済み</span>
+</div>
+</div>
+<div class="ios-card p-5">
+<div class="flex justify-between items-start mb-2">
+<h2 class="text-sm font-medium text-slate-700">クライアント・インタビュー</h2>
+<span class="text-[10px] text-slate-400 font-light">11:00</span>
+</div>
+<p class="text-xs leading-relaxed text-slate-500 font-light line-clamp-2 mb-3">
+                    導入後の使い心地についてお伺いしました。非常に満足されており、特に翻訳の精度が高いとの評価をいただきました。
+                </p>
+<div class="flex gap-2">
+<span class="tag-translated">翻訳済み</span>
+</div>
+</div>
+<div class="ios-card p-5">
+<div class="flex justify-between items-start mb-2">
+<h2 class="text-sm font-medium text-slate-700">ボイスメモ: 帰宅中の思いつき</h2>
+<span class="text-[10px] text-slate-400 font-light">20:45</span>
+</div>
+<p class="text-xs leading-relaxed text-slate-500 font-light line-clamp-2 mb-3">
+                    明日の朝一番でやらなければいけないこと：メールの返信、資料の印刷、チームメンバーへのリマインド。
+                </p>
+<div class="flex gap-2">
+<span class="tag-normalized">正規化済み</span>
+</div>
+</div>
+</main>
+<div class="fixed bottom-10 right-1/2 translate-x-1/2 w-full max-w-lg px-5 flex justify-end pointer-events-none">
+<button class="pointer-events-auto w-16 h-16 flex items-center justify-center bg-blue-500 text-white rounded-full shadow-xl shadow-blue-200/50 hover:bg-blue-600 active:scale-90 transition-all">
+<span class="material-symbols-outlined text-3xl">add</span>
+</button>
+</div>
+<footer class="text-center pt-4 pb-8">
+<p class="text-[9px] text-slate-300 uppercase tracking-[0.2em] font-medium">Voice Intelligent Interface v2.5</p>
+</footer>
+</div>
+
+</body></html>
