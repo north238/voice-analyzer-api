@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html class="light" lang="ja"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ZenVoice Desktop - 極小UI読書モード</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#3B82F6",
+                        "background-light": "#F8FAFC",
+                        "background-dark": "#0F172A",
+                    },
+                    fontFamily: {
+                        sans: ["'Noto Sans JP'", "sans-serif"],
+                        display: ["'Noto Sans JP'", "sans-serif"],
+                    },
+                    borderRadius: {
+                        'card': '2rem',
+                    },
+                },
+            },
+        };
+    </script>
+<style type="text/tailwindcss">
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #334155;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+        .transcription-content p {
+            margin-bottom: 2rem;
+        }
+        .transcription-content p:last-child {
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-200 min-h-screen flex flex-col">
+<header class="h-14 flex items-center justify-between px-8 border-b border-slate-100 dark:border-slate-800/50 bg-white/30 dark:bg-slate-900/30 backdrop-blur-md sticky top-0 z-50">
+<div class="flex items-center gap-4">
+<div class="w-6 h-6 bg-primary/10 rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-lg">graphic_eq</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+</span>
+</div>
+<button class="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400">
+<span class="material-symbols-outlined text-xl">settings</span>
+</button>
+<div class="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden ring-1 ring-slate-100 dark:ring-slate-800">
+<img alt="Profile" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBZmsWcoeOcMSgGSlTAAt3PQtL5PW9zS1HJ2pTm_o_vYCCBsS7z39imxHWp9WegXWP-uw2zkrWEUBTJaog10dLVZsdATSjQYFKUhf4R8mD6gTmXnH0AxcPaPiewYwphihgUwfC1wRWjtwlF2IqoLjVtfob43Gk7Tya_L853pZtoEWj1PbiXN0sXhv854y90V-JS_5WTt-Ohsx3-iCeJuVz6Yke9sZqB3fb9ZQNSSa19Sy9w-BerRG3ao8thkbdStZF8mRKeOFQ4OyY"/>
+</div>
+</div>
+</header>
+<main class="flex-1 flex overflow-hidden">
+<aside class="w-64 border-r border-slate-100 dark:border-slate-800/50 flex flex-col bg-white/20 dark:bg-slate-900/20 shrink-0">
+<div class="p-6">
+<button class="w-full flex items-center justify-center p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow-md transition-all">
+<span class="material-symbols-outlined text-slate-400">add</span>
+</button>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar px-4 space-y-2">
+<div class="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-blue-50 dark:border-blue-900/20">
+<div class="w-24 h-2 bg-slate-100 dark:bg-slate-700 rounded mb-2"></div>
+<div class="w-12 h-1.5 bg-blue-100 dark:bg-blue-900/40 rounded"></div>
+</div>
+<div class="p-4 hover:bg-white/60 dark:hover:bg-slate-800/60 rounded-2xl transition-colors cursor-pointer group">
+<div class="w-32 h-2 bg-slate-200/50 dark:bg-slate-700/50 rounded mb-2"></div>
+<div class="w-8 h-1.5 bg-slate-100 dark:bg-slate-800 rounded"></div>
+</div>
+<div class="p-4 hover:bg-white/60 dark:hover:bg-slate-800/60 rounded-2xl transition-colors cursor-pointer group">
+<div class="w-28 h-2 bg-slate-200/50 dark:bg-slate-700/50 rounded mb-2"></div>
+<div class="w-8 h-1.5 bg-slate-100 dark:bg-slate-800 rounded"></div>
+</div>
+</div>
+</aside>
+<section class="flex-1 flex flex-col bg-transparent overflow-y-auto custom-scrollbar">
+<div class="flex-1 flex flex-col items-center py-16 px-6">
+<div class="w-full max-w-[640px]">
+<div class="mb-6 flex justify-between items-center px-4">
+<div class="text-[10px] tracking-[0.2em] text-slate-300 dark:text-slate-600 font-medium uppercase">
+                        2024.05.24 — Live
+                    </div>
+<button class="text-slate-300 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">text_increase</span>
+</button>
+</div>
+<div class="bg-white dark:bg-slate-900 rounded-card shadow-sm border border-slate-100 dark:border-slate-800/50">
+<div class="px-14 py-16 transcription-content text-[17px] leading-[1.8] text-slate-600 dark:text-slate-300 font-normal selection:bg-blue-50 dark:selection:bg-blue-900/30">
+<p>
+                            今日はとても良い天気ですね。これから新しい読書最適化レイアウトの検証を開始します。このモードでは、長文の読みやすさを追求し、目の疲れを最小限に抑える設計を採用しています。
+                        </p>
+<p>
+                            中央のカラム幅を約640ピクセルに固定することで、視線の移動距離を最適化しました。これは一般的なタイポグラフィの黄金律に基づいた設計です。また、フォントサイズを17ピクセルに設定し、行間を1.8倍に広げることで、高密度なテキストであっても圧迫感を感じさせないように調整しています。
+                        </p>
+<p>
+                            リアルタイムで生成されるテキストは、適切な段落の間隔を持って表示されます。これにより、情報の塊を瞬時に把握することが可能になります。ZenVoiceの美学である「静寂と集中」を維持しつつ、実用的な情報処理能力を最大限に引き出すことを目指しています。
+                        </p>
+<p>
+                            文章が長くなっても、この適度な余白と文字サイズのおかげで、集中力を途切れさせることなく読み進めることができます。デスクトップ環境での長時間の閲覧を想定し、コントラストも目に優しいレベルに微調整されています。
+                        </p>
+<div class="flex items-center gap-3 pt-4">
+<span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+<div class="h-2 w-32 bg-slate-100 dark:bg-slate-800 rounded-full"></div>
+</div>
+</div>
+<div class="px-14 pb-12">
+<div class="pt-8 border-t border-slate-50 dark:border-slate-800/50 flex items-center justify-between">
+<button class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">download</span>
+</button>
+<button class="w-14 h-14 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-blue-500/20 hover:scale-105 active:scale-95 transition-all text-white">
+<span class="material-symbols-outlined font-bold">stop</span>
+</button>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-center gap-6 mt-12">
+<button class="w-12 h-12 rounded-full bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 flex items-center justify-center text-slate-300 hover:text-blue-500 transition-all">
+<span class="material-symbols-outlined">auto_fix_high</span>
+</button>
+<button class="w-12 h-12 rounded-full bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 flex items-center justify-center text-slate-300 hover:text-blue-500 transition-all">
+<span class="material-symbols-outlined">translate</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<aside class="w-72 border-l border-slate-100 dark:border-slate-800/50 flex flex-col p-6 space-y-6 overflow-y-auto custom-scrollbar bg-white/20 dark:bg-slate-900/20 shrink-0">
+<div class="bg-white dark:bg-slate-900 p-6 rounded-card shadow-sm border border-slate-50 dark:border-slate-800/50">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-blue-400 text-sm">auto_fix_high</span>
+<div class="w-16 h-1.5 bg-slate-100 dark:bg-slate-800 rounded"></div>
+</div>
+<div class="space-y-2">
+<div class="w-full h-2 bg-slate-50 dark:bg-slate-800/50 rounded"></div>
+<div class="w-4/5 h-2 bg-slate-50 dark:bg-slate-800/50 rounded"></div>
+</div>
+</div>
+<div class="bg-white dark:bg-slate-900 p-6 rounded-card shadow-sm border border-slate-50 dark:border-slate-800/50">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-blue-400 text-sm">translate</span>
+<div class="w-20 h-1.5 bg-slate-100 dark:bg-slate-800 rounded"></div>
+</div>
+<div class="space-y-2">
+<div class="w-full h-2 bg-slate-50 dark:bg-slate-800/50 rounded"></div>
+<div class="w-3/4 h-2 bg-slate-50 dark:bg-slate-800/50 rounded"></div>
+</div>
+</div>
+<div class="bg-slate-50/50 dark:bg-slate-900/50 p-8 rounded-card border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center opacity-50">
+<span class="material-symbols-outlined text-slate-300 dark:text-slate-600 mb-2">summarize</span>
+<div class="w-12 h-1 bg-slate-200 dark:bg-slate-800 rounded"></div>
+</div>
+</aside>
+</main>
+<div class="fixed bottom-6 right-6 z-[60]">
+<button class="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-center text-slate-300 hover:text-slate-600 dark:hover:text-slate-100 transition-colors" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-lg">dark_mode</span>
+</button>
+</div>
+
+</body></html>
