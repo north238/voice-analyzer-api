@@ -43,6 +43,8 @@ class UIController {
         // セッションデータ（ダウンロード用）
         this.sessionStartTime = null;
         this.transcriptionHistory = [];
+        this.finalHiragana = "";
+        this.finalTranslation = "";
     }
 
     /**
@@ -52,6 +54,8 @@ class UIController {
     startSession() {
         this.sessionStartTime = Date.now();
         this.transcriptionHistory = [];
+        this.finalHiragana = "";
+        this.finalTranslation = "";
         console.log("📝 セッション開始時刻を記録しました");
     }
 
@@ -674,6 +678,8 @@ class UIController {
         // セッションデータをリセット
         this.sessionStartTime = null;
         this.transcriptionHistory = [];
+        this.finalHiragana = "";
+        this.finalTranslation = "";
 
         // タイピングアニメーションをキャンセル
         this._cancelTypingAnimations();
@@ -763,25 +769,37 @@ class UIController {
     generateTranscriptText(inputSource, processingOptions) {
         let content = this._generateMetadataHeader(inputSource, processingOptions);
 
-        // 履歴データから本文を生成
+        // 履歴データから本文を生成（文字起こしのみ）
         for (const entry of this.transcriptionHistory) {
             const timestamp = this._formatTimestamp(entry.timestamp);
             content += `${timestamp} ${entry.text}\n`;
+        }
 
-            // ひらがな正規化がある場合は追加
-            if (processingOptions.enableHiragana && entry.hiragana) {
-                content += `${entry.hiragana}\n`;
-            }
+        // ひらがな正規化セクション（セッション終了時に一括処理された全体テキスト）
+        if (processingOptions.enableHiragana && this.finalHiragana) {
+            content += "\n--- ひらがな正規化 ---\n";
+            content += `${this.finalHiragana}\n`;
+        }
 
-            // 翻訳がある場合は追加
-            if (processingOptions.enableTranslation && entry.translation) {
-                content += `${entry.translation}\n`;
-            }
-
-            content += "\n";
+        // 翻訳セクション（セッション終了時に一括処理された全体テキスト）
+        if (processingOptions.enableTranslation && this.finalTranslation) {
+            content += "\n--- 翻訳 ---\n";
+            content += `${this.finalTranslation}\n`;
         }
 
         return content;
+    }
+
+    /**
+     * セッション終了時の最終ひらがな・翻訳を保存
+     *
+     * @param {string} hiragana - ひらがな全体テキスト
+     * @param {string} translation - 翻訳全体テキスト
+     */
+    setFinalResults(hiragana, translation) {
+        this.finalHiragana = hiragana || "";
+        this.finalTranslation = translation || "";
+        console.log(`📝 最終結果を保存: ひらがな=${this.finalHiragana.length}文字, 翻訳=${this.finalTranslation.length}文字`);
     }
 
     /**

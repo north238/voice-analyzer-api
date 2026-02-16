@@ -279,6 +279,11 @@ class RealtimeTranscriptionApp {
             this.wsClient.on("session_end", (data) => {
                 console.log("セッション終了:", data);
 
+                // 最終ひらがな・翻訳を保存（ダウンロード用）
+                const finalHiragana = data.hiragana?.confirmed || "";
+                const finalTranslation = data.translation?.confirmed || "";
+                this.uiController.setFinalResults(finalHiragana, finalTranslation);
+
                 // 最終結果をUIに反映（暫定テキストが確定テキストに移行）
                 if (data.transcription || data.hiragana || data.translation) {
                     this.uiController.updateTranscription({
