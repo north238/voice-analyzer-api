@@ -439,7 +439,7 @@ class UIController {
      */
     toggleHiraganaSection(enabled) {
         if (this.hiraganaSection) {
-            this.hiraganaSection.style.display = enabled ? "block" : "none";
+            this.hiraganaSection.classList.toggle("inactive", !enabled);
         }
     }
 
@@ -450,7 +450,7 @@ class UIController {
      */
     toggleTranslationSection(enabled) {
         if (this.translationSection) {
-            this.translationSection.style.display = enabled ? "block" : "none";
+            this.translationSection.classList.toggle("inactive", !enabled);
         }
     }
 

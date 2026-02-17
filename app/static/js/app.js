@@ -100,23 +100,54 @@ class RealtimeTranscriptionApp {
         const micControls = document.getElementById("microphone-controls");
         const videoControls = document.getElementById("video-controls");
         const tabControls = document.getElementById("tab-controls");
+        const volumeMeter = document.getElementById("volume-meter");
+        const videoTimeDisplay = document.getElementById("video-time-display");
 
         if (this.inputSource === "microphone") {
             micControls.style.display = "flex";
             videoControls.style.display = "none";
             tabControls.style.display = "none";
+            if (volumeMeter) volumeMeter.style.display = "block";
+            if (videoTimeDisplay) videoTimeDisplay.style.display = "none";
             this.uiController.setStatus("マイク入力モード。「開始」ボタンを押してください。", "success");
         } else if (this.inputSource === "video") {
             micControls.style.display = "none";
             videoControls.style.display = "block";
             tabControls.style.display = "none";
+            if (volumeMeter) volumeMeter.style.display = "none";
+            if (videoTimeDisplay) videoTimeDisplay.style.display = "block";
             this.uiController.setStatus("動画ファイルを選択してください。", "info");
         } else if (this.inputSource === "tab") {
             micControls.style.display = "none";
             videoControls.style.display = "none";
             tabControls.style.display = "block";
+            if (volumeMeter) volumeMeter.style.display = "block";
+            if (videoTimeDisplay) videoTimeDisplay.style.display = "none";
             this.uiController.setStatus("タブ共有モード。「開始」ボタンを押してください。", "success");
         }
+    }
+
+    /**
+     * 動画の再生時間表示を更新
+     */
+    _updateVideoTime() {
+        const currentEl = document.getElementById("video-current-time");
+        const totalEl = document.getElementById("video-total-time");
+        if (!currentEl || !totalEl || !this.videoElement) return;
+        currentEl.textContent = this._formatVideoTime(this.videoElement.currentTime);
+        totalEl.textContent = this._formatVideoTime(this.videoElement.duration || 0);
+    }
+
+    /**
+     * 秒数を MM:SS 形式にフォーマット
+     *
+     * @param {number} seconds
+     * @returns {string}
+     */
+    _formatVideoTime(seconds) {
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
     }
 
     /**
@@ -171,6 +202,10 @@ class RealtimeTranscriptionApp {
                 }
             });
 
+            // 再生時間の表示更新
+            this.videoElement.addEventListener("loadedmetadata", () => this._updateVideoTime());
+            this.videoElement.addEventListener("timeupdate", () => this._updateVideoTime());
+
             this.videoElement.load();
 
             this.uiController.setStatus("動画ファイル読み込み完了。「開始」ボタンを押してください。", "success");
@@ -220,6 +255,10 @@ class RealtimeTranscriptionApp {
                     this.stop();
                 }
             });
+
+            // 再生時間の表示更新
+            this.videoElement.addEventListener("loadedmetadata", () => this._updateVideoTime());
+            this.videoElement.addEventListener("timeupdate", () => this._updateVideoTime());
 
             this.videoElement.load();
 
@@ -369,6 +408,10 @@ class RealtimeTranscriptionApp {
                         this.stop();
                     }
                 });
+
+                // 再生時間の表示更新（再設定）
+                this.videoElement.addEventListener("loadedmetadata", () => this._updateVideoTime());
+                this.videoElement.addEventListener("timeupdate", () => this._updateVideoTime());
 
                 // 動画のロードを待つ
                 console.log("🎥 動画ロード開始...");

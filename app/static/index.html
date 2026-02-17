@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ja">
+<html class="light" lang="ja">
 
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ZenVoice - リアルタイム音声文字起こし</title>
 
     <!-- Fonts -->
@@ -13,21 +13,29 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
 
     <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
     <script>
         tailwind.config = {
             darkMode: "class",
             theme: {
                 extend: {
-                    colors: { primary: "#3B82F6" },
-                    fontFamily: { sans: ["'Noto Sans JP'", "sans-serif"] },
-                    borderRadius: { card: "1.5rem" },
+                    colors: {
+                        primary: "#3B82F6",
+                        "background-light": "#F1F5F9",
+                        "background-dark": "#0F172A",
+                    },
+                    fontFamily: {
+                        sans: ["'Noto Sans JP'", "sans-serif"],
+                    },
+                    borderRadius: {
+                        card: "2rem",
+                    },
                 },
             },
         };
     </script>
 
-    <style>
+    <style type="text/tailwindcss">
         body { font-family: 'Noto Sans JP', sans-serif; -webkit-font-smoothing: antialiased; }
 
         .material-symbols-outlined {
@@ -38,38 +46,17 @@
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-
-        /* 文字起こしテキスト */
-        #transcription-text {
-            min-height: 400px;
-            font-size: 16px;
-            line-height: 1.75;
-            color: #475569;
-            white-space: pre-wrap;
-            word-break: break-all;
-            transition: font-size 0.3s, line-height 0.3s;
-        }
-
-        /* ひらがな・翻訳テキスト */
-        #hiragana-text, #translation-text {
-            font-size: 14px;
-            line-height: 1.7;
-            color: #64748b;
-            white-space: pre-wrap;
-            word-break: break-all;
-            min-height: 48px;
-        }
-        #translation-text { font-style: italic; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
 
         /* ステータスバッジ */
-        .status { font-size: 12px; padding: 0.3rem 0.75rem; border-radius: 9999px; display: inline-flex; align-items: center; gap: 0.4rem; transition: all 0.2s; }
+        .status { font-size: 11px; padding: 0.2rem 0.6rem; border-radius: 9999px; display: inline-flex; align-items: center; gap: 0.3rem; }
         .status.info     { background: #eff6ff; color: #3b82f6; }
         .status.success  { background: #f0fdf4; color: #16a34a; }
         .status.error    { background: #fef2f2; color: #dc2626; }
         .status.recording { background: #fef2f2; color: #dc2626; }
 
         /* 音量バー */
-        #volume-bar { height: 100%; background: #3b82f6; border-radius: 9999px; width: 0%; transition: width 0.1s ease; }
+        #volume-bar { height: 100%; background: #94a3b8; border-radius: 9999px; width: 0%; transition: width 0.15s ease; }
 
         /* トースト */
         #toast-container { position: fixed; top: 1rem; right: 1rem; z-index: 200; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none; }
@@ -83,9 +70,15 @@
         /* トリムインジケーター */
         #trim-indicator { position: fixed; top: 4rem; left: 50%; transform: translateX(-50%); z-index: 150; display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 1rem; background: white; border-radius: 9999px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); font-size: 12px; color: #64748b; }
 
-        /* セグメントコントロール */
-        .segment-btn { transition: all 0.2s; color: #94a3b8; }
-        .segment-btn.active { background: white; color: #1e293b; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        /* 文字起こしテキスト */
+        #transcription-text { font-size: 16px; line-height: 1.8; color: #475569; white-space: pre-wrap; word-break: break-all; }
+
+        /* ひらがな・翻訳・要約テキスト */
+        #hiragana-text, #translation-text, #summary-text {
+            font-size: 14px; line-height: 1.7; color: #64748b;
+            white-space: pre-wrap; word-break: break-all;
+        }
+        #translation-text { font-style: italic; }
 
         /* トグルスイッチ */
         .toggle-label { background: #e2e8f0; width: 2.5rem; height: 1.375rem; border-radius: 9999px; position: relative; transition: background 0.2s; cursor: pointer; display: block; }
@@ -95,22 +88,106 @@
 
         /* ボタン disabled */
         button:disabled { opacity: 0.45; cursor: not-allowed !important; }
+        #start-button:disabled { display: none; }
+        #stop-button:disabled  { display: none; }
 
-        /* Zenモード */
-        body.zen-mode #left-sidebar  { display: none; }
-        body.zen-mode #right-sidebar { display: none; }
-        body.zen-mode #main-section  { padding: 3rem 1.5rem; }
-        body.zen-mode #transcription-wrapper { max-width: 640px; margin: 0 auto; }
-        body.zen-mode #transcription-text { font-size: 17px; line-height: 1.85; }
-        body.zen-mode #zen-toggle .material-symbols-outlined { color: #3b82f6; }
+        /* 動画プレーヤーを非表示 */
+        #video-player { display: none !important; }
 
-        /* Zenモードのサイドバーアニメーション */
+        /* 右サイドバー: 各カードのコンテンツエリア（非活性/活性） */
+        .card-body { transition: opacity 0.2s ease; }
+        .card-body.inactive { opacity: 0.25; pointer-events: none; }
+
+        /* コンテンツが空のとき（:empty）にスケルトンラインを表示 */
+        #hiragana-text:empty,
+        #translation-text:empty,
+        #summary-text:empty {
+            background-image:
+                linear-gradient(#e2e8f0 7px, transparent 7px),
+                linear-gradient(#e2e8f0 7px, transparent 7px),
+                linear-gradient(#e2e8f0 7px, transparent 7px),
+                linear-gradient(#e2e8f0 7px, transparent 7px),
+                linear-gradient(#e2e8f0 7px, transparent 7px);
+            background-size: 100% 22px, 72% 22px, 88% 22px, 58% 22px, 80% 22px;
+            background-position: 0 0, 0 22px, 0 44px, 0 66px, 0 88px;
+            background-repeat: no-repeat;
+            min-height: 110px;
+        }
+        .dark #hiragana-text:empty,
+        .dark #translation-text:empty,
+        .dark #summary-text:empty {
+            background-image:
+                linear-gradient(#334155 7px, transparent 7px),
+                linear-gradient(#334155 7px, transparent 7px),
+                linear-gradient(#334155 7px, transparent 7px),
+                linear-gradient(#334155 7px, transparent 7px),
+                linear-gradient(#334155 7px, transparent 7px);
+        }
+
+        /* ============================================================
+           入力ソースエリア: 録音開始でフェードアウト
+           ============================================================ */
+        #source-area {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            overflow: hidden;
+            max-height: 200px;
+            opacity: 1;
+            transition: max-height 0.6s ease, opacity 0.4s ease;
+        }
+        body.recording #source-area {
+            max-height: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* ============================================================
+           Zenモード（書籍スタイル）
+           ============================================================ */
+        body.zen-mode header                { display: none; }
+        body.zen-mode #left-sidebar         { display: none; }
+        body.zen-mode #right-sidebar        { display: none; }
+        body.zen-mode                       { background-color: #FAFAF7 !important; }
+        body.zen-mode #transcription-card {
+            background: transparent;
+            border-color: transparent;
+            box-shadow: none;
+            border-radius: 0;
+        }
+        body.zen-mode #transcription-wrapper { max-width: 640px; }
+        body.zen-mode #transcription-text {
+            font-size: 19px;
+            line-height: 2.05;
+            letter-spacing: 0.01em;
+            color: #2D3142;
+        }
+        body.zen-mode #card-controls {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 0.625rem 1rem;
+            background: rgba(255, 255, 255, 0.82);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 9999px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255,255,255,0.6);
+        }
+        body.zen-mode #volume-meter,
+        body.zen-mode #video-time-display   { display: none !important; }
+
+        #zen-exit-float { display: none; }
+        body.zen-mode #zen-exit-float { display: flex; }
+
+        /* トランジション */
         #left-sidebar, #right-sidebar { transition: all 0.3s ease; }
-        #transcription-wrapper { transition: max-width 0.3s ease, margin 0.3s ease; }
+        #transcription-wrapper { transition: max-width 0.3s ease; }
+        #transcription-card { transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; }
+        body { transition: background-color 0.3s ease; }
     </style>
 </head>
 
-<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 min-h-screen flex flex-col">
+<body class="bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-200 min-h-screen flex flex-col">
 
     <!-- トースト通知エリア -->
     <div id="toast-container"></div>
@@ -121,199 +198,201 @@
         <span>整理中...</span>
     </div>
 
+    <!-- Zenモード解除ボタン（右上フローティング） -->
+    <button id="zen-exit-float"
+        class="fixed top-5 right-5 z-[100] w-9 h-9 items-center justify-center rounded-full bg-white/70 backdrop-blur-sm text-slate-300 hover:text-slate-500 hover:bg-white/90 transition-all shadow-sm"
+        title="Zenモードを解除">
+        <span class="material-symbols-outlined text-lg">self_improvement</span>
+    </button>
+
     <!-- ヘッダー -->
-    <header class="h-14 flex items-center justify-between px-6 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md sticky top-0 z-50 border-b border-slate-200/50 dark:border-slate-800/50">
-        <div class="flex items-center gap-2.5">
-            <div class="w-7 h-7 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+    <header class="h-14 flex items-center justify-between px-8 bg-white/30 dark:bg-slate-900/30 backdrop-blur-md sticky top-0 z-50 shrink-0">
+        <div class="flex items-center gap-4">
+            <div class="w-6 h-6 bg-primary/10 rounded flex items-center justify-center">
                 <span class="material-symbols-outlined text-primary text-lg">graphic_eq</span>
             </div>
-            <span class="text-sm font-medium text-slate-600 dark:text-slate-300 tracking-wide">ZenVoice</span>
         </div>
-
-        <div class="flex items-center gap-2">
-            <!-- ステータス -->
+        <div class="flex items-center gap-3">
             <div id="status-text" class="status info">準備中...</div>
-
-            <!-- Zenモードトグル -->
-            <button id="zen-toggle" class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Zenモード（読書モード）">
-                <span class="material-symbols-outlined text-xl text-slate-400">self_improvement</span>
+            <button id="zen-toggle" class="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400" title="Zenモード">
+                <span class="material-symbols-outlined text-xl">self_improvement</span>
             </button>
-
-            <!-- ダークモードトグル -->
-            <button id="dark-toggle" class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                <span class="material-symbols-outlined text-xl text-slate-400">dark_mode</span>
+            <button id="dark-toggle" class="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400">
+                <span class="material-symbols-outlined text-xl">dark_mode</span>
             </button>
         </div>
     </header>
 
     <!-- メインレイアウト（3カラム） -->
-    <main class="flex-1 flex overflow-hidden">
+    <main class="flex-1 flex overflow-hidden min-h-0">
 
-        <!-- 左サイドバー：コントロール -->
-        <aside id="left-sidebar" class="w-72 flex flex-col border-r border-slate-200/60 dark:border-slate-800/60 bg-white/40 dark:bg-slate-900/40 overflow-y-auto custom-scrollbar shrink-0">
-            <div class="p-5 space-y-5">
-
-                <!-- 入力ソース選択 -->
-                <div>
-                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2.5">入力ソース</p>
-                    <div class="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex gap-1">
-                        <button class="segment-btn active flex-1 py-2 rounded-lg text-sm font-medium" data-source="microphone" title="マイク入力">
-                            <span class="material-symbols-outlined text-base">mic</span>
-                        </button>
-                        <button class="segment-btn flex-1 py-2 rounded-lg text-sm font-medium" data-source="video" title="動画ファイル">
-                            <span class="material-symbols-outlined text-base">video_file</span>
-                        </button>
-                        <button class="segment-btn flex-1 py-2 rounded-lg text-sm font-medium" data-source="tab" title="タブ共有">
-                            <span class="material-symbols-outlined text-base">screen_share</span>
-                        </button>
-                    </div>
-                    <!-- 実際のラジオボタン（非表示・JSが参照） -->
-                    <div class="hidden">
-                        <input type="radio" name="inputSource" value="microphone" id="radio-microphone" checked />
-                        <input type="radio" name="inputSource" value="video" id="radio-video" />
-                        <input type="radio" name="inputSource" value="tab" id="radio-tab" />
-                    </div>
+        <!-- 左サイドバー -->
+        <aside id="left-sidebar" class="w-72 flex flex-col bg-transparent shrink-0">
+            <div class="p-6">
+                <button class="w-full flex items-center justify-center p-4 bg-white dark:bg-slate-800 rounded-card shadow-sm hover:shadow-md transition-all border border-white/50 dark:border-slate-700">
+                    <span class="material-symbols-outlined text-primary">add</span>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto custom-scrollbar px-6 space-y-3">
+                <div class="p-5 bg-white dark:bg-slate-800 rounded-card shadow-sm border border-blue-50 dark:border-blue-900/20">
+                    <div class="text-xs text-slate-400 mb-1">今日</div>
+                    <div class="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">新しいセッション</div>
                 </div>
-
-                <!-- マイク選択 -->
-                <div id="microphone-controls">
-                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">マイク</p>
-                    <select id="device-selector" class="w-full text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/30">
-                    </select>
-                </div>
-
-                <!-- 動画アップロード（デフォルト非表示） -->
-                <div id="video-controls" class="video-upload" style="display: none;">
-                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">動画ファイル</p>
-                    <input type="file" id="video-file-input" accept="video/*"
-                        class="w-full text-sm text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-700 file:text-slate-600 dark:file:text-slate-300 hover:file:bg-slate-200 dark:hover:file:bg-slate-600 cursor-pointer" />
-                    <div class="mt-3 space-y-1.5">
-                        <p class="text-xs text-slate-400">サンプル動画</p>
-                        <button class="btn-sample w-full text-left text-xs px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors" data-video="/sample/001-sibutomo.mp4">サンプル1（黒）</button>
-                        <button class="btn-sample w-full text-left text-xs px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors" data-video="/sample/002-worklife.mp4">サンプル2（青）</button>
-                        <button class="btn-sample w-full text-left text-xs px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors" data-video="/sample/003-sikouryou.mp4">サンプル3（緑）</button>
-                    </div>
-                </div>
-
-                <!-- タブ共有説明（デフォルト非表示） -->
-                <div id="tab-controls" style="display: none;">
-                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">タブ共有</p>
-                    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-xs space-y-2">
-                        <p class="font-medium text-blue-700 dark:text-blue-300">YouTube等のタブ音声を文字起こし</p>
-                        <ol class="list-decimal list-inside space-y-1 text-blue-600 dark:text-blue-400">
-                            <li>「開始」ボタンをクリック</li>
-                            <li>共有するタブを選択</li>
-                            <li>「音声を共有」にチェック ✅</li>
-                            <li>「共有」ボタンをクリック</li>
-                        </ol>
-                    </div>
-                </div>
-
-                <!-- 処理オプション -->
-                <div>
-                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">処理オプション</p>
-                    <div class="space-y-3">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <span class="material-symbols-outlined text-slate-400 text-base">auto_fix_high</span>
-                                <span class="text-sm text-slate-600 dark:text-slate-300">ひらがな正規化</span>
-                            </div>
-                            <div>
-                                <input type="checkbox" id="enable-hiragana" class="toggle-checkbox sr-only" />
-                                <label for="enable-hiragana" class="toggle-label"></label>
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <span class="material-symbols-outlined text-slate-400 text-base">translate</span>
-                                <span class="text-sm text-slate-600 dark:text-slate-300">翻訳（日→英）</span>
-                            </div>
-                            <div>
-                                <input type="checkbox" id="enable-translation" class="toggle-checkbox sr-only" />
-                                <label for="enable-translation" class="toggle-label"></label>
-                            </div>
-                        </div>
-                    </div>
-                    <p class="text-xs text-slate-400 mt-3">オフにすると処理が高速化されます</p>
-                </div>
-
-                <!-- 操作ボタン -->
-                <div class="space-y-2 pt-1">
-                    <button id="start-button" class="w-full flex items-center justify-center gap-2 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-blue-600 active:scale-95 transition-all shadow-sm shadow-blue-500/20">
-                        <span class="material-symbols-outlined text-base">play_arrow</span>
-                        開始
-                    </button>
-                    <button id="stop-button" class="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95 transition-all" disabled>
-                        <span class="material-symbols-outlined text-base">stop</span>
-                        停止
-                    </button>
-                    <button id="download-button" class="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95 transition-all" disabled>
-                        <span class="material-symbols-outlined text-base">download</span>
-                        ダウンロード
-                    </button>
-                </div>
-
-                <!-- 音量メーター -->
-                <div id="volume-meter">
-                    <p class="text-xs text-slate-400 mb-1.5">音量</p>
-                    <div class="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                        <div id="volume-bar"></div>
-                    </div>
-                </div>
-
             </div>
         </aside>
 
-        <!-- 中央：文字起こしエリア -->
-        <section id="main-section" class="flex-1 flex flex-col overflow-y-auto custom-scrollbar p-6">
-            <div id="transcription-wrapper" class="flex-1 flex flex-col">
-                <div class="bg-white dark:bg-slate-900 rounded-card shadow-sm border border-slate-100 dark:border-slate-800/50 flex flex-col flex-1">
-                    <div class="flex-1 p-10 min-h-0">
-                        <div id="transcription-text" class="custom-scrollbar overflow-y-auto h-full"></div>
+        <!-- 中央: 文字起こしエリア -->
+        <section id="main-section" class="flex-1 flex flex-col overflow-hidden min-h-0">
+            <div class="flex-1 flex flex-col items-center py-6 px-6 min-h-0">
+                <div id="transcription-wrapper" class="w-full max-w-[700px] flex flex-col gap-5 flex-1 min-h-0">
+
+                    <!-- 入力ソースエリア（録音開始でフェードアウト） -->
+                    <div id="source-area">
+
+                        <!-- pill型タブ -->
+                        <div id="source-tabs" class="bg-white/50 dark:bg-slate-800/50 p-1 rounded-full flex self-center shadow-sm border border-white/20 dark:border-slate-700/30">
+                            <button class="source-btn active px-6 py-2 rounded-full bg-white dark:bg-slate-800 shadow-sm text-sm font-medium text-slate-700 dark:text-slate-200 transition-all" data-source="microphone">マイク</button>
+                            <button class="source-btn px-6 py-2 rounded-full text-sm font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-all" data-source="video">ビデオ</button>
+                            <button class="source-btn px-6 py-2 rounded-full text-sm font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-all" data-source="tab">共有</button>
+                        </div>
+
+                        <!-- 入力ソースコントロール（固定高さ・absolute切り替え） -->
+                        <div id="source-controls" class="relative h-11">
+
+                            <!-- マイク選択 -->
+                            <div id="microphone-controls" class="absolute inset-0 flex items-center gap-3 px-1">
+                                <span class="material-symbols-outlined text-slate-300 text-base shrink-0">mic</span>
+                                <select id="device-selector" class="flex-1 text-sm bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl px-3 py-2 text-slate-500 dark:text-slate-400 focus:outline-none focus:border-slate-300 appearance-none"></select>
+                            </div>
+
+                            <!-- 動画ファイル -->
+                            <div id="video-controls" class="video-upload absolute inset-0" style="display: none;">
+                                <div class="flex items-center h-full gap-3">
+                                    <label for="video-file-input" class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 rounded-2xl text-sm text-slate-400 hover:text-slate-500 hover:border-slate-300 cursor-pointer transition-colors shrink-0">
+                                        <span class="material-symbols-outlined text-base">video_file</span>
+                                        ファイルを選択
+                                    </label>
+                                    <input type="file" id="video-file-input" accept="video/*" class="hidden" />
+                                    <div class="flex gap-2 overflow-x-auto">
+                                        <button class="btn-sample text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 text-slate-400 hover:text-slate-500 hover:border-slate-300 transition-colors whitespace-nowrap shrink-0" data-video="/sample/001-sibutomo.mp4">sample 1</button>
+                                        <button class="btn-sample text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 text-slate-400 hover:text-slate-500 hover:border-slate-300 transition-colors whitespace-nowrap shrink-0" data-video="/sample/002-worklife.mp4">sample 2</button>
+                                        <button class="btn-sample text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 text-slate-400 hover:text-slate-500 hover:border-slate-300 transition-colors whitespace-nowrap shrink-0" data-video="/sample/003-sikouryou.mp4">sample 3</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- タブ共有説明 -->
+                            <div id="tab-controls" class="absolute inset-0" style="display: none;">
+                                <div class="flex items-center h-full gap-3 text-slate-400">
+                                    <span class="material-symbols-outlined text-xl shrink-0">screen_share</span>
+                                    <p class="text-sm">開始後、共有するタブを選択して「音声を共有」にチェックしてください。</p>
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div><!-- /#source-area -->
+
+                    <!-- テキストカード -->
+                    <div id="transcription-card" class="bg-white dark:bg-slate-900 rounded-card shadow-sm border border-white dark:border-slate-800/50 flex flex-col flex-1 min-h-0">
+                        <div class="p-12 flex-1 min-h-0">
+                            <div id="transcription-text" class="custom-scrollbar overflow-y-auto h-full"></div>
+                        </div>
+                        <!-- カード下部ボタン -->
+                        <div id="card-controls" class="px-12 pb-10 shrink-0">
+                            <div class="flex justify-end mb-3">
+                                <div id="volume-meter" class="w-14">
+                                    <div class="h-px bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                        <div id="volume-bar"></div>
+                                    </div>
+                                </div>
+                                <div id="video-time-display" class="text-xs text-slate-300 dark:text-slate-600 font-mono tracking-wide" style="display: none;">
+                                    <span id="video-current-time">00:00</span><span class="mx-1">/</span><span id="video-total-time">00:00</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-end gap-4">
+                                <button id="download-button" class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 text-slate-400 hover:text-primary transition-colors border border-slate-100 dark:border-slate-700" disabled>
+                                    <span class="material-symbols-outlined">download</span>
+                                </button>
+                                <div class="w-14 h-14 flex items-center justify-center">
+                                    <button id="start-button" class="w-14 h-14 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 transition-all text-white">
+                                        <span class="material-symbols-outlined font-bold text-2xl">play_arrow</span>
+                                    </button>
+                                    <button id="stop-button" class="w-14 h-14 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 transition-all text-white" disabled>
+                                        <span class="material-symbols-outlined font-bold text-2xl">stop</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
                 </div>
             </div>
         </section>
 
-        <!-- 右サイドパネル：正規化・翻訳 -->
-        <aside id="right-sidebar" class="w-72 flex flex-col border-l border-slate-200/60 dark:border-slate-800/60 bg-white/40 dark:bg-slate-900/40 overflow-y-auto custom-scrollbar shrink-0">
-            <div class="p-5 space-y-4">
+        <!-- 右サイドバー -->
+        <aside id="right-sidebar" class="w-80 flex flex-col p-6 gap-4 overflow-hidden shrink-0">
 
-                <!-- ひらがな正規化 -->
-                <section class="hiragana-results" style="display: none;">
-                    <div class="bg-white dark:bg-slate-900 p-5 rounded-card shadow-sm border border-slate-100 dark:border-slate-800/50">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="material-symbols-outlined text-blue-400 text-base">auto_fix_high</span>
-                            <span class="text-sm font-medium text-slate-700 dark:text-slate-200">ひらがな正規化</span>
-                        </div>
-                        <div id="hiragana-text" class="custom-scrollbar overflow-y-auto max-h-56"></div>
+            <!-- ひらがなカード -->
+            <div class="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-card shadow-sm border border-white dark:border-slate-800/50 min-h-0">
+                <div class="flex items-center justify-between px-6 pt-5 pb-4 shrink-0">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-blue-500 text-lg">auto_fix_high</span>
+                        <span class="text-sm font-bold text-slate-700 dark:text-slate-200">ひらがな</span>
                     </div>
-                </section>
-
-                <!-- 翻訳 -->
-                <section id="translation-section" style="display: none;">
-                    <div class="bg-white dark:bg-slate-900 p-5 rounded-card shadow-sm border border-slate-100 dark:border-slate-800/50">
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="flex items-center gap-2">
-                                <span class="material-symbols-outlined text-blue-400 text-base">translate</span>
-                                <span class="text-sm font-medium text-slate-700 dark:text-slate-200">翻訳</span>
-                            </div>
-                            <span class="px-2 py-0.5 bg-slate-50 dark:bg-slate-800 text-xs text-slate-400 rounded-full font-medium">EN</span>
-                        </div>
-                        <div id="translation-text" class="custom-scrollbar overflow-y-auto max-h-56"></div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-[10px] text-blue-500 font-bold rounded uppercase tracking-wider">AI</span>
+                        <input type="checkbox" id="enable-hiragana" class="toggle-checkbox sr-only" />
+                        <label for="enable-hiragana" class="toggle-label"></label>
                     </div>
-                </section>
-
-                <!-- プレースホルダー -->
-                <div class="flex flex-col items-center justify-center py-16 opacity-40">
-                    <span class="material-symbols-outlined text-slate-300 text-3xl mb-2">insights</span>
-                    <p class="text-xs text-slate-400 text-center">処理オプションをオンにすると<br>ここに表示されます</p>
                 </div>
-
+                <div class="hiragana-results card-body inactive flex-1 px-6 pb-5 min-h-0">
+                    <div id="hiragana-text" class="text-sm text-slate-500 dark:text-slate-400 leading-relaxed custom-scrollbar overflow-y-auto h-full"></div>
+                </div>
             </div>
+
+            <!-- 翻訳カード -->
+            <div class="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-card shadow-sm border border-white dark:border-slate-800/50 min-h-0">
+                <div class="flex items-center justify-between px-6 pt-5 pb-4 shrink-0">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-blue-500 text-lg">translate</span>
+                        <span class="text-sm font-bold text-slate-700 dark:text-slate-200">翻訳</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] text-slate-400 font-bold rounded uppercase tracking-wider">EN</span>
+                        <input type="checkbox" id="enable-translation" class="toggle-checkbox sr-only" />
+                        <label for="enable-translation" class="toggle-label"></label>
+                    </div>
+                </div>
+                <div id="translation-section" class="card-body inactive flex-1 px-6 pb-5 min-h-0">
+                    <div id="translation-text" class="text-sm text-slate-500 dark:text-slate-400 leading-relaxed italic custom-scrollbar overflow-y-auto h-full"></div>
+                </div>
+            </div>
+
+            <!-- 要約カード（実装中） -->
+            <div class="flex-1 flex flex-col bg-slate-50 dark:bg-slate-800/30 rounded-card border border-slate-100 dark:border-slate-700/50 min-h-0">
+                <div class="flex items-center justify-between px-6 pt-5 pb-4 shrink-0">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-slate-300 dark:text-slate-600 text-lg">summarize</span>
+                        <span class="text-sm font-bold text-slate-400 dark:text-slate-500">要約</span>
+                    </div>
+                    <span class="px-2 py-0.5 bg-amber-50 dark:bg-amber-900/20 text-[10px] text-amber-400 dark:text-amber-500 font-bold rounded uppercase tracking-wider">実装中</span>
+                </div>
+                <div class="card-body inactive flex-1 px-6 pb-5 min-h-0">
+                    <div id="summary-text" class="text-sm text-slate-400 dark:text-slate-500 leading-relaxed custom-scrollbar overflow-y-auto h-full"></div>
+                </div>
+            </div>
+
         </aside>
 
     </main>
+
+    <!-- 非表示のラジオボタン（JSが参照） -->
+    <div class="hidden">
+        <input type="radio" name="inputSource" value="microphone" id="radio-microphone" checked />
+        <input type="radio" name="inputSource" value="video" id="radio-video" />
+        <input type="radio" name="inputSource" value="tab" id="radio-tab" />
+    </div>
 
     <script src="/static/js/audio-capture.js"></script>
     <script src="/static/js/websocket-client.js"></script>
@@ -321,25 +400,38 @@
     <script src="/static/js/app.js"></script>
 
     <script>
-        // セグメントコントロール → ラジオボタン連携
-        document.querySelectorAll('.segment-btn').forEach(btn => {
+        // 入力ソース切り替え（pill型タブ）
+        document.querySelectorAll('.source-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('.segment-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
+                document.querySelectorAll('.source-btn').forEach(b => {
+                    b.classList.remove('bg-white', 'dark:bg-slate-800', 'shadow-sm', 'text-slate-700', 'dark:text-slate-200');
+                    b.classList.add('text-slate-400');
+                });
+                btn.classList.add('bg-white', 'shadow-sm', 'text-slate-700');
+                btn.classList.remove('text-slate-400');
                 const radio = document.getElementById('radio-' + btn.dataset.source);
                 if (radio) radio.click();
             });
         });
 
+        // 録音開始/停止でソースエリアをフェードアウト/インする
+        document.getElementById('start-button').addEventListener('click', () => {
+            document.body.classList.add('recording');
+        });
+        document.getElementById('stop-button').addEventListener('click', () => {
+            document.body.classList.remove('recording');
+        });
+
         // Zenモード
-        const zenToggle = document.getElementById('zen-toggle');
+        function toggleZen() {
+            document.body.classList.toggle('zen-mode');
+            localStorage.setItem('zenMode', document.body.classList.contains('zen-mode'));
+        }
+        document.getElementById('zen-toggle').addEventListener('click', toggleZen);
+        document.getElementById('zen-exit-float').addEventListener('click', toggleZen);
         if (localStorage.getItem('zenMode') === 'true') {
             document.body.classList.add('zen-mode');
         }
-        zenToggle.addEventListener('click', () => {
-            document.body.classList.toggle('zen-mode');
-            localStorage.setItem('zenMode', document.body.classList.contains('zen-mode'));
-        });
 
         // ダークモード
         document.getElementById('dark-toggle').addEventListener('click', () => {
