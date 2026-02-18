@@ -70,12 +70,13 @@ class RealtimeTranscriptionApp {
             });
 
             // ボタンイベント設定
+            // ボタンイベント設定（1ボタントグル）
             this.uiController.startButton.addEventListener("click", () => {
-                this.start();
-            });
-
-            this.uiController.stopButton.addEventListener("click", () => {
-                this.stop();
+                if (this.isRecording) {
+                    this.stop();
+                } else {
+                    this.start();
+                }
             });
 
             this.uiController.downloadButton.addEventListener("click", () => {
@@ -86,7 +87,6 @@ class RealtimeTranscriptionApp {
             });
 
             this.uiController.setStatus("準備完了。「開始」ボタンを押してください。", "success");
-            this.uiController.showToast("準備完了。「開始」ボタンを押してください。", "success");
         } catch (error) {
             console.error("初期化エラー:", error);
             this.uiController.showToast("初期化に失敗しました", "error");
@@ -286,7 +286,7 @@ class RealtimeTranscriptionApp {
             this.uiController.clearAllText();
 
             this.uiController.setStatus("接続中...", "info");
-            this.uiController.showToast("WebSocket接続中...", "info");
+            this.uiController.setStateIndicator("connecting", "接続中");
 
             // WebSocket接続
             const wsUrl = `ws://${window.location.host}/ws/transcribe-stream-cumulative`;
@@ -295,15 +295,19 @@ class RealtimeTranscriptionApp {
             this.wsClient.on("connected", (sessionId) => {
                 console.log("セッション開始:", sessionId);
                 this.uiController.startSession();
-                this.uiController.showToast("セッション開始", "success");
+                this.uiController.setStateIndicator("recording", "録音中");
             });
 
             this.wsClient.on("progress", (step, message) => {
-                this.uiController.showToast(message, "info", 2000);
+                this.uiController.setStateIndicator("processing", "処理中");
             });
 
             this.wsClient.on("transcription_update", (data) => {
                 this.uiController.updateTranscription(data);
+                // 文字起こし更新後は録音中に戻す
+                if (this.isRecording) {
+                    this.uiController.setStateIndicator("recording", "録音中");
+                }
             });
 
             this.wsClient.on("accumulating", (data) => {
@@ -334,7 +338,7 @@ class RealtimeTranscriptionApp {
                 }
 
                 this.uiController.setStatus("セッション終了", "success");
-                this.uiController.showToast("処理が完了しました", "success");
+                this.uiController.setStateIndicator("idle");
 
                 // ダウンロードボタンを有効化
                 if (this.uiController.transcriptionHistory.length > 0) {
@@ -482,18 +486,14 @@ class RealtimeTranscriptionApp {
             this.uiController.setButtonsState(true);
 
             let statusMessage = "録音中...";
-            let toastMessage = "録音を開始しました";
-
             if (this.inputSource === "video") {
                 statusMessage = "動画解析中...";
-                toastMessage = "動画解析を開始しました";
             } else if (this.inputSource === "tab") {
                 statusMessage = "タブ音声解析中...";
-                toastMessage = "タブ共有を開始しました";
             }
 
             this.uiController.setStatus(statusMessage, "recording");
-            this.uiController.showToast(toastMessage, "success");
+            this.uiController.setStateIndicator("recording", "録音中");
         } catch (error) {
             console.error("開始エラー:", error);
 
@@ -516,6 +516,9 @@ class RealtimeTranscriptionApp {
                 this.uiController.showToast(error.message || "開始に失敗しました", "error", 5000);
             }
 
+            // インジケーターを非表示
+            this.uiController.setStateIndicator("idle");
+
             // クリーンアップ
             this.forceCleanup();
         }
@@ -526,7 +529,8 @@ class RealtimeTranscriptionApp {
      */
     async stop() {
         this.isRecording = false;
-        this.uiController.setButtonsState(false);
+        // 処理完了待ち中はボタンを無効化（グレー）。forceCleanup() で再び有効になる
+        this.uiController.startButton.disabled = true;
 
         let stopMessage = "録音停止中...";
         if (this.inputSource === "video") {
@@ -536,6 +540,7 @@ class RealtimeTranscriptionApp {
         }
 
         this.uiController.setStatus(stopMessage, "info");
+        this.uiController.setStateIndicator("processing", "処理中");
 
         // 動画の場合は再生を停止
         if (this.inputSource === "video" && this.videoElement) {
@@ -548,7 +553,6 @@ class RealtimeTranscriptionApp {
             if (remainingBuffer && this.wsClient) {
                 console.log("📤 最終チャンクを送信");
                 this.wsClient.sendAudioChunk(remainingBuffer);
-                this.uiController.showToast("最終チャンクを送信しました", "info", 2000);
             }
 
             // 音声キャプチャを停止
@@ -557,15 +561,6 @@ class RealtimeTranscriptionApp {
         }
 
         this.uiController.setStatus("処理中の結果を待機中...", "info");
-
-        let waitMessage = "録音を停止しました。処理完了を待っています...";
-        if (this.inputSource === "video") {
-            waitMessage = "動画解析を停止しました。処理完了を待っています...";
-        } else if (this.inputSource === "tab") {
-            waitMessage = "タブ共有を停止しました。処理完了を待っています...";
-        }
-
-        this.uiController.showToast(waitMessage, "info", 2000);
 
         // サーバーに終了メッセージを送信
         if (this.wsClient) {
@@ -582,6 +577,7 @@ class RealtimeTranscriptionApp {
                 await this._processFinalText();
 
                 this.forceCleanup();
+                this.uiController.setStateIndicator("idle");
                 this.uiController.showToast("タイムアウトにより接続を切断しました", "warning");
             }, 20000);
         }

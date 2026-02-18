@@ -93,12 +93,15 @@
                         <!-- ボタン -->
                         <div class="button-row">
                             <div class="button-row-left">
+                                <!-- 再生/停止トグルボタン（1ボタン） -->
                                 <button id="start-button" class="btn-circle btn-primary">
                                     <span class="material-symbols-outlined" style="font-size:20px;">play_arrow</span>
                                 </button>
-                                <button id="stop-button" class="btn-circle btn-secondary" disabled>
-                                    <span class="material-symbols-outlined" style="font-size:20px;">stop</span>
-                                </button>
+                                <!-- 状態インジケーター -->
+                                <div id="state-indicator" class="state-indicator hidden">
+                                    <span id="state-dot" class="state-dot"></span>
+                                    <span id="state-label" class="state-label"></span>
+                                </div>
                             </div>
                             <button id="download-button" class="btn-circle btn-secondary" disabled title="ダウンロード">
                                 <span class="material-symbols-outlined" style="font-size:20px;">download</span>

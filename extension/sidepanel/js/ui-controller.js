@@ -7,7 +7,7 @@ class UIController {
     constructor() {
         // DOM要素の参照
         this.startButton = document.getElementById("start-button");
-        this.stopButton = document.getElementById("stop-button");
+        this.stopButton = this.startButton; // 1ボタン方式：同じ要素を参照
         this.downloadButton = document.getElementById("download-button");
         this.statusText = document.getElementById("status-text");
         this.volumeMeter = document.getElementById("volume-meter");
@@ -465,12 +465,19 @@ class UIController {
      * @param {boolean} isRecording - 録音中かどうか
      */
     setButtonsState(isRecording) {
-        this.startButton.disabled = isRecording;
-        this.stopButton.disabled = !isRecording;
+        const icon = this.startButton.querySelector(".material-symbols-outlined");
 
-        // 録音中はダウンロードボタンを無効化
-        if (isRecording && this.downloadButton) {
-            this.downloadButton.disabled = true;
+        if (isRecording) {
+            // 録音中：赤いstopボタン
+            this.startButton.className = "btn-circle btn-recording";
+            if (icon) icon.textContent = "stop";
+            this.startButton.disabled = false;
+            if (this.downloadButton) this.downloadButton.disabled = true;
+        } else {
+            // 待機中：青いplayボタン
+            this.startButton.className = "btn-circle btn-primary";
+            if (icon) icon.textContent = "play_arrow";
+            this.startButton.disabled = false;
         }
     }
 
@@ -502,6 +509,28 @@ class UIController {
     showError(message) {
         this.setStatus(`エラー: ${message}`, "error");
         this.showToast(message, "error", 5000);
+    }
+
+    /**
+     * 状態インジケーターを設定
+     *
+     * @param {string} state - 状態 ('connecting' | 'recording' | 'processing' | 'idle')
+     * @param {string} label - 表示テキスト（省略時は非表示）
+     */
+    setStateIndicator(state, label = "") {
+        const indicator = document.getElementById("state-indicator");
+        const labelEl = document.getElementById("state-label");
+        if (!indicator || !labelEl) return;
+
+        indicator.className = "state-indicator";
+
+        if (!state || state === "idle") {
+            indicator.classList.add("hidden");
+            return;
+        }
+
+        indicator.classList.add(state);
+        labelEl.textContent = label;
     }
 
     /**
