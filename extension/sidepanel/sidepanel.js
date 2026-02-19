@@ -33,21 +33,35 @@ class RealtimeTranscriptionApp {
             // 設定を読み込む
             const config = await chrome.storage.sync.get({
                 apiServerUrl: 'ws://localhost:5001',
+                showAdvancedFeatures: false,
                 defaultHiragana: false,
                 defaultTranslation: false
             });
 
             this.apiServerUrl = config.apiServerUrl;
-            this.processingOptions.enableHiragana = config.defaultHiragana;
-            this.processingOptions.enableTranslation = config.defaultTranslation;
 
-            // チェックボックスのデフォルト値を設定
-            document.getElementById("enable-hiragana").checked = this.processingOptions.enableHiragana;
-            document.getElementById("enable-translation").checked = this.processingOptions.enableTranslation;
+            // タブカードの表示/非表示を制御
+            const tabCard = document.querySelector('.tab-card');
+            if (tabCard) {
+                tabCard.style.display = config.showAdvancedFeatures ? '' : 'none';
+            }
 
-            // セクションの表示/非表示を設定
-            this.uiController.toggleHiraganaSection(this.processingOptions.enableHiragana);
-            this.uiController.toggleTranslationSection(this.processingOptions.enableTranslation);
+            // 上級者向け機能がOFFの場合は処理オプションを強制OFF
+            if (!config.showAdvancedFeatures) {
+                this.processingOptions.enableHiragana = false;
+                this.processingOptions.enableTranslation = false;
+            } else {
+                this.processingOptions.enableHiragana = config.defaultHiragana;
+                this.processingOptions.enableTranslation = config.defaultTranslation;
+
+                // チェックボックスのデフォルト値を設定
+                document.getElementById("enable-hiragana").checked = config.defaultHiragana;
+                document.getElementById("enable-translation").checked = config.defaultTranslation;
+
+                // セクションの表示/非表示を設定
+                this.uiController.toggleHiraganaSection(config.defaultHiragana);
+                this.uiController.toggleTranslationSection(config.defaultTranslation);
+            }
 
             // 処理オプションのイベントリスナー
             document.getElementById("enable-hiragana").addEventListener("change", (e) => {

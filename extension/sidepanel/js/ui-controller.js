@@ -19,10 +19,10 @@ class UIController {
 
         this.confirmedTranslation = document.getElementById("confirmed-translation");
         this.tentativeTranslation = document.getElementById("tentative-translation");
-        this.hiraganaSection = document.querySelector(".hiragana-results");
-        this.translationSection = document.getElementById("translation-section");
+        // card-body要素（inactive切り替え用）
+        this.hiraganaCardBody = document.getElementById("hiragana-pane");
+        this.translationCardBody = document.getElementById("translation-pane");
 
-        this.performanceInfo = document.getElementById("performance-info");
         this.deviceSelector = document.getElementById("device-selector");
         this.toastContainer = document.getElementById("toast-container");
 
@@ -310,9 +310,6 @@ class UIController {
             }
         }
 
-        // パフォーマンス情報
-        const perf = data.performance || {};
-        this._updatePerformanceInfo(perf);
     }
 
     /**
@@ -468,12 +465,14 @@ class UIController {
         const icon = this.startButton.querySelector(".material-symbols-outlined");
 
         if (isRecording) {
+            document.body.classList.add("recording");
             // 録音中：赤いstopボタン
             this.startButton.className = "btn-circle btn-recording";
             if (icon) icon.textContent = "stop";
             this.startButton.disabled = false;
             if (this.downloadButton) this.downloadButton.disabled = true;
         } else {
+            document.body.classList.remove("recording");
             // 待機中：青いplayボタン
             this.startButton.className = "btn-circle btn-primary";
             if (icon) icon.textContent = "play_arrow";
@@ -585,91 +584,33 @@ class UIController {
     }
 
     /**
-     * パフォーマンス情報を更新
+     * ひらがなセクションの表示/非表示を切り替え（opacity方式）
      *
-     * @param {Object} perf - パフォーマンスデータ
-     */
-    _updatePerformanceInfo(perf) {
-        const transcriptionTime = perf.transcription_time || 0;
-        const normalizationTime = perf.normalization_time || 0;
-        const translationTime = perf.translation_time || 0;
-        const totalTime = perf.total_time || 0;
-        const recordingTime = perf.session_elapsed_seconds ?? perf.accumulated_audio_seconds ?? 0;
-
-        // 各処理時間の表示
-        document.getElementById("perf-transcription").textContent = `${transcriptionTime.toFixed(2)}秒`;
-        document.getElementById("perf-normalization").textContent = `${normalizationTime.toFixed(2)}秒`;
-        document.getElementById("perf-translation").textContent = `${translationTime.toFixed(2)}秒`;
-        document.getElementById("perf-total").textContent = `${totalTime.toFixed(2)}秒`;
-        document.getElementById("perf-recording").textContent = `${recordingTime.toFixed(1)}秒`;
-
-        // バーグラフの幅を相対的に計算（最大値を100%とする）
-        const maxTime = Math.max(transcriptionTime, normalizationTime, translationTime);
-        if (maxTime > 0) {
-            const transcriptionWidth = (transcriptionTime / maxTime) * 100;
-            const normalizationWidth = (normalizationTime / maxTime) * 100;
-            const translationWidth = (translationTime / maxTime) * 100;
-
-            document.getElementById("perf-bar-transcription").style.width = `${transcriptionWidth}%`;
-            document.getElementById("perf-bar-normalization").style.width = `${normalizationWidth}%`;
-            document.getElementById("perf-bar-translation").style.width = `${translationWidth}%`;
-        }
-
-        // 処理オプションに応じて表示/非表示を更新
-        this._updatePerformanceVisibility();
-    }
-
-    /**
-     * パフォーマンス情報の表示/非表示を更新
-     */
-    _updatePerformanceVisibility() {
-        const enableHiragana = document.getElementById("enable-hiragana").checked;
-        const enableTranslation = document.getElementById("enable-translation").checked;
-
-        const normalizationItem = document.getElementById("perf-item-normalization");
-        const translationItem = document.getElementById("perf-item-translation");
-
-        if (normalizationItem) {
-            if (enableHiragana) {
-                normalizationItem.classList.remove("hidden");
-            } else {
-                normalizationItem.classList.add("hidden");
-            }
-        }
-
-        if (translationItem) {
-            if (enableTranslation) {
-                translationItem.classList.remove("hidden");
-            } else {
-                translationItem.classList.add("hidden");
-            }
-        }
-    }
-
-    /**
-     * ひらがなセクションの表示/非表示を切り替え
-     *
-     * @param {boolean} enabled - 表示するかどうか
+     * @param {boolean} enabled - 有効にするかどうか
      */
     toggleHiraganaSection(enabled) {
-        if (this.hiraganaSection) {
-            this.hiraganaSection.style.display = enabled ? "block" : "none";
+        if (this.hiraganaCardBody) {
+            if (enabled) {
+                this.hiraganaCardBody.classList.remove("inactive");
+            } else {
+                this.hiraganaCardBody.classList.add("inactive");
+            }
         }
-        // パフォーマンス情報の表示も更新
-        this._updatePerformanceVisibility();
     }
 
     /**
-     * 翻訳セクションの表示/非表示を切り替え
+     * 翻訳セクションの表示/非表示を切り替え（opacity方式）
      *
-     * @param {boolean} enabled - 表示するかどうか
+     * @param {boolean} enabled - 有効にするかどうか
      */
     toggleTranslationSection(enabled) {
-        if (this.translationSection) {
-            this.translationSection.style.display = enabled ? "block" : "none";
+        if (this.translationCardBody) {
+            if (enabled) {
+                this.translationCardBody.classList.remove("inactive");
+            } else {
+                this.translationCardBody.classList.add("inactive");
+            }
         }
-        // パフォーマンス情報の表示も更新
-        this._updatePerformanceVisibility();
     }
 
     /**
@@ -688,9 +629,6 @@ class UIController {
         if (this.tentativeTranslation) {
             this.tentativeTranslation.textContent = "";
         }
-
-        // パフォーマンス情報をクリア
-        this.performanceInfo.innerHTML = "";
 
         // 内部状態をリセット
         this.previousConfirmedText = "";

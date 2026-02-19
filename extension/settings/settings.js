@@ -5,17 +5,41 @@
 // デフォルト設定
 const DEFAULT_CONFIG = {
     apiServerUrl: 'ws://localhost:5001',
+    showAdvancedFeatures: false,
     defaultHiragana: false,
     defaultTranslation: false
 };
 
 // DOM要素
 const apiServerUrlInput = document.getElementById('apiServerUrl');
+const showAdvancedFeaturesCheckbox = document.getElementById('showAdvancedFeatures');
 const defaultHiraganaCheckbox = document.getElementById('defaultHiragana');
 const defaultTranslationCheckbox = document.getElementById('defaultTranslation');
+const advancedSubOptions = document.getElementById('advancedSubOptions');
+const labelDefaultHiragana = document.getElementById('labelDefaultHiragana');
+const labelDefaultTranslation = document.getElementById('labelDefaultTranslation');
 const saveButton = document.getElementById('saveButton');
 const resetButton = document.getElementById('resetButton');
 const messageElement = document.getElementById('message');
+
+/**
+ * 上級者向けサブオプションの活性/非活性を切り替え
+ *
+ * @param {boolean} enabled
+ */
+function updateAdvancedSubOptionsState(enabled) {
+    if (enabled) {
+        labelDefaultHiragana.classList.remove('disabled');
+        labelDefaultTranslation.classList.remove('disabled');
+        defaultHiraganaCheckbox.disabled = false;
+        defaultTranslationCheckbox.disabled = false;
+    } else {
+        labelDefaultHiragana.classList.add('disabled');
+        labelDefaultTranslation.classList.add('disabled');
+        defaultHiraganaCheckbox.disabled = true;
+        defaultTranslationCheckbox.disabled = true;
+    }
+}
 
 /**
  * メッセージを表示
@@ -41,8 +65,12 @@ async function loadSettings() {
         const config = await chrome.storage.sync.get(DEFAULT_CONFIG);
 
         apiServerUrlInput.value = config.apiServerUrl;
+        showAdvancedFeaturesCheckbox.checked = config.showAdvancedFeatures;
         defaultHiraganaCheckbox.checked = config.defaultHiragana;
         defaultTranslationCheckbox.checked = config.defaultTranslation;
+
+        // 上級者向けサブオプションの初期状態を反映
+        updateAdvancedSubOptionsState(config.showAdvancedFeatures);
 
         console.log('設定を読み込みました:', config);
     } catch (error) {
@@ -58,6 +86,7 @@ async function saveSettings() {
     try {
         const config = {
             apiServerUrl: apiServerUrlInput.value.trim(),
+            showAdvancedFeatures: showAdvancedFeaturesCheckbox.checked,
             defaultHiragana: defaultHiraganaCheckbox.checked,
             defaultTranslation: defaultTranslationCheckbox.checked
         };
@@ -93,8 +122,11 @@ async function resetSettings() {
 
         // フォームにも反映
         apiServerUrlInput.value = DEFAULT_CONFIG.apiServerUrl;
+        showAdvancedFeaturesCheckbox.checked = DEFAULT_CONFIG.showAdvancedFeatures;
         defaultHiraganaCheckbox.checked = DEFAULT_CONFIG.defaultHiragana;
         defaultTranslationCheckbox.checked = DEFAULT_CONFIG.defaultTranslation;
+
+        updateAdvancedSubOptionsState(DEFAULT_CONFIG.showAdvancedFeatures);
 
         console.log('設定をデフォルトに戻しました');
         showMessage('設定をデフォルトに戻しました', 'success');
@@ -107,6 +139,11 @@ async function resetSettings() {
 // イベントリスナー
 saveButton.addEventListener('click', saveSettings);
 resetButton.addEventListener('click', resetSettings);
+
+// 上級者向け機能チェックボックスの変化に応じてサブオプションを切り替え
+showAdvancedFeaturesCheckbox.addEventListener('change', (e) => {
+    updateAdvancedSubOptionsState(e.target.checked);
+});
 
 // Enterキーで保存
 apiServerUrlInput.addEventListener('keypress', (e) => {

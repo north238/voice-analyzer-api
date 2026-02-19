@@ -41,153 +41,72 @@
                 </button>
             </div>
         </div>
-        <div class="header-live">
-            <span class="pulse-dot"></span>
-            <span class="header-live-text">リアルタイム処理</span>
-        </div>
     </header>
 
     <!-- メインコンテンツ -->
-    <main class="custom-scrollbar">
+    <main>
         <div class="main-inner">
 
-            <!-- コントロールセクション -->
-            <div id="controls-section">
-
-                <!-- コントロールカード -->
-                <div class="ios-card">
-                    <div class="controls-body">
-
-                        <!-- 処理オプション -->
-                        <div>
-                            <div class="option-row" style="margin-bottom: 0.625rem;">
-                                <label class="option-label">
-                                    <span class="material-symbols-outlined">auto_fix_high</span>
-                                    ひらがな正規化
-                                </label>
-                                <div>
-                                    <input type="checkbox" id="enable-hiragana" class="toggle-checkbox" />
-                                    <label for="enable-hiragana" class="toggle-label"></label>
-                                </div>
-                            </div>
-                            <div class="option-row">
-                                <label class="option-label">
-                                    <span class="material-symbols-outlined">translate</span>
-                                    翻訳（日→英）
-                                </label>
-                                <div>
-                                    <input type="checkbox" id="enable-translation" class="toggle-checkbox" />
-                                    <label for="enable-translation" class="toggle-label"></label>
-                                </div>
-                            </div>
+            <!-- 文字起こしカード（高さいっぱい） -->
+            <div class="ios-card transcription-card" id="transcription-card">
+                <div id="confirmed-text" class="custom-scrollbar"></div>
+                <div id="tentative-text"></div>
+                <!-- コントロール下部 -->
+                <div class="card-controls">
+                    <div class="card-controls-left">
+                        <button id="start-button" class="btn-circle btn-primary">
+                            <span class="material-symbols-outlined" style="font-size:20px;">play_arrow</span>
+                        </button>
+                        <div id="state-indicator" class="state-indicator hidden">
+                            <span id="state-dot" class="state-dot"></span>
+                            <span id="state-label" class="state-label"></span>
                         </div>
-
-                        <!-- 音量メーター -->
-                        <div id="volume-meter">
-                            <span class="material-symbols-outlined">volume_up</span>
+                    </div>
+                    <div class="card-controls-right">
+                        <div id="volume-meter" class="volume-mini">
                             <div class="volume-track">
                                 <div id="volume-bar"></div>
                             </div>
                         </div>
-
-                        <!-- ボタン -->
-                        <div class="button-row">
-                            <div class="button-row-left">
-                                <!-- 再生/停止トグルボタン（1ボタン） -->
-                                <button id="start-button" class="btn-circle btn-primary">
-                                    <span class="material-symbols-outlined" style="font-size:20px;">play_arrow</span>
-                                </button>
-                                <!-- 状態インジケーター -->
-                                <div id="state-indicator" class="state-indicator hidden">
-                                    <span id="state-dot" class="state-dot"></span>
-                                    <span id="state-label" class="state-label"></span>
-                                </div>
-                            </div>
-                            <button id="download-button" class="btn-circle btn-secondary" disabled title="ダウンロード">
-                                <span class="material-symbols-outlined" style="font-size:20px;">download</span>
-                            </button>
-                        </div>
-
+                        <button id="download-button" class="btn-icon" disabled title="ダウンロード">
+                            <span class="material-symbols-outlined" style="font-size:18px;">download</span>
+                        </button>
                     </div>
                 </div>
-
             </div>
 
-            <!-- 文字起こし結果 -->
-            <div class="ios-card">
-                <div class="section-label">文字起こし</div>
-                <div id="confirmed-text" class="custom-scrollbar"></div>
-                <div id="tentative-text"></div>
-            </div>
-
-            <!-- ひらがな正規化 -->
-            <section class="hiragana-results" style="display: none;">
-                <div class="ios-card">
-                    <div class="card-header">
-                        <div class="card-header-left">
+            <!-- ひらがな/翻訳タブカード -->
+            <div class="ios-card tab-card">
+                <div class="tab-header">
+                    <div class="tab-buttons">
+                        <button class="tab-btn active" data-tab="hiragana">
                             <span class="material-symbols-outlined">auto_fix_high</span>
-                            <span class="section-label" style="margin-bottom:0;">正規化</span>
-                        </div>
-                        <span class="card-badge card-badge-gray">ひらがな</span>
+                            ひらがな
+                        </button>
+                        <button class="tab-btn" data-tab="translation">
+                            <span class="material-symbols-outlined">translate</span>
+                            翻訳
+                        </button>
                     </div>
+                    <div id="hiragana-toggle-wrap" class="tab-toggle-wrap">
+                        <span class="card-badge card-badge-blue">AI</span>
+                        <input type="checkbox" id="enable-hiragana" class="toggle-checkbox" />
+                        <label for="enable-hiragana" class="toggle-label"></label>
+                    </div>
+                    <div id="translation-toggle-wrap" class="tab-toggle-wrap" style="display:none;">
+                        <span class="card-badge card-badge-blue">EN</span>
+                        <input type="checkbox" id="enable-translation" class="toggle-checkbox" />
+                        <label for="enable-translation" class="toggle-label"></label>
+                    </div>
+                </div>
+                <div id="hiragana-pane" class="tab-pane card-body inactive">
                     <div id="hiragana-text" class="custom-scrollbar"></div>
                 </div>
-            </section>
-
-            <!-- 翻訳結果 -->
-            <section id="translation-section" style="display: none;">
-                <div class="ios-card">
-                    <div class="card-header">
-                        <div class="card-header-left">
-                            <span class="material-symbols-outlined">translate</span>
-                            <span class="section-label" style="margin-bottom:0;">翻訳</span>
-                        </div>
-                        <span class="card-badge card-badge-blue">EN</span>
-                    </div>
+                <div id="translation-pane" class="tab-pane card-body inactive" style="display:none;">
                     <div id="confirmed-translation" class="custom-scrollbar"></div>
                     <div id="tentative-translation"></div>
                 </div>
-            </section>
-
-            <!-- パフォーマンス情報 -->
-            <section id="perf-section" class="ios-card">
-                <div class="section-label">処理時間</div>
-                <div id="performance-info">
-                    <div class="perf-row" id="perf-item-transcription">
-                        <span class="perf-label">文字起こし</span>
-                        <div class="perf-track">
-                            <div class="perf-bar-fill" id="perf-bar-transcription" style="width: 0%"></div>
-                        </div>
-                        <span class="perf-value" id="perf-transcription">-</span>
-                    </div>
-                    <div class="perf-row hidden" id="perf-item-normalization">
-                        <span class="perf-label">正規化</span>
-                        <div class="perf-track">
-                            <div class="perf-bar-fill" id="perf-bar-normalization" style="width: 0%"></div>
-                        </div>
-                        <span class="perf-value" id="perf-normalization">-</span>
-                    </div>
-                    <div class="perf-row hidden" id="perf-item-translation">
-                        <span class="perf-label">翻訳</span>
-                        <div class="perf-track">
-                            <div class="perf-bar-fill" id="perf-bar-translation" style="width: 0%"></div>
-                        </div>
-                        <span class="perf-value" id="perf-translation">-</span>
-                    </div>
-                    <div class="perf-summary">
-                        <span class="perf-summary-label">合計</span>
-                        <span class="perf-summary-value" id="perf-total">-</span>
-                    </div>
-                    <div class="perf-summary" style="margin-top: 0.25rem;">
-                        <span class="perf-summary-label">録音時間</span>
-                        <span class="perf-summary-value" id="perf-recording">-</span>
-                    </div>
-                </div>
-            </section>
-
-            <footer>
-                <span class="footer-text">ZenVoice v2</span>
-            </footer>
+            </div>
 
         </div>
     </main>
@@ -197,6 +116,20 @@
     <script src="js/ui-controller.js"></script>
     <script src="sidepanel.js"></script>
     <script src="js/zen-mode.js"></script>
+    <script>
+        // タブ切り替え
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('hiragana-pane').style.display = tab === 'hiragana' ? '' : 'none';
+                document.getElementById('translation-pane').style.display = tab === 'translation' ? '' : 'none';
+                document.getElementById('hiragana-toggle-wrap').style.display = tab === 'hiragana' ? 'flex' : 'none';
+                document.getElementById('translation-toggle-wrap').style.display = tab === 'translation' ? 'flex' : 'none';
+            });
+        });
+    </script>
 
 </body>
 
