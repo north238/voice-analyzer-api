@@ -26,7 +26,6 @@ function toggleZen() {
     localStorage.setItem("zenMode", document.body.classList.contains("zen-mode"));
 }
 document.getElementById("zen-toggle").addEventListener("click", toggleZen);
-document.getElementById("zen-exit-float").addEventListener("click", toggleZen);
 if (localStorage.getItem("zenMode") === "true") {
     document.body.classList.add("zen-mode");
 }

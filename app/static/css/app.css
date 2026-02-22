@@ -337,9 +337,6 @@ body.recording #source-area {
 /* ============================================================
    Zenモード（書籍スタイル）
    ============================================================ */
-body.zen-mode header {
-    display: none;
-}
 body.zen-mode #left-sidebar {
     display: none;
 }
@@ -348,6 +345,22 @@ body.zen-mode #right-sidebar {
 }
 body.zen-mode #mobile-card-tabs {
     display: none;
+}
+body.zen-mode #status-text {
+    display: none;
+}
+body.zen-mode header {
+    background: transparent;
+    backdrop-filter: none;
+}
+body.zen-mode header > div:first-child {
+    visibility: hidden;
+}
+body.zen-mode #settings-btn {
+    display: none;
+}
+body.zen-mode #dark-toggle {
+    visibility: hidden;
 }
 body.zen-mode {
     background-color: #fafaf7 !important;
@@ -359,7 +372,7 @@ body.zen-mode #transcription-card {
     border-radius: 0;
 }
 body.zen-mode #transcription-wrapper {
-    max-width: 640px;
+    max-width: 700px;
 }
 body.zen-mode #transcription-text {
     font-size: 19px;
@@ -372,7 +385,7 @@ body.zen-mode #card-controls {
     position: fixed;
     bottom: 2rem;
     right: 2rem;
-    padding: 0.625rem 1rem;
+    padding: 0;
     background: transparent;
     border-radius: 9999px;
 }
@@ -393,12 +406,12 @@ body.zen-mode #volume-row {
 body.zen-mode #state-indicator {
     display: none !important;
 }
+body.zen-mode #download-button {
+    display: none;
+}
 
 #zen-exit-float {
     display: none;
-}
-body.zen-mode #zen-exit-float {
-    display: flex;
 }
 
 /* トランジション */
@@ -425,9 +438,4 @@ body {
 }
 #settings-overlay {
     transition: opacity 0.3s ease;
-}
-
-/* Zenモードでは入力ソース設定を非表示 */
-body.zen-mode #source-area {
-    display: none;
 }
