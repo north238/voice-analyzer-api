@@ -19,6 +19,8 @@ class UIController {
         this.translationText = document.getElementById("translation-text");
         this.hiraganaSection = document.querySelector(".hiragana-results");
         this.translationSection = document.getElementById("translation-section");
+        this.hiraganaTextMobile = document.getElementById("hiragana-text-mobile");
+        this.translationTextMobile = document.getElementById("translation-text-mobile");
 
         this.deviceSelector = document.getElementById("device-selector");
         this.toastContainer = document.getElementById("toast-container");
@@ -57,6 +59,8 @@ class UIController {
             this.hiraganaText.classList.add("processing");
         }
         // 翻訳セクションが表示中なら翻訳中インジケーターを表示
+        if (this.hiraganaTextMobile) { this.hiraganaTextMobile.innerHTML = ""; }
+        if (this.translationTextMobile) { this.translationTextMobile.textContent = ""; }
         if (this.translationText) {
             this.translationText.textContent = "";
             this.translationText.classList.add("processing");
@@ -184,6 +188,9 @@ class UIController {
                 this.translationText.classList.remove("processing");
                 this.translationText.textContent = newConfirmedTranslation;
                 console.log("✅ 翻訳完了");
+                if (this.translationTextMobile) {
+                    this.translationTextMobile.textContent = newConfirmedTranslation;
+                }
             }
 
             return;
@@ -334,6 +341,10 @@ class UIController {
         this.hiraganaText.classList.remove("processing");
         this.hiraganaText.textContent = confirmedText;
         this.hiraganaText.scrollTop = this.hiraganaText.scrollHeight;
+        if (this.hiraganaTextMobile) {
+            this.hiraganaTextMobile.textContent = confirmedText;
+            this.hiraganaTextMobile.scrollTop = this.hiraganaTextMobile.scrollHeight;
+        }
     }
 
     /**
@@ -496,6 +507,8 @@ class UIController {
         this.hiraganaText.classList.remove("processing");
         this.hiraganaText.innerHTML = "";
 
+        if (this.hiraganaTextMobile) { this.hiraganaTextMobile.innerHTML = ""; }
+        if (this.translationTextMobile) { this.translationTextMobile.textContent = ""; }
         if (this.translationText) {
             this.translationText.classList.remove("processing");
             this.translationText.textContent = "";
