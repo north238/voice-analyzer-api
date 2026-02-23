@@ -26,31 +26,18 @@ body {
     background: #334155;
 }
 
-/* ステータスバッジ */
-.status {
-    font-size: 11px;
-    padding: 0.2rem 0.6rem;
-    border-radius: 9999px;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
+/* ステータスドット */
+#status-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
-.status.info {
-    background: #eff6ff;
-    color: #3b82f6;
-}
-.status.success {
-    background: #f0fdf4;
-    color: #16a34a;
-}
-.status.error {
-    background: #fef2f2;
-    color: #dc2626;
-}
-.status.recording {
-    background: #fef2f2;
-    color: #dc2626;
-}
+#status-dot.info      { background: #3b82f6; animation: si-pulse 1s infinite; }
+#status-dot.success   { background: #22c55e; }
+#status-dot.recording { background: #ef4444; animation: si-pulse 0.8s infinite; }
+#status-dot.processing{ background: #f59e0b; animation: si-pulse 1.2s infinite; }
+#status-dot.error     { background: #ef4444; }
 
 /* 音量バー */
 #volume-bar {
@@ -61,48 +48,6 @@ body {
     transition: width 0.15s ease;
 }
 
-/* 状態インジケーター */
-.state-indicator {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-}
-.state-indicator.hidden {
-    display: none;
-}
-.state-dot {
-    width: 0.4rem;
-    height: 0.4rem;
-    border-radius: 50%;
-    flex-shrink: 0;
-    background: #94a3b8;
-}
-.state-label {
-    font-size: 12px;
-    color: #94a3b8;
-    white-space: nowrap;
-}
-.state-indicator.connecting .state-dot {
-    background: #3b82f6;
-    animation: si-pulse 1s infinite;
-}
-.state-indicator.connecting .state-label {
-    color: #3b82f6;
-}
-.state-indicator.recording .state-dot {
-    background: #ef4444;
-    animation: si-pulse 0.8s infinite;
-}
-.state-indicator.recording .state-label {
-    color: #ef4444;
-}
-.state-indicator.processing .state-dot {
-    background: #f59e0b;
-    animation: si-pulse 1.2s infinite;
-}
-.state-indicator.processing .state-label {
-    color: #f59e0b;
-}
 @keyframes si-pulse {
     0%,
     100% {
@@ -346,8 +291,8 @@ body.zen-mode #right-sidebar {
 body.zen-mode #mobile-card-tabs {
     display: none;
 }
-body.zen-mode #status-text {
-    display: none;
+body.zen-mode #status-dot {
+    display: none !important;
 }
 body.zen-mode header {
     background: transparent;
@@ -401,9 +346,6 @@ body.zen-mode #video-time-display {
     display: none !important;
 }
 body.zen-mode #volume-row {
-    display: none !important;
-}
-body.zen-mode #state-indicator {
     display: none !important;
 }
 body.zen-mode #download-button {

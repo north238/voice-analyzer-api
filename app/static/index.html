@@ -67,7 +67,7 @@
             </div>
         </div>
         <div class="flex items-center gap-3">
-            <div id="status-text" class="status info">準備中...</div>
+            <div id="status-dot" class="status-dot info"></div>
             <!-- モバイル専用: 設定ボタン -->
             <button
                 id="settings-btn"
@@ -233,11 +233,7 @@
                                 </div>
                             </div>
                             <div class="flex items-center justify-end gap-4">
-                                <!-- 状態インジケーター -->
-                                <div id="state-indicator" class="state-indicator hidden">
-                                    <span id="state-dot" class="state-dot"></span>
-                                    <span id="state-label" class="state-label"></span>
-                                </div>
+
                                 <button
                                     id="download-button"
                                     class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 text-slate-400 hover:text-primary transition-colors border border-slate-100 dark:border-slate-700"
@@ -330,10 +326,10 @@
     </main>
 
     <!-- モバイル設定ドロワー -->
-    <div id="settings-overlay" class="fixed inset-0 bg-black/30 z-40 hidden"></div>
+    <div id="settings-overlay" class="fixed inset-0 bg-black/30 z-[60] hidden"></div>
     <div
         id="settings-drawer"
-        class="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 rounded-t-3xl shadow-2xl translate-y-full md:hidden">
+        class="fixed bottom-0 left-0 right-0 z-[70] bg-white dark:bg-slate-900 rounded-t-3xl shadow-2xl translate-y-full md:hidden">
         <div class="px-6 pt-5 pb-8">
             <!-- ハンドル -->
             <div class="w-10 h-1 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-5"></div>

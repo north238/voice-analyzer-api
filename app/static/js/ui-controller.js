@@ -9,7 +9,7 @@ class UIController {
         this.startButton = document.getElementById("start-button");
         this.stopButton = this.startButton; // 1ボタン方式：同じ要素を参照
         this.downloadButton = document.getElementById("download-button");
-        this.statusText = document.getElementById("status-text");
+        this.statusDot = document.getElementById("status-dot");
         this.volumeMeter = document.getElementById("volume-meter");
         this.volumeBar = document.getElementById("volume-bar");
 
@@ -69,14 +69,12 @@ class UIController {
     }
 
     /**
-     * ステータスメッセージを設定
+     * ステータスドットの色を設定
      *
-     * @param {string} message - 表示メッセージ
-     * @param {string} type - ステータスタイプ (info, success, error, recording)
+     * @param {string} type - ステータスタイプ (info, success, error, recording, processing)
      */
-    setStatus(message, type = "info") {
-        this.statusText.textContent = message;
-        this.statusText.className = `status ${type}`;
+    setStatus(type = "info") {
+        this.statusDot.className = `status-dot ${type}`;
     }
 
     /**
@@ -398,31 +396,11 @@ class UIController {
      * @param {string} message - エラーメッセージ
      */
     showError(message) {
-        this.setStatus(`エラー: ${message}`, "error");
+        this.setStatus("error");
         this.showToast(message, "error", 5000);
     }
 
-    /**
-     * 状態インジケーターを設定
-     *
-     * @param {string} state - 状態 ('connecting' | 'recording' | 'processing' | 'idle')
-     * @param {string} label - 表示テキスト
-     */
-    setStateIndicator(state, label = "") {
-        const indicator = document.getElementById("state-indicator");
-        const labelEl = document.getElementById("state-label");
-        if (!indicator || !labelEl) return;
 
-        indicator.className = "state-indicator";
-
-        if (!state || state === "idle") {
-            indicator.classList.add("hidden");
-            return;
-        }
-
-        indicator.classList.add(state);
-        labelEl.textContent = label;
-    }
 
     /**
      * トースト通知を表示
