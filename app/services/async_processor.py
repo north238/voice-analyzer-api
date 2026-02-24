@@ -64,6 +64,7 @@ def _transcribe_sync(
     """
     import re
     from faster_whisper.vad import VadOptions
+    from services.text_filter import is_valid_text
 
     tmp_path = None
     converted_path = None
@@ -112,7 +113,17 @@ def _transcribe_sync(
             "temperature": settings.WHISPER_TEMPERATURE,
             "vad_filter": settings.WHISPER_VAD_ENABLED,
             "vad_parameters": vad_options,
+            # Phase 12: ハルシネーション抑制パラメータ
+            "condition_on_previous_text": settings.WHISPER_CONDITION_ON_PREVIOUS_TEXT,
+            "repetition_penalty": settings.WHISPER_REPETITION_PENALTY,
+            "compression_ratio_threshold": settings.WHISPER_COMPRESSION_RATIO_THRESHOLD,
+            "log_prob_threshold": settings.WHISPER_LOG_PROB_THRESHOLD,
+            "no_speech_threshold": settings.WHISPER_NO_SPEECH_THRESHOLD,
         }
+
+        # no_repeat_ngram_size: 0より大きい場合のみ設定
+        if settings.WHISPER_NO_REPEAT_NGRAM_SIZE > 0:
+            transcribe_params["no_repeat_ngram_size"] = settings.WHISPER_NO_REPEAT_NGRAM_SIZE
 
         # initial_promptが指定されている場合は追加
         if initial_prompt:
@@ -121,8 +132,14 @@ def _transcribe_sync(
 
         segments, info = model.transcribe(converted_path, **transcribe_params)
 
-        # セグメントからテキストを抽出
-        texts = [s.text for s in segments if s.text.strip()]
+        # セグメントからテキストを抽出（Phase 12: セグメント単位の品質フィルタリング）
+        texts = []
+        for s in segments:
+            seg_text = s.text.strip()
+            if seg_text and is_valid_text(seg_text):
+                texts.append(s.text)
+            elif seg_text:
+                logger.debug(f"🚫 低品質セグメント除外: {seg_text}")
         text = "".join(texts).strip()
 
         # 数字間の不要なスペースを削除
