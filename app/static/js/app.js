@@ -69,13 +69,13 @@ class RealtimeTranscriptionApp {
                 this.uiController.toggleTranslationSection(e.target.checked);
             });
 
-            // ボタンイベント設定
+            // ボタンイベント設定（1ボタントグル）
             this.uiController.startButton.addEventListener("click", () => {
-                this.start();
-            });
-
-            this.uiController.stopButton.addEventListener("click", () => {
-                this.stop();
+                if (this.isRecording) {
+                    this.stop();
+                } else {
+                    this.start();
+                }
             });
 
             this.uiController.downloadButton.addEventListener("click", () => {
@@ -85,8 +85,7 @@ class RealtimeTranscriptionApp {
                 );
             });
 
-            this.uiController.setStatus("準備完了。「開始」ボタンを押してください。", "success");
-            this.uiController.showToast("準備完了。「開始」ボタンを押してください。", "success");
+            this.uiController.setStatus("success");
         } catch (error) {
             console.error("初期化エラー:", error);
             this.uiController.showToast("初期化に失敗しました", "error");
@@ -100,23 +99,54 @@ class RealtimeTranscriptionApp {
         const micControls = document.getElementById("microphone-controls");
         const videoControls = document.getElementById("video-controls");
         const tabControls = document.getElementById("tab-controls");
+        const volumeMeter = document.getElementById("volume-meter");
+        const videoTimeDisplay = document.getElementById("video-time-display");
 
         if (this.inputSource === "microphone") {
             micControls.style.display = "flex";
             videoControls.style.display = "none";
             tabControls.style.display = "none";
-            this.uiController.setStatus("マイク入力モード。「開始」ボタンを押してください。", "success");
+            if (volumeMeter) volumeMeter.style.display = "block";
+            if (videoTimeDisplay) videoTimeDisplay.style.display = "none";
+            this.uiController.setStatus("success");
         } else if (this.inputSource === "video") {
             micControls.style.display = "none";
             videoControls.style.display = "block";
             tabControls.style.display = "none";
-            this.uiController.setStatus("動画ファイルを選択してください。", "info");
+            if (volumeMeter) volumeMeter.style.display = "none";
+            if (videoTimeDisplay) videoTimeDisplay.style.display = "block";
+            this.uiController.setStatus("info");
         } else if (this.inputSource === "tab") {
             micControls.style.display = "none";
             videoControls.style.display = "none";
             tabControls.style.display = "block";
-            this.uiController.setStatus("タブ共有モード。「開始」ボタンを押してください。", "success");
+            if (volumeMeter) volumeMeter.style.display = "block";
+            if (videoTimeDisplay) videoTimeDisplay.style.display = "none";
+            this.uiController.setStatus("success");
         }
+    }
+
+    /**
+     * 動画の再生時間表示を更新
+     */
+    _updateVideoTime() {
+        const currentEl = document.getElementById("video-current-time");
+        const totalEl = document.getElementById("video-total-time");
+        if (!currentEl || !totalEl || !this.videoElement) return;
+        currentEl.textContent = this._formatVideoTime(this.videoElement.currentTime);
+        totalEl.textContent = this._formatVideoTime(this.videoElement.duration || 0);
+    }
+
+    /**
+     * 秒数を MM:SS 形式にフォーマット
+     *
+     * @param {number} seconds
+     * @returns {string}
+     */
+    _formatVideoTime(seconds) {
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
     }
 
     /**
@@ -171,9 +201,13 @@ class RealtimeTranscriptionApp {
                 }
             });
 
+            // 再生時間の表示更新
+            this.videoElement.addEventListener("loadedmetadata", () => this._updateVideoTime());
+            this.videoElement.addEventListener("timeupdate", () => this._updateVideoTime());
+
             this.videoElement.load();
 
-            this.uiController.setStatus("動画ファイル読み込み完了。「開始」ボタンを押してください。", "success");
+            this.uiController.setStatus("success");
             this.uiController.showToast(`動画ファイル読み込み: ${file.name}`, "success");
         } catch (error) {
             console.error("動画ファイル読み込みエラー:", error);
@@ -221,10 +255,14 @@ class RealtimeTranscriptionApp {
                 }
             });
 
+            // 再生時間の表示更新
+            this.videoElement.addEventListener("loadedmetadata", () => this._updateVideoTime());
+            this.videoElement.addEventListener("timeupdate", () => this._updateVideoTime());
+
             this.videoElement.load();
 
             const fileName = url.split("/").pop();
-            this.uiController.setStatus("動画読み込み完了。「開始」ボタンを押してください。", "success");
+            this.uiController.setStatus("success");
             this.uiController.showToast(`サンプル動画読み込み: ${fileName}`, "success");
         } catch (error) {
             console.error("動画URL読み込みエラー:", error);
@@ -246,8 +284,7 @@ class RealtimeTranscriptionApp {
             // 新しいセッション開始前にすべてのテキストをクリア
             this.uiController.clearAllText();
 
-            this.uiController.setStatus("接続中...", "info");
-            this.uiController.showToast("WebSocket接続中...", "info");
+            this.uiController.setStatus("info");
 
             // WebSocket接続
             const wsUrl = `ws://${window.location.host}/ws/transcribe-stream-cumulative`;
@@ -256,20 +293,19 @@ class RealtimeTranscriptionApp {
             this.wsClient.on("connected", (sessionId) => {
                 console.log("セッション開始:", sessionId);
                 this.uiController.startSession();
-                this.uiController.showToast("セッション開始", "success");
+                this.uiController.setStatus("recording");
             });
 
             this.wsClient.on("progress", (step, message) => {
-                this.uiController.showToast(message, "info", 2000);
+                this.uiController.setStatus("processing");
             });
 
             this.wsClient.on("transcription_update", (data) => {
                 this.uiController.updateTranscription(data);
-            });
-
-            this.wsClient.on("accumulating", (data) => {
-                const elapsedTime = data.session_elapsed_seconds ?? data.accumulated_seconds;
-                this.uiController.setStatus(`録音中... (${elapsedTime.toFixed(1)}秒)`, "info");
+                // 文字起こし更新後は録音中に戻す
+                if (this.isRecording) {
+                    this.uiController.setStatus("recording");
+                }
             });
 
             this.wsClient.on("error", (message) => {
@@ -294,8 +330,7 @@ class RealtimeTranscriptionApp {
                     });
                 }
 
-                this.uiController.setStatus("セッション終了", "success");
-                this.uiController.showToast("処理が完了しました", "success");
+                this.uiController.setStatus("success");
 
                 // ダウンロードボタンを有効化
                 if (this.uiController.transcriptionHistory.length > 0) {
@@ -370,6 +405,10 @@ class RealtimeTranscriptionApp {
                     }
                 });
 
+                // 再生時間の表示更新（再設定）
+                this.videoElement.addEventListener("loadedmetadata", () => this._updateVideoTime());
+                this.videoElement.addEventListener("timeupdate", () => this._updateVideoTime());
+
                 // 動画のロードを待つ
                 console.log("🎥 動画ロード開始...");
                 await new Promise((resolve, reject) => {
@@ -437,20 +476,7 @@ class RealtimeTranscriptionApp {
 
             this.isRecording = true;
             this.uiController.setButtonsState(true);
-
-            let statusMessage = "録音中...";
-            let toastMessage = "録音を開始しました";
-
-            if (this.inputSource === "video") {
-                statusMessage = "動画解析中...";
-                toastMessage = "動画解析を開始しました";
-            } else if (this.inputSource === "tab") {
-                statusMessage = "タブ音声解析中...";
-                toastMessage = "タブ共有を開始しました";
-            }
-
-            this.uiController.setStatus(statusMessage, "recording");
-            this.uiController.showToast(toastMessage, "success");
+            this.uiController.setStatus("recording");
         } catch (error) {
             console.error("開始エラー:", error);
 
@@ -473,6 +499,8 @@ class RealtimeTranscriptionApp {
                 this.uiController.showToast(error.message || "開始に失敗しました", "error", 5000);
             }
 
+            this.uiController.setStatus("success");
+
             // クリーンアップ
             this.forceCleanup();
         }
@@ -483,16 +511,10 @@ class RealtimeTranscriptionApp {
      */
     async stop() {
         this.isRecording = false;
-        this.uiController.setButtonsState(false);
+        // 処理完了待ち中はボタンを無効化（グレー）。forceCleanup() で再び有効になる
+        this.uiController.startButton.disabled = true;
 
-        let stopMessage = "録音停止中...";
-        if (this.inputSource === "video") {
-            stopMessage = "動画解析停止中...";
-        } else if (this.inputSource === "tab") {
-            stopMessage = "タブ共有停止中...";
-        }
-
-        this.uiController.setStatus(stopMessage, "info");
+        this.uiController.setStatus("processing");
 
         // 動画の場合は再生を停止
         if (this.inputSource === "video" && this.videoElement) {
@@ -505,24 +527,12 @@ class RealtimeTranscriptionApp {
             if (remainingBuffer && this.wsClient) {
                 console.log("📤 最終チャンクを送信");
                 this.wsClient.sendAudioChunk(remainingBuffer);
-                this.uiController.showToast("最終チャンクを送信しました", "info", 2000);
             }
 
             // 音声キャプチャを停止
             this.audioCapture.stop();
             this.audioCapture = null;
         }
-
-        this.uiController.setStatus("処理中の結果を待機中...", "info");
-
-        let waitMessage = "録音を停止しました。処理完了を待っています...";
-        if (this.inputSource === "video") {
-            waitMessage = "動画解析を停止しました。処理完了を待っています...";
-        } else if (this.inputSource === "tab") {
-            waitMessage = "タブ共有を停止しました。処理完了を待っています...";
-        }
-
-        this.uiController.showToast(waitMessage, "info", 2000);
 
         // サーバーに終了メッセージを送信
         if (this.wsClient) {
@@ -539,6 +549,7 @@ class RealtimeTranscriptionApp {
                 await this._processFinalText();
 
                 this.forceCleanup();
+                this.uiController.setStatus("success");
                 this.uiController.showToast("タイムアウトにより接続を切断しました", "warning");
             }, 20000);
         }

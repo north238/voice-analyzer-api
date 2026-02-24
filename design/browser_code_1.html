@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html class="light" lang="ja"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ZenVoice Desktop - 通常モード</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#3B82F6",
+                        "background-light": "#F1F5F9",
+                        "background-dark": "#0F172A",
+                    },
+                    fontFamily: {
+                        sans: ["'Noto Sans JP'", "sans-serif"],
+                        display: ["'Noto Sans JP'", "sans-serif"],
+                    },
+                    borderRadius: {
+                        'card': '2rem',
+                    },
+                },
+            },
+        };
+    </script>
+<style type="text/tailwindcss">
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #334155;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .transcription-content p {
+            margin-bottom: 1.5rem;
+        }
+        .transcription-content p:last-child {
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-200 min-h-screen flex flex-col">
+<header class="h-14 flex items-center justify-between px-8 bg-white/30 dark:bg-slate-900/30 backdrop-blur-md sticky top-0 z-50">
+<div class="flex items-center gap-4">
+<div class="w-6 h-6 bg-primary/10 rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-lg">graphic_eq</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+</span>
+</div>
+<button class="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400">
+<span class="material-symbols-outlined text-xl">settings</span>
+</button>
+<div class="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden ring-1 ring-slate-100 dark:ring-slate-800">
+<img alt="Profile" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBZmsWcoeOcMSgGSlTAAt3PQtL5PW9zS1HJ2pTm_o_vYCCBsS7z39imxHWp9WegXWP-uw2zkrWEUBTJaog10dLVZsdATSjQYFKUhf4R8mD6gTmXnH0AxcPaPiewYwphihgUwfC1wRWjtwlF2IqoLjVtfob43Gk7Tya_L853pZtoEWj1PbiXN0sXhv854y90V-JS_5WTt-Ohsx3-iCeJuVz6Yke9sZqB3fb9ZQNSSa19Sy9w-BerRG3ao8thkbdStZF8mRKeOFQ4OyY"/>
+</div>
+</div>
+</header>
+<main class="flex-1 flex overflow-hidden">
+<aside class="w-72 flex flex-col bg-transparent shrink-0">
+<div class="p-6">
+<button class="w-full flex items-center justify-center p-4 bg-white dark:bg-slate-800 rounded-card shadow-sm hover:shadow-md transition-all border border-white/50 dark:border-slate-700">
+<span class="material-symbols-outlined text-primary">add</span>
+</button>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar px-6 space-y-3">
+<div class="p-5 bg-white dark:bg-slate-800 rounded-card shadow-sm border border-blue-50 dark:border-blue-900/20">
+<div class="text-xs text-slate-400 mb-1">今日 14:20</div>
+<div class="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">製品フィードバック会議</div>
+</div>
+<div class="p-5 hover:bg-white/60 dark:hover:bg-slate-800/60 rounded-card transition-colors cursor-pointer group">
+<div class="text-xs text-slate-400 mb-1">昨日 10:15</div>
+<div class="text-sm font-medium text-slate-500 dark:text-slate-400 truncate">新規プロジェクトのキックオフ</div>
+</div>
+<div class="p-5 hover:bg-white/60 dark:hover:bg-slate-800/60 rounded-card transition-colors cursor-pointer group">
+<div class="text-xs text-slate-400 mb-1">5月22日</div>
+<div class="text-sm font-medium text-slate-500 dark:text-slate-400 truncate">週次定例ミーティング</div>
+</div>
+</div>
+</aside>
+<section class="flex-1 flex flex-col overflow-y-auto custom-scrollbar">
+<div class="flex-1 flex flex-col items-center py-6 px-6">
+<div class="w-full max-w-[700px] flex flex-col gap-6">
+<div class="bg-white/50 dark:bg-slate-800/50 p-1 rounded-full flex self-center shadow-sm border border-white/20">
+<button class="px-6 py-2 rounded-full bg-white dark:bg-slate-800 shadow-sm text-sm font-medium text-slate-700 dark:text-slate-200">マイク</button>
+<button class="px-6 py-2 rounded-full text-sm font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">ビデオ</button>
+<button class="px-6 py-2 rounded-full text-sm font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">共有</button>
+</div>
+<div class="bg-white dark:bg-slate-900 rounded-card shadow-sm border border-white dark:border-slate-800/50 flex flex-col min-h-[500px]">
+<div class="p-12 transcription-content text-[16px] leading-[1.8] text-slate-600 dark:text-slate-300 font-normal selection:bg-blue-50 dark:selection:bg-blue-900/30 flex-1">
+<p>
+                            本日の会議では、新しいプロダクトのデザインシステムについて議論します。これまでのフィードバックを反映させ、より直感的で美しいユーザー体験を目指しています。
+                        </p>
+<p>
+                            特にデスクトップ環境での視認性と、モバイルとの一貫性をどう両立させるかが重要なポイントです。Zenスタイルの基本である「余白の美」を保ちつつ、必要な情報を適切に配置することに重点を置いています。
+                        </p>
+<p>
+                            現在、文字起こし機能は正常に動作しており、リアルタイムでテキストが生成されています。正規化エンジンによって、話し言葉特有の淀みも綺麗に整理される予定です。
+                        </p>
+<div class="flex items-center gap-3 pt-4">
+<span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+<div class="h-2 w-32 bg-slate-100 dark:bg-slate-800 rounded-full"></div>
+</div>
+</div>
+<div class="px-12 pb-10">
+<div class="flex items-center justify-between">
+<button class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 text-slate-400 hover:text-primary transition-colors border border-slate-100 dark:border-slate-700">
+<span class="material-symbols-outlined">download</span>
+</button>
+<button class="w-14 h-14 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 transition-all text-white">
+<span class="material-symbols-outlined font-bold text-2xl">stop</span>
+</button>
+<div class="w-12 h-12"></div> 
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<aside class="w-80 flex flex-col p-6 space-y-6 overflow-y-auto custom-scrollbar shrink-0">
+<div class="bg-white dark:bg-slate-900 p-6 rounded-card shadow-sm border border-white dark:border-slate-800/50">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-blue-500 text-lg">auto_fix_high</span>
+<span class="text-sm font-bold text-slate-700 dark:text-slate-200">正規化</span>
+</div>
+<span class="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-[10px] text-blue-500 font-bold rounded uppercase tracking-wider">AI</span>
+</div>
+<div class="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                会議の内容を要約し、重要なアクションアイテムを抽出しました。デザインの修正、及び次回のレビュー日程の確定が必要です。
+            </div>
+</div>
+<div class="bg-white dark:bg-slate-900 p-6 rounded-card shadow-sm border border-white dark:border-slate-800/50">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-blue-500 text-lg">translate</span>
+<span class="text-sm font-bold text-slate-700 dark:text-slate-200">翻訳</span>
+</div>
+<span class="px-2 py-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] text-slate-400 font-bold rounded uppercase tracking-wider">EN</span>
+</div>
+<div class="text-sm text-slate-500 dark:text-slate-400 leading-relaxed italic">
+                "In today's meeting, we will discuss the design system for the new product..."
+            </div>
+</div>
+<div class="flex-1 bg-white/40 dark:bg-slate-900/20 rounded-card border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center p-8 opacity-60">
+<span class="material-symbols-outlined text-slate-300 dark:text-slate-600 mb-2 text-3xl">insights</span>
+<div class="text-xs text-slate-400">解析データがここに表示されます</div>
+</div>
+</aside>
+</main>
+<div class="fixed bottom-6 right-6 z-[60]">
+<button class="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-white dark:border-slate-700 shadow-sm flex items-center justify-center text-slate-300 hover:text-slate-600 dark:hover:text-slate-100 transition-colors" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-lg">dark_mode</span>
+</button>
+</div>
+
+</body></html>

@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>設定 - リアルタイム音声文字起こし</title>
+    <title>設定 - ZenVoice</title>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
     <style>
         * {
             margin: 0;
@@ -33,11 +34,34 @@
             padding: 32px;
         }
 
-        h1 {
-            font-size: 1.5rem;
+        /* ヘッダーロゴ（サイドパネルと共通スタイル） */
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 28px;
+        }
+
+        .header-logo-icon {
+            width: 28px;
+            height: 28px;
+            background: #eff6ff;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .header-logo-text {
+            font-size: 1.25rem;
             font-weight: 700;
-            margin-bottom: 24px;
             color: #1f2937;
+        }
+
+        .header-logo-sub {
+            font-size: 0.8125rem;
+            color: #6b7280;
+            margin-left: 4px;
         }
 
         .section {
@@ -112,6 +136,12 @@
         .checkbox-label:hover {
             background: #f3f4f6;
             border-color: #d1d5db;
+        }
+
+        .checkbox-label.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            pointer-events: none;
         }
 
         input[type="checkbox"] {
@@ -195,12 +225,35 @@
         .message.show {
             display: block;
         }
+
+        /* 上級者向け機能セクション */
+        .advanced-notice {
+            font-size: 0.8125rem;
+            color: #92400e;
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 16px;
+        }
+
+        .advanced-sub-options {
+            margin-top: 12px;
+            padding-left: 8px;
+            border-left: 2px solid #e5e7eb;
+        }
     </style>
 </head>
 
 <body>
     <div class="container">
-        <h1>⚙️ 設定</h1>
+        <div class="header-logo">
+            <div class="header-logo-icon">
+                <span class="material-symbols-outlined" style="font-size:14px; color:#3b82f6;">graphic_eq</span>
+            </div>
+            <span class="header-logo-text">ZenVoice</span>
+            <span class="header-logo-sub">設定</span>
+        </div>
 
         <div id="message" class="message"></div>
 
@@ -214,18 +267,27 @@
         </div>
 
         <div class="section">
-            <h2>デフォルト処理オプション</h2>
+            <h2>上級者向け機能</h2>
+            <p class="advanced-notice">⚠ 有効にするとサイドパネルにひらがな正規化・翻訳機能が追加されます</p>
             <div class="checkbox-group">
                 <label class="checkbox-label">
-                    <input type="checkbox" id="defaultHiragana" />
-                    <span>ひらがな正規化</span>
-                </label>
-                <label class="checkbox-label">
-                    <input type="checkbox" id="defaultTranslation" />
-                    <span>翻訳（日→英）</span>
+                    <input type="checkbox" id="showAdvancedFeatures" />
+                    <span>上級者向け機能を表示する</span>
                 </label>
             </div>
-            <p class="help-text">文字起こし開始時のデフォルト設定です。起動後に手動で変更できます。</p>
+            <div class="advanced-sub-options" id="advancedSubOptions">
+                <div class="checkbox-group" style="margin-top: 12px">
+                    <label class="checkbox-label" id="labelDefaultHiragana">
+                        <input type="checkbox" id="defaultHiragana" />
+                        <span>ひらがな正規化（デフォルトON）</span>
+                    </label>
+                    <label class="checkbox-label" id="labelDefaultTranslation">
+                        <input type="checkbox" id="defaultTranslation" />
+                        <span>翻訳（日→英）（デフォルトON）</span>
+                    </label>
+                </div>
+                <p class="help-text">上級者向け機能が有効な場合の起動時デフォルト設定です。</p>
+            </div>
         </div>
 
         <div class="button-group">

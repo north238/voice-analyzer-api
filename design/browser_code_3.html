@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ZenVoice Popup - 極小UIモード</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&amp;family=Noto+Sans+JP:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f8fafc",
+                        "soft-white": "#ffffff",
+                    },
+                    fontFamily: {
+                        "sans": ["Noto Sans JP", "Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "lg": "2rem",
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        body {
+            width: 380px;
+            height: 550px;
+            overflow: hidden;
+            @apply bg-background-light font-sans text-[#111418];
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .custom-shadow {
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.04);
+        }
+        .transcription-line {
+            line-height: 2;
+            letter-spacing: 0.03em;
+        }
+    </style>
+</head>
+<body>
+<div class="flex flex-col h-full w-full relative">
+<header class="flex items-center justify-between px-6 py-4">
+<div class="text-primary opacity-80">
+<svg class="w-7 h-7" fill="currentColor" viewBox="0 0 48 48">
+<path d="M6 6H42L36 24L42 42H6L12 24L6 6Z"></path>
+</svg>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white transition-colors">
+<span class="material-symbols-outlined text-gray-400 text-[22px]">settings</span>
+</button>
+</header>
+<div class="px-6 pb-5">
+<button class="w-full h-[68px] bg-primary hover:bg-primary/90 text-white rounded-lg flex items-center justify-center gap-3 shadow-xl shadow-primary/25 active:scale-[0.98] transition-all">
+<span class="material-symbols-outlined text-[28px]">screen_share</span>
+<span class="text-base font-bold tracking-tight">ブラウザを共有して開始</span>
+</button>
+</div>
+<main class="flex-1 px-6 pb-6 overflow-hidden">
+<div class="h-full bg-white rounded-lg custom-shadow border border-white/60 p-7 overflow-y-auto">
+<div class="flex flex-col gap-5">
+<div class="flex items-center gap-2.5 opacity-40">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+</span>
+<span class="text-[10px] font-bold uppercase tracking-[0.15em] text-primary">Live Preview</span>
+</div>
+<div class="space-y-6">
+<p class="text-[16px] text-gray-400 transcription-line italic">
+                        共有を開始するとここに文字起こしが表示されます...
+                    </p>
+<p class="text-[16px] text-[#1a1c1e] font-medium transcription-line hidden leading-relaxed">
+                        本日の会議では、新しいプロダクトのデザインシステムについて議論します。モバイル版と拡張機能版のUIを統一することで、ユーザー体験の向上を目指します。
+                    </p>
+</div>
+</div>
+</div>
+</main>
+<footer class="px-10 py-6 bg-white border-t border-gray-50 flex items-center justify-around">
+<button class="flex items-center justify-center text-[#44474e] hover:text-primary transition-colors group">
+<div class="w-12 h-12 rounded-full flex items-center justify-center group-hover:bg-primary/5 transition-colors">
+<span class="material-symbols-outlined text-[28px]">history</span>
+</div>
+</button>
+<button class="flex items-center justify-center text-[#44474e] hover:text-primary transition-colors group">
+<div class="w-12 h-12 rounded-full flex items-center justify-center group-hover:bg-primary/5 transition-colors">
+<span class="material-symbols-outlined text-[28px]">description</span>
+</div>
+</button>
+<button class="flex items-center justify-center text-gray-200 cursor-not-allowed" disabled="">
+<div class="w-12 h-12 flex items-center justify-center">
+<span class="material-symbols-outlined text-[28px]">summarize</span>
+</div>
+</button>
+</footer>
+<div class="fixed inset-0 -z-10 pointer-events-none overflow-hidden">
+<div class="absolute top-[-5%] right-[-10%] w-[250px] h-[250px] bg-primary/5 rounded-full blur-[80px]"></div>
+<div class="absolute bottom-[10%] left-[-5%] w-[180px] h-[180px] bg-blue-100/30 rounded-full blur-[60px]"></div>
+</div>
+</div>
+
+</body></html>

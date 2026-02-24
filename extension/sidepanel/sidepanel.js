@@ -33,21 +33,35 @@ class RealtimeTranscriptionApp {
             // 設定を読み込む
             const config = await chrome.storage.sync.get({
                 apiServerUrl: 'ws://localhost:5001',
+                showAdvancedFeatures: false,
                 defaultHiragana: false,
                 defaultTranslation: false
             });
 
             this.apiServerUrl = config.apiServerUrl;
-            this.processingOptions.enableHiragana = config.defaultHiragana;
-            this.processingOptions.enableTranslation = config.defaultTranslation;
 
-            // チェックボックスのデフォルト値を設定
-            document.getElementById("enable-hiragana").checked = this.processingOptions.enableHiragana;
-            document.getElementById("enable-translation").checked = this.processingOptions.enableTranslation;
+            // タブカードの表示/非表示を制御
+            const tabCard = document.querySelector('.tab-card');
+            if (tabCard) {
+                tabCard.style.display = config.showAdvancedFeatures ? '' : 'none';
+            }
 
-            // セクションの表示/非表示を設定
-            this.uiController.toggleHiraganaSection(this.processingOptions.enableHiragana);
-            this.uiController.toggleTranslationSection(this.processingOptions.enableTranslation);
+            // 上級者向け機能がOFFの場合は処理オプションを強制OFF
+            if (!config.showAdvancedFeatures) {
+                this.processingOptions.enableHiragana = false;
+                this.processingOptions.enableTranslation = false;
+            } else {
+                this.processingOptions.enableHiragana = config.defaultHiragana;
+                this.processingOptions.enableTranslation = config.defaultTranslation;
+
+                // チェックボックスのデフォルト値を設定
+                document.getElementById("enable-hiragana").checked = config.defaultHiragana;
+                document.getElementById("enable-translation").checked = config.defaultTranslation;
+
+                // セクションの表示/非表示を設定
+                this.uiController.toggleHiraganaSection(config.defaultHiragana);
+                this.uiController.toggleTranslationSection(config.defaultTranslation);
+            }
 
             // 処理オプションのイベントリスナー
             document.getElementById("enable-hiragana").addEventListener("change", (e) => {
@@ -60,13 +74,13 @@ class RealtimeTranscriptionApp {
                 this.uiController.toggleTranslationSection(e.target.checked);
             });
 
-            // ボタンイベント設定
+            // ボタンイベント設定（1ボタントグル）
             this.uiController.startButton.addEventListener("click", () => {
-                this.start();
-            });
-
-            this.uiController.stopButton.addEventListener("click", () => {
-                this.stop();
+                if (this.isRecording) {
+                    this.stop();
+                } else {
+                    this.start();
+                }
             });
 
             this.uiController.downloadButton.addEventListener("click", () => {
@@ -109,7 +123,7 @@ class RealtimeTranscriptionApp {
             this.uiController.clearAllText();
 
             this.uiController.setStatus("接続中...", "info");
-            this.uiController.showToast("WebSocket接続中...", "info");
+            this.uiController.setStateIndicator("connecting", "接続中");
 
             // WebSocket接続（設定から取得したURL）
             const wsUrl = `${this.apiServerUrl}/ws/transcribe-stream-cumulative`;
@@ -118,15 +132,19 @@ class RealtimeTranscriptionApp {
             this.wsClient.on("connected", (sessionId) => {
                 console.log("セッション開始:", sessionId);
                 this.uiController.startSession();
-                this.uiController.showToast("セッション開始", "success");
+                this.uiController.setStateIndicator("recording", "録音中");
             });
 
             this.wsClient.on("progress", (step, message) => {
-                this.uiController.showToast(message, "info", 2000);
+                this.uiController.setStateIndicator("processing", "処理中");
             });
 
             this.wsClient.on("transcription_update", (data) => {
                 this.uiController.updateTranscription(data);
+                // 文字起こし更新後は録音中に戻す
+                if (this.isRecording) {
+                    this.uiController.setStateIndicator("recording", "録音中");
+                }
             });
 
             this.wsClient.on("accumulating", (data) => {
@@ -157,7 +175,7 @@ class RealtimeTranscriptionApp {
                 }
 
                 this.uiController.setStatus("セッション終了", "success");
-                this.uiController.showToast("処理が完了しました", "success");
+                this.uiController.setStateIndicator("idle");
 
                 // ダウンロードボタンを有効化
                 if (this.uiController.transcriptionHistory.length > 0) {
@@ -200,7 +218,7 @@ class RealtimeTranscriptionApp {
             this.isRecording = true;
             this.uiController.setButtonsState(true);
             this.uiController.setStatus("タブ音声解析中...", "recording");
-            this.uiController.showToast("タブ音声の文字起こしを開始しました", "success");
+            this.uiController.setStateIndicator("recording", "録音中");
         } catch (error) {
             console.error("開始エラー:", error);
 
@@ -232,6 +250,9 @@ class RealtimeTranscriptionApp {
                 this.uiController.setStatus("エラー", "error");
             }
 
+            // インジケーターを非表示
+            this.uiController.setStateIndicator("idle");
+
             // クリーンアップ
             this.forceCleanup();
         }
@@ -242,8 +263,10 @@ class RealtimeTranscriptionApp {
      */
     async stop() {
         this.isRecording = false;
-        this.uiController.setButtonsState(false);
+        // 処理完了待ち中はボタンを無効化（グレー）。forceCleanup() で再び有効になる
+        this.uiController.startButton.disabled = true;
         this.uiController.setStatus("タブ共有停止中...", "info");
+        this.uiController.setStateIndicator("processing", "処理中");
 
         // バッファに残っている音声データを最終チャンクとして送信
         if (this.audioCapture) {
@@ -251,7 +274,6 @@ class RealtimeTranscriptionApp {
             if (remainingBuffer && this.wsClient) {
                 console.log("📤 最終チャンクを送信");
                 this.wsClient.sendAudioChunk(remainingBuffer);
-                this.uiController.showToast("最終チャンクを送信しました", "info", 2000);
             }
 
             // 音声キャプチャを停止
@@ -260,7 +282,6 @@ class RealtimeTranscriptionApp {
         }
 
         this.uiController.setStatus("処理中の結果を待機中...", "info");
-        this.uiController.showToast("タブ共有を停止しました。処理完了を待っています...", "info", 2000);
 
         // サーバーに終了メッセージを送信
         if (this.wsClient) {
@@ -274,6 +295,7 @@ class RealtimeTranscriptionApp {
                 this.uiController.forceFinalize();
 
                 this.forceCleanup();
+                this.uiController.setStateIndicator("idle");
                 this.uiController.showToast("タイムアウトにより接続を切断しました", "warning");
             }, 20000);
         }

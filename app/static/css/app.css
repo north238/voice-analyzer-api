@@ -1,0 +1,444 @@
+body {
+    font-family: "Noto Sans JP", sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+.material-symbols-outlined {
+    font-variation-settings:
+        "FILL" 0,
+        "wght" 300,
+        "GRAD" 0,
+        "opsz" 24;
+}
+
+/* スクロールバー */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 10px;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #334155;
+}
+
+/* ステータスドット */
+#status-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin: 1rem;
+}
+
+#status-dot.info {
+    background: #3b82f6;
+    animation: si-pulse 1s infinite;
+}
+
+#status-dot.success {
+    background: #22c55e;
+}
+
+#status-dot.recording {
+    background: #ef4444;
+    animation: si-pulse 0.8s infinite;
+}
+
+#status-dot.processing {
+    background: #f59e0b;
+    animation: si-pulse 1.2s infinite;
+}
+
+#status-dot.error {
+    background: #ef4444;
+}
+
+/* 音量バー */
+#volume-bar {
+    height: 100%;
+    background: #94a3b8;
+    border-radius: 9999px;
+    width: 0%;
+    transition: width 0.15s ease;
+}
+
+@keyframes si-pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.25;
+    }
+}
+
+/* トースト */
+#toast-container {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    pointer-events: none;
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    background: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    font-size: 13px;
+    min-width: 220px;
+    pointer-events: auto;
+}
+
+.toast.success {
+    border-left: 3px solid #10b981;
+}
+
+.toast.error {
+    border-left: 3px solid #ef4444;
+}
+
+.toast.warning {
+    border-left: 3px solid #f59e0b;
+}
+
+.toast.info {
+    border-left: 3px solid #3b82f6;
+}
+
+.toast.fade-out {
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+/* トリムインジケーター */
+#trim-indicator {
+    position: fixed;
+    top: 4rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 150;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 1rem;
+    background: white;
+    border-radius: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    font-size: 12px;
+    color: #64748b;
+}
+
+/* 文字起こしテキスト */
+#transcription-text {
+    font-size: 16px;
+    line-height: 1.8;
+    color: #475569;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* ひらがな・翻訳・要約テキスト */
+#hiragana-text,
+#translation-text,
+#summary-text,
+#hiragana-text-mobile,
+#translation-text-mobile {
+    font-size: 14px;
+    line-height: 1.7;
+    color: #64748b;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+#translation-text,
+#translation-text-mobile {
+    font-style: italic;
+}
+
+/* トグルスイッチ */
+.toggle-label {
+    background: #e2e8f0;
+    width: 2.5rem;
+    height: 1.375rem;
+    border-radius: 9999px;
+    position: relative;
+    transition: background 0.2s;
+    cursor: pointer;
+    display: block;
+}
+
+.toggle-label::after {
+    content: "";
+    position: absolute;
+    left: 0.2rem;
+    top: 0.2rem;
+    width: 1rem;
+    height: 1rem;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.toggle-checkbox:checked+.toggle-label {
+    background: #3b82f6;
+}
+
+.toggle-checkbox:checked+.toggle-label::after {
+    transform: translateX(1.125rem);
+}
+
+/* ボタン disabled */
+button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed !important;
+}
+
+/* 録音中ボタン（赤） */
+#start-button.recording {
+    background: #ef4444;
+    box-shadow: 0 10px 20px rgba(239, 68, 68, 0.35);
+}
+
+/* 動画プレーヤーを非表示 */
+#video-player {
+    display: none !important;
+}
+
+/* 右サイドバー: 各カードのコンテンツエリア（非活性/活性） */
+.card-body {
+    transition: opacity 0.2s ease;
+}
+
+.card-body.inactive {
+    opacity: 0.25;
+    pointer-events: none;
+}
+
+/* コンテンツが空のとき（:empty）にスケルトンラインを表示 */
+#hiragana-text:empty,
+#translation-text:empty,
+#summary-text:empty,
+#hiragana-text-mobile:empty,
+#translation-text-mobile:empty {
+    background-image:
+        linear-gradient(#e2e8f0 7px, transparent 7px), linear-gradient(#e2e8f0 7px, transparent 7px),
+        linear-gradient(#e2e8f0 7px, transparent 7px), linear-gradient(#e2e8f0 7px, transparent 7px),
+        linear-gradient(#e2e8f0 7px, transparent 7px);
+    background-size:
+        100% 22px,
+        72% 22px,
+        88% 22px,
+        58% 22px,
+        80% 22px;
+    background-position:
+        0 0,
+        0 22px,
+        0 44px,
+        0 66px,
+        0 88px;
+    background-repeat: no-repeat;
+    min-height: 110px;
+}
+
+.dark #hiragana-text:empty,
+.dark #translation-text:empty,
+.dark #summary-text:empty,
+.dark #hiragana-text-mobile:empty,
+.dark #translation-text-mobile:empty {
+    background-image:
+        linear-gradient(#334155 7px, transparent 7px), linear-gradient(#334155 7px, transparent 7px),
+        linear-gradient(#334155 7px, transparent 7px), linear-gradient(#334155 7px, transparent 7px),
+        linear-gradient(#334155 7px, transparent 7px);
+}
+
+/* ============================================================
+   入力ソースエリア: 録音開始でフェードアウト
+   ============================================================ */
+#source-area {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    overflow: hidden;
+    max-height: 200px;
+    opacity: 1;
+    transition:
+        max-height 0.6s ease,
+        opacity 0.4s ease;
+}
+
+body.recording #source-area {
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ============================================================
+   モバイルカードタブ
+   ============================================================ */
+.mobile-tab-btn {
+    padding: 0.5rem 1rem;
+    font-size: 12px;
+    font-weight: 500;
+    color: #94a3b8;
+    border-bottom: 2px solid transparent;
+    transition:
+        color 0.2s,
+        border-color 0.2s;
+    white-space: nowrap;
+}
+
+.mobile-tab-btn.active {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+}
+
+.dark .mobile-tab-btn {
+    color: #64748b;
+}
+
+.dark .mobile-tab-btn.active {
+    color: #3b82f6;
+}
+
+/* ============================================================
+   Zenモード（書籍スタイル）
+   ============================================================ */
+body.zen-mode #left-sidebar {
+    display: none;
+}
+
+body.zen-mode #right-sidebar {
+    display: none;
+}
+
+body.zen-mode #mobile-card-tabs {
+    display: none;
+}
+
+body.zen-mode #status-dot {
+    display: none !important;
+}
+
+body.zen-mode header {
+    background: transparent;
+    backdrop-filter: none;
+}
+
+body.zen-mode header>div:first-child {
+    visibility: hidden;
+}
+
+body.zen-mode #settings-btn {
+    display: none;
+}
+
+body.zen-mode #dark-toggle {
+    visibility: hidden;
+}
+
+body.zen-mode {
+    background-color: #fafaf7 !important;
+}
+
+body.zen-mode #transcription-card {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    border-radius: 0;
+}
+
+body.zen-mode #transcription-wrapper {
+    max-width: 700px;
+}
+
+body.zen-mode #transcription-text {
+    font-size: 19px;
+    line-height: 2.05;
+    letter-spacing: 0.01em;
+    color: #2d3142;
+    padding-bottom: 5rem;
+}
+
+body.zen-mode #card-controls {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    padding: 0;
+    background: transparent;
+    border-radius: 9999px;
+}
+
+body.zen-mode.recording #card-controls {
+    opacity: 0.3;
+    transition: opacity 0.3s;
+}
+
+body.zen-mode.recording #card-controls:hover {
+    opacity: 1;
+}
+
+body.zen-mode #volume-meter,
+body.zen-mode #video-time-display {
+    display: none !important;
+}
+
+body.zen-mode #volume-row {
+    display: none !important;
+}
+
+body.zen-mode #download-button {
+    display: none;
+}
+
+#zen-exit-float {
+    display: none;
+}
+
+/* トランジション */
+#left-sidebar,
+#right-sidebar {
+    transition: all 0.3s ease;
+}
+
+#transcription-wrapper {
+    transition: max-width 0.3s ease;
+}
+
+#transcription-card {
+    transition:
+        background 0.3s ease,
+        border-color 0.3s ease,
+        box-shadow 0.3s ease;
+}
+
+body {
+    transition: background-color 0.3s ease;
+}
+
+/* モバイル設定ドロワー */
+#settings-drawer {
+    transition: transform 0.3s ease;
+}
+
+#settings-overlay {
+    transition: opacity 0.3s ease;
+}

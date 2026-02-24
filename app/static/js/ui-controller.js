@@ -7,9 +7,9 @@ class UIController {
     constructor() {
         // DOM要素の参照
         this.startButton = document.getElementById("start-button");
-        this.stopButton = document.getElementById("stop-button");
+        this.stopButton = this.startButton; // 1ボタン方式：同じ要素を参照
         this.downloadButton = document.getElementById("download-button");
-        this.statusText = document.getElementById("status-text");
+        this.statusDot = document.getElementById("status-dot");
         this.volumeMeter = document.getElementById("volume-meter");
         this.volumeBar = document.getElementById("volume-bar");
 
@@ -19,6 +19,8 @@ class UIController {
         this.translationText = document.getElementById("translation-text");
         this.hiraganaSection = document.querySelector(".hiragana-results");
         this.translationSection = document.getElementById("translation-section");
+        this.hiraganaTextMobile = document.getElementById("hiragana-text-mobile");
+        this.translationTextMobile = document.getElementById("translation-text-mobile");
 
         this.deviceSelector = document.getElementById("device-selector");
         this.toastContainer = document.getElementById("toast-container");
@@ -57,6 +59,8 @@ class UIController {
             this.hiraganaText.classList.add("processing");
         }
         // 翻訳セクションが表示中なら翻訳中インジケーターを表示
+        if (this.hiraganaTextMobile) { this.hiraganaTextMobile.innerHTML = ""; }
+        if (this.translationTextMobile) { this.translationTextMobile.textContent = ""; }
         if (this.translationText) {
             this.translationText.textContent = "";
             this.translationText.classList.add("processing");
@@ -65,14 +69,12 @@ class UIController {
     }
 
     /**
-     * ステータスメッセージを設定
+     * ステータスドットの色を設定
      *
-     * @param {string} message - 表示メッセージ
-     * @param {string} type - ステータスタイプ (info, success, error, recording)
+     * @param {string} type - ステータスタイプ (info, success, error, recording, processing)
      */
-    setStatus(message, type = "info") {
-        this.statusText.textContent = message;
-        this.statusText.className = `status ${type}`;
+    setStatus(type = "info") {
+        this.statusDot.className = `status-dot ${type}`;
     }
 
     /**
@@ -184,6 +186,9 @@ class UIController {
                 this.translationText.classList.remove("processing");
                 this.translationText.textContent = newConfirmedTranslation;
                 console.log("✅ 翻訳完了");
+                if (this.translationTextMobile) {
+                    this.translationTextMobile.textContent = newConfirmedTranslation;
+                }
             }
 
             return;
@@ -334,6 +339,10 @@ class UIController {
         this.hiraganaText.classList.remove("processing");
         this.hiraganaText.textContent = confirmedText;
         this.hiraganaText.scrollTop = this.hiraganaText.scrollHeight;
+        if (this.hiraganaTextMobile) {
+            this.hiraganaTextMobile.textContent = confirmedText;
+            this.hiraganaTextMobile.scrollTop = this.hiraganaTextMobile.scrollHeight;
+        }
     }
 
     /**
@@ -342,13 +351,23 @@ class UIController {
      * @param {boolean} isRecording - 録音中かどうか
      */
     setButtonsState(isRecording) {
-        this.startButton.disabled = isRecording;
-        this.stopButton.disabled = !isRecording;
+        const icon = this.startButton.querySelector(".material-symbols-outlined");
 
-        // 録音中はダウンロードボタンを無効化
-        if (isRecording && this.downloadButton) {
-            this.downloadButton.disabled = true;
+        if (isRecording) {
+            // 録音中：赤いstopボタン
+            this.startButton.classList.add("recording");
+            if (icon) icon.textContent = "stop";
+            this.startButton.disabled = false;
+            if (this.downloadButton) this.downloadButton.disabled = true;
+        } else {
+            // 待機中：青いplayボタン
+            this.startButton.classList.remove("recording");
+            if (icon) icon.textContent = "play_arrow";
+            this.startButton.disabled = false;
         }
+
+        // ソースエリアのフェードアウト/イン
+        document.body.classList.toggle("recording", isRecording);
     }
 
     /**
@@ -377,9 +396,11 @@ class UIController {
      * @param {string} message - エラーメッセージ
      */
     showError(message) {
-        this.setStatus(`エラー: ${message}`, "error");
+        this.setStatus("error");
         this.showToast(message, "error", 5000);
     }
+
+
 
     /**
      * トースト通知を表示
@@ -439,7 +460,7 @@ class UIController {
      */
     toggleHiraganaSection(enabled) {
         if (this.hiraganaSection) {
-            this.hiraganaSection.style.display = enabled ? "block" : "none";
+            this.hiraganaSection.classList.toggle("inactive", !enabled);
         }
     }
 
@@ -450,7 +471,7 @@ class UIController {
      */
     toggleTranslationSection(enabled) {
         if (this.translationSection) {
-            this.translationSection.style.display = enabled ? "block" : "none";
+            this.translationSection.classList.toggle("inactive", !enabled);
         }
     }
 
@@ -464,6 +485,8 @@ class UIController {
         this.hiraganaText.classList.remove("processing");
         this.hiraganaText.innerHTML = "";
 
+        if (this.hiraganaTextMobile) { this.hiraganaTextMobile.innerHTML = ""; }
+        if (this.translationTextMobile) { this.translationTextMobile.textContent = ""; }
         if (this.translationText) {
             this.translationText.classList.remove("processing");
             this.translationText.textContent = "";

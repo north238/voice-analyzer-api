@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "リアルタイム音声文字起こし",
+  "name": "ZenVoice",
   "version": "1.0.0",
   "description": "Webページのタブ音声をリアルタイムで文字起こし・翻訳します",
   "icons": {
@@ -30,8 +30,12 @@
   "options_page": "settings/settings.html",
   "web_accessible_resources": [
     {
-      "resources": ["sidepanel/js/audio-processor.js"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "sidepanel/js/audio-processor.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }
