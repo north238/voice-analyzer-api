@@ -316,7 +316,8 @@ class RealtimeTranscriptionApp {
         if (this.wsClient) {
             this.wsClient.sendEndMessage();
 
-            // タイムアウト処理: 20秒待ってもsession_endが来なければ強制切断
+            // タイムアウト処理: 要約有効時は120秒、それ以外は20秒
+            const timeoutMs = this.processingOptions.enableSummary ? 120000 : 20000;
             this.disconnectTimeout = setTimeout(() => {
                 console.warn("⚠️ session_end待機タイムアウト。強制切断します。");
 
@@ -326,7 +327,7 @@ class RealtimeTranscriptionApp {
                 this.forceCleanup();
                 this.uiController.setStateIndicator("idle");
                 this.uiController.showToast("タイムアウトにより接続を切断しました", "warning");
-            }, 20000);
+            }, timeoutMs);
         }
     }
 

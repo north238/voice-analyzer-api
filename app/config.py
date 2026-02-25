@@ -51,7 +51,7 @@ class Settings:
     )
 
     # Ollama設定
-    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
+    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://local-llm:11434")
     OLLAMA_MODEL: str = "gemma2:2b-instruct-q8_0"
     OLLAMA_TIMEOUT: int = 120
     OLLAMA_TEMPERATURE: float = 0.3
