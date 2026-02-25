@@ -69,6 +69,11 @@ class RealtimeTranscriptionApp {
                 this.uiController.toggleTranslationSection(e.target.checked);
             });
 
+            document.getElementById("enable-summary").addEventListener("change", (e) => {
+                this.processingOptions.enableSummary = e.target.checked;
+                this.uiController.toggleSummarySection(e.target.checked);
+            });
+
             // ボタンイベント設定（1ボタントグル）
             this.uiController.startButton.addEventListener("click", () => {
                 if (this.isRecording) {
@@ -83,6 +88,11 @@ class RealtimeTranscriptionApp {
                     this.inputSource,
                     this.processingOptions
                 );
+            });
+
+            // 要約ボタンのイベントリスナー
+            document.getElementById("summary-button").addEventListener("click", () => {
+                this.requestSummary();
             });
 
             this.uiController.setStatus("success");
@@ -330,12 +340,20 @@ class RealtimeTranscriptionApp {
                     });
                 }
 
+                // 自動要約結果の表示
+                if (data.summary) {
+                    this.uiController.showSummary(data.summary);
+                }
+
                 this.uiController.setStatus("success");
 
                 // ダウンロードボタンを有効化
                 if (this.uiController.transcriptionHistory.length > 0) {
                     this.uiController.downloadButton.disabled = false;
                     console.log("📥 ダウンロードボタンを有効化しました");
+
+                    // 要約ボタンを有効化（手動要約用）
+                    document.getElementById("summary-button").disabled = false;
                 }
 
                 // session_end受信後にクリーンアップ
@@ -552,6 +570,43 @@ class RealtimeTranscriptionApp {
                 this.uiController.setStatus("success");
                 this.uiController.showToast("タイムアウトにより接続を切断しました", "warning");
             }, 20000);
+        }
+    }
+
+    /**
+     * 手動要約リクエスト
+     */
+    async requestSummary() {
+        const confirmedText = this.uiController.getConfirmedText();
+        if (!confirmedText) {
+            this.uiController.showToast("要約するテキストがありません", "warning");
+            return;
+        }
+
+        this.uiController.showSummaryLoading(true);
+        document.getElementById("summary-button").disabled = true;
+
+        try {
+            const httpUrl = `http://${window.location.host}`;
+            const response = await fetch(`${httpUrl}/summarize`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: confirmedText }),
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                this.uiController.showSummary(result.summary);
+            } else {
+                this.uiController.showToast(result.message || "要約に失敗しました", "error");
+            }
+        } catch (error) {
+            console.error("要約エラー:", error);
+            this.uiController.showToast("要約リクエストに失敗しました", "error");
+        } finally {
+            this.uiController.showSummaryLoading(false);
+            document.getElementById("summary-button").disabled = false;
         }
     }
 

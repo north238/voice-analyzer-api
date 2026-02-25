@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>見る時間を、読む時間へ</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500;600;700&family=Noto+Sans+JP:wght@300;400;500&family=DM+Serif+Display:ital@0;1&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --ink: #1a1714;
+            --paper: #f5f0e8;
+            --paper-dark: #ede7d9;
+            --accent: #2d5a3d;
+            --accent-light: #4a7c5f;
+            --muted: #7a7168;
+            --line: #d4ccbb;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background: var(--paper);
+            color: var(--ink);
+            font-family: "Noto Sans JP", sans-serif;
+            font-weight: 300;
+            overflow-x: hidden;
+        }
+
+        /* ── NOISE TEXTURE OVERLAY ── */
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0.5;
+        }
+
+        /* ── HERO ── */
+        .hero {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-left {
+            background: var(--ink);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 80px 60px;
+            position: relative;
+        }
+
+        .hero-left::after {
+            content: "";
+            position: absolute;
+            right: -1px;
+            top: 0;
+            bottom: 0;
+            width: 60px;
+            background: var(--paper);
+            clip-path: polygon(100% 0, 100% 100%, 0 100%);
+        }
+
+        .hero-eyebrow {
+            font-family: "Noto Sans JP", sans-serif;
+            font-size: 0.75rem;
+            letter-spacing: 0.25em;
+            color: var(--accent-light);
+            text-transform: uppercase;
+            margin-bottom: 40px;
+            opacity: 0;
+            animation: fadeUp 0.8s ease 0.2s forwards;
+        }
+
+        .hero-sub {
+            font-family: "Shippori Mincho", serif;
+            font-size: clamp(1rem, 2vw, 1.2rem);
+            color: #a09080;
+            line-height: 2;
+            margin-bottom: 48px;
+            opacity: 0;
+            animation: fadeUp 0.8s ease 0.4s forwards;
+        }
+
+        .hero-title {
+            font-family: "Shippori Mincho", serif;
+            font-size: clamp(2.2rem, 4vw, 3.2rem);
+            color: var(--paper);
+            line-height: 1.4;
+            font-weight: 700;
+            opacity: 0;
+            animation: fadeUp 0.8s ease 0.6s forwards;
+        }
+
+        .hero-title em {
+            font-style: italic;
+            color: #c8b89a;
+        }
+
+        .hero-right {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 80px 80px 80px 100px;
+            position: relative;
+        }
+
+        .hero-tagline {
+            font-family: "DM Serif Display", serif;
+            font-size: clamp(2.8rem, 5vw, 5rem);
+            color: var(--ink);
+            line-height: 1.15;
+            opacity: 0;
+            animation: fadeUp 0.8s ease 0.8s forwards;
+        }
+
+        .hero-tagline span {
+            display: block;
+            color: var(--accent);
+        }
+
+        .hero-divider {
+            width: 48px;
+            height: 2px;
+            background: var(--accent);
+            margin: 40px 0;
+            opacity: 0;
+            animation: fadeUp 0.8s ease 1s forwards;
+        }
+
+        .hero-desc {
+            font-size: 1rem;
+            color: var(--muted);
+            line-height: 1.9;
+            max-width: 360px;
+            opacity: 0;
+            animation: fadeUp 0.8s ease 1.1s forwards;
+        }
+
+        /* ── SECTION BASE ── */
+        section {
+            padding: 120px 0;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 40px;
+        }
+
+        .section-label {
+            font-size: 0.7rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 60px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .section-label::after {
+            content: "";
+            display: block;
+            width: 48px;
+            height: 1px;
+            background: var(--accent);
+        }
+
+        /* ── EMPATHY ── */
+        .empathy {
+            background: var(--paper-dark);
+            border-top: 1px solid var(--line);
+            border-bottom: 1px solid var(--line);
+        }
+
+        .empathy-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2px;
+        }
+
+        .empathy-card {
+            background: var(--paper);
+            padding: 56px 48px;
+            position: relative;
+            overflow: hidden;
+            transition: background 0.3s ease;
+        }
+
+        .empathy-card::before {
+            content: '"';
+            position: absolute;
+            top: 24px;
+            left: 40px;
+            font-family: "DM Serif Display", serif;
+            font-size: 6rem;
+            color: var(--line);
+            line-height: 1;
+            pointer-events: none;
+        }
+
+        .empathy-card:hover {
+            background: #f0ebe0;
+        }
+
+        .empathy-text {
+            font-family: "Shippori Mincho", serif;
+            font-size: 1.3rem;
+            line-height: 1.9;
+            color: var(--ink);
+            position: relative;
+            z-index: 1;
+            padding-top: 48px;
+        }
+
+        /* ── SOLUTION ── */
+        .solution {
+            position: relative;
+        }
+
+        .solution-inner {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 80px;
+            align-items: center;
+        }
+
+        .solution-visual {
+            background: var(--ink);
+            border-radius: 2px;
+            padding: 56px 48px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .solution-visual::before {
+            content: "";
+            position: absolute;
+            top: -40px;
+            right: -40px;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: var(--accent);
+            opacity: 0.15;
+        }
+
+        .solution-lines {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .solution-line {
+            height: 2px;
+            background: #3a3530;
+            border-radius: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .solution-line::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, var(--accent-light), transparent);
+            animation: scanLine 3s ease infinite;
+            animation-delay: var(--d, 0s);
+        }
+
+        .solution-line:nth-child(1) {
+            width: 100%;
+            --d: 0s;
+        }
+
+        .solution-line:nth-child(2) {
+            width: 85%;
+            --d: 0.3s;
+        }
+
+        .solution-line:nth-child(3) {
+            width: 92%;
+            --d: 0.6s;
+        }
+
+        .solution-line:nth-child(4) {
+            width: 70%;
+            --d: 0.9s;
+        }
+
+        .solution-line:nth-child(5) {
+            width: 88%;
+            --d: 1.2s;
+        }
+
+        .solution-line:nth-child(6) {
+            width: 60%;
+            --d: 1.5s;
+        }
+
+        .solution-label {
+            font-family: "Noto Sans JP", sans-serif;
+            font-size: 0.7rem;
+            letter-spacing: 0.2em;
+            color: var(--accent-light);
+            margin-top: 32px;
+        }
+
+        .solution-content h2 {
+            font-family: "Shippori Mincho", serif;
+            font-size: clamp(1.6rem, 3vw, 2.2rem);
+            line-height: 1.7;
+            margin-bottom: 32px;
+        }
+
+        .solution-before-after {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .ba-item {
+            font-family: "DM Serif Display", serif;
+            font-size: 1.3rem;
+        }
+
+        .ba-arrow {
+            color: var(--accent);
+            font-size: 1.5rem;
+        }
+
+        .ba-item.after {
+            color: var(--accent);
+        }
+
+        .solution-quote {
+            font-family: "Shippori Mincho", serif;
+            font-size: 1.1rem;
+            color: var(--muted);
+            line-height: 1.9;
+            border-left: 3px solid var(--accent);
+            padding-left: 24px;
+        }
+
+        /* ── FEATURES ── */
+        .features {
+            background: var(--ink);
+            color: var(--paper);
+        }
+
+        .features .section-label {
+            color: var(--accent-light);
+        }
+
+        .features .section-label::after {
+            background: var(--accent-light);
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+        }
+
+        .feature-card {
+            background: #221f1b;
+            padding: 56px 40px;
+            position: relative;
+            overflow: hidden;
+            transition: background 0.3s ease;
+        }
+
+        .feature-card:hover {
+            background: #2a2620;
+        }
+
+        .feature-number {
+            font-family: "DM Serif Display", serif;
+            font-size: 4rem;
+            color: #2a2620;
+            position: absolute;
+            top: 24px;
+            right: 32px;
+            line-height: 1;
+            transition: color 0.3s ease;
+        }
+
+        .feature-card:hover .feature-number {
+            color: #352f28;
+        }
+
+        .feature-icon {
+            width: 40px;
+            height: 40px;
+            margin-bottom: 32px;
+            color: var(--accent-light);
+        }
+
+        .feature-title {
+            font-family: "Shippori Mincho", serif;
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--paper);
+        }
+
+        .feature-desc {
+            font-size: 0.9rem;
+            line-height: 1.9;
+            color: #9a9080;
+        }
+
+        /* ── CTA ── */
+        .cta {
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta::before {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(45, 90, 61, 0.08) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .cta-eyebrow {
+            font-size: 0.75rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 40px;
+        }
+
+        .cta h2 {
+            font-family: "Shippori Mincho", serif;
+            font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .cta-sub {
+            font-family: "DM Serif Display", serif;
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            color: var(--accent);
+            margin-bottom: 60px;
+            font-style: italic;
+        }
+
+        .cta-btn {
+            display: inline-block;
+            background: var(--ink);
+            color: var(--paper);
+            font-family: "Noto Sans JP", sans-serif;
+            font-size: 0.85rem;
+            letter-spacing: 0.15em;
+            padding: 20px 56px;
+            text-decoration: none;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease;
+        }
+
+        .cta-btn::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: var(--accent);
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+
+        .cta-btn:hover::before {
+            transform: translateX(0);
+        }
+
+        .cta-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .cta-btn span {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ── FOOTER ── */
+        footer {
+            border-top: 1px solid var(--line);
+            padding: 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer-mark {
+            font-family: "DM Serif Display", serif;
+            font-size: 1.2rem;
+            color: var(--ink);
+        }
+
+        .footer-note {
+            font-size: 0.75rem;
+            color: var(--muted);
+            letter-spacing: 0.1em;
+        }
+
+        /* ── ANIMATIONS ── */
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(24px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes scanLine {
+            0% {
+                transform: translateX(-100%);
+                opacity: 0;
+            }
+
+            20% {
+                opacity: 1;
+            }
+
+            80% {
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateX(200%);
+                opacity: 0;
+            }
+        }
+
+        /* scroll reveal */
+        .reveal {
+            opacity: 0;
+            transform: translateY(32px);
+            transition:
+                opacity 0.8s ease,
+                transform 0.8s ease;
+        }
+
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .reveal-delay-1 {
+            transition-delay: 0.1s;
+        }
+
+        .reveal-delay-2 {
+            transition-delay: 0.2s;
+        }
+
+        .reveal-delay-3 {
+            transition-delay: 0.3s;
+        }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 768px) {
+            .hero {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-left {
+                padding: 60px 32px 80px;
+            }
+
+            .hero-left::after {
+                display: none;
+            }
+
+            .hero-right {
+                padding: 60px 32px;
+            }
+
+            .empathy-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .solution-inner {
+                grid-template-columns: 1fr;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            footer {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- HERO -->
+    <section class="hero">
+        <div class="hero-left">
+            <p class="hero-eyebrow">Zen Voice</p>
+            <p class="hero-sub">動画ばかりに気を取られて<br />音声が頭に入らないあなたへ</p>
+            <h1 class="hero-title">
+                聴くだけでは<br />
+                もったいない。<br />
+                <em>読めばいい。</em>
+            </h1>
+        </div>
+        <div class="hero-right">
+            <h2 class="hero-tagline">
+                見る時間を、
+                <span>読む時間へ。</span>
+            </h2>
+            <div class="hero-divider"></div>
+            <p class="hero-desc">
+                音声・動画コンテンツを、本を読むような感覚でテキストとして読む。それだけで、インプットの質が変わる。
+            </p>
+        </div>
+    </section>
+
+    <!-- EMPATHY -->
+    <section class="empathy">
+        <div class="container">
+            <p class="section-label reveal">こんな経験、ありませんか</p>
+            <div class="empathy-grid">
+                <div class="empathy-card reveal reveal-delay-1">
+                    <p class="empathy-text">気がつけば、動画を<br />再生することが<br />目的になっていた。</p>
+                </div>
+                <div class="empathy-card reveal reveal-delay-2">
+                    <p class="empathy-text">次に見る動画を考えていて、<br />内容は何も<br />残っていなかった。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SOLUTION -->
+    <section class="solution">
+        <div class="container">
+            <p class="section-label reveal">解決策</p>
+            <div class="solution-inner">
+                <div class="solution-visual reveal">
+                    <div class="solution-lines">
+                        <div class="solution-line"></div>
+                        <div class="solution-line"></div>
+                        <div class="solution-line"></div>
+                        <div class="solution-line"></div>
+                        <div class="solution-line"></div>
+                        <div class="solution-line"></div>
+                    </div>
+                    <p class="solution-label">— TRANSCRIBING AUDIO</p>
+                </div>
+                <div class="solution-content reveal reveal-delay-1">
+                    <h2>動画コンテンツの音声だけを抜き出して、テキストを読みやすい形で出力します。</h2>
+                    <div class="solution-before-after">
+                        <span class="ba-item">見る</span>
+                        <span class="ba-arrow">→</span>
+                        <span class="ba-item after">読む</span>
+                    </div>
+                    <p class="solution-quote">だから動画の内容が<br />頭に入ってくる。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="features">
+        <div class="container">
+            <p class="section-label reveal">機能・特徴</p>
+            <div class="features-grid">
+                <div class="feature-card reveal reveal-delay-1">
+                    <span class="feature-number">01</span>
+                    <svg
+                        class="feature-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5">
+                        <path d="M12 18.5a6.5 6.5 0 100-13 6.5 6.5 0 000 13z" />
+                        <path d="M12 14a2 2 0 100-4 2 2 0 000 4z" fill="currentColor" stroke="none" />
+                        <path d="M12 2v2M12 20v2M2 12h2M20 12h2" />
+                    </svg>
+                    <h3 class="feature-title">音声テキスト変換</h3>
+                    <p class="feature-desc">
+                        マイクに向かって話したり、動画を共有するだけで本を読むような感覚で文字を読むことができます。
+                    </p>
+                </div>
+                <div class="feature-card reveal reveal-delay-2">
+                    <span class="feature-number">02</span>
+                    <svg
+                        class="feature-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5">
+                        <rect x="3" y="3" width="18" height="18" rx="1" />
+                        <path d="M3 9h18M9 21V9" />
+                    </svg>
+                    <h3 class="feature-title">没入体験</h3>
+                    <p class="feature-desc">
+                        特別なZenモードを使用すると本を読んでいる感覚でテキストを読むことができます。余分な要素を排除し、読むことだけに集中。
+                    </p>
+                </div>
+                <div class="feature-card reveal reveal-delay-3">
+                    <span class="feature-number">03</span>
+                    <svg
+                        class="feature-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5">
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M12 8v4l3 3" />
+                    </svg>
+                    <h3 class="feature-title">簡単な操作</h3>
+                    <p class="feature-desc">
+                        ボタンタップ回数を極限まで減らしてすぐにテキストを読むことができます。開くたびに、すぐ始められる。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta">
+        <div class="container">
+            <p class="cta-eyebrow reveal">始めましょう</p>
+            <h2 class="reveal reveal-delay-1">「見る」から「読む」へ、<br />インプットの質を上げてみませんか？</h2>
+            <p class="cta-sub reveal reveal-delay-2">今すぐ、試してみる。</p>
+            <a href="#" class="cta-btn reveal reveal-delay-3">
+                <span>サイトへアクセスする</span>
+            </a>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+        <span class="footer-mark">Zen Voice</span>
+        <span class="footer-note">見る時間を、読む時間へ。</span>
+    </footer>
+
+    <script>
+        // Scroll reveal
+        const reveals = document.querySelectorAll(".reveal");
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add("visible");
+                    }
+                });
+            },
+            { threshold: 0.15 },
+        );
+
+        reveals.forEach((el) => observer.observe(el));
+    </script>
+</body>
+
+</html>

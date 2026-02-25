@@ -60,6 +60,17 @@ class Settings:
     OLLAMA_TOP_P: float = 0.9
     OLLAMA_REPEAT_PENALTY: float = 1.1
 
+    # 要約設定（Phase 13追加）
+    SUMMARY_PROVIDER: str = os.getenv("SUMMARY_PROVIDER", "ollama")  # "ollama" or "gemini"
+    # Ollama要約用（デフォルトプロバイダー）
+    OLLAMA_SUMMARY_MODEL: str = os.getenv("OLLAMA_SUMMARY_MODEL", "gemma2:2b-instruct-q8_0")
+    OLLAMA_SUMMARY_NUM_PREDICT: int = int(os.getenv("OLLAMA_SUMMARY_NUM_PREDICT", "1024"))
+    # Gemini要約用
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    GEMINI_MAX_OUTPUT_TOKENS: int = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "512"))
+    GEMINI_TEMPERATURE: float = float(os.getenv("GEMINI_TEMPERATURE", "0.3"))
+
     # 翻訳設定
     TRANSLATION_MODEL: str = os.getenv(
         "TRANSLATION_MODEL", "Helsinki-NLP/opus-mt-ja-en"

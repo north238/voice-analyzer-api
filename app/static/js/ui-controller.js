@@ -42,6 +42,12 @@ class UIController {
         this.transcriptionHistory = [];
         this.finalHiragana = "";
         this.finalTranslation = "";
+        this.finalSummary = "";
+
+        // 要約関連DOM
+        this.summaryCard = document.getElementById("summary-card");
+        this.summaryText = document.getElementById("summary-text");
+        this.summaryLoading = document.getElementById("summary-loading");
     }
 
     /**
@@ -53,6 +59,9 @@ class UIController {
         this.transcriptionHistory = [];
         this.finalHiragana = "";
         this.finalTranslation = "";
+        this.finalSummary = "";
+        // 要約テキストをリセット（カードは常時表示）
+        if (this.summaryText) this.summaryText.textContent = "";
         // ひらがなセクションが表示中なら変換中インジケーターを表示
         if (this.hiraganaText) {
             this.hiraganaText.textContent = "";
@@ -476,6 +485,16 @@ class UIController {
     }
 
     /**
+     * 要約セクションの表示/非表示を切り替え
+     *
+     * @param {boolean} enabled - 表示するかどうか
+     */
+    toggleSummarySection(enabled) {
+        // デスクトップ: カードは常時表示（トグルは自動要約の有効/無効のみ制御）
+        // モバイル: タブの表示/非表示は main.js で制御
+    }
+
+    /**
      * すべてのテキスト表示をクリア
      * 新しい録音セッション開始時に呼び出される
      */
@@ -503,6 +522,10 @@ class UIController {
 
         this.currentConfirmedText = "";
         this.currentHiraganaConfirmed = "";
+
+        // 要約リセット（カードは常時表示）
+        this.finalSummary = "";
+        if (this.summaryText) this.summaryText.textContent = "";
 
         // セッションデータをリセット
         this.sessionStartTime = null;
@@ -616,6 +639,12 @@ class UIController {
             content += `${this.finalTranslation}\n`;
         }
 
+        // 要約セクション
+        if (this.finalSummary) {
+            content += "\n--- 要約 ---\n";
+            content += `${this.finalSummary}\n`;
+        }
+
         return content;
     }
 
@@ -685,6 +714,44 @@ class UIController {
                 indicator.style.display = "none";
                 indicator.style.animation = "fadeInOut 0.3s ease-in-out";
             }, 300);
+        }
+    }
+
+    /**
+     * 確定テキストを取得
+     *
+     * @returns {string} - 現在の確定テキスト
+     */
+    getConfirmedText() {
+        return this.currentConfirmedText || "";
+    }
+
+    /**
+     * 要約結果を表示
+     *
+     * @param {string} summary - 要約テキスト
+     */
+    showSummary(summary) {
+        this.finalSummary = summary;
+        if (this.summaryText) this.summaryText.textContent = summary;
+        if (this.summaryLoading) this.summaryLoading.style.display = "none";
+        // モバイル要約パネルにも反映
+        const summaryTextMobile = document.getElementById("summary-text-mobile");
+        if (summaryTextMobile) summaryTextMobile.textContent = summary;
+        console.log("📝 要約を表示しました");
+    }
+
+    /**
+     * 要約ローディング表示の切り替え
+     *
+     * @param {boolean} loading - ローディング中かどうか
+     */
+    showSummaryLoading(loading) {
+        if (this.summaryLoading) {
+            this.summaryLoading.style.display = loading ? "flex" : "none";
+        }
+        if (this.summaryText && loading) {
+            this.summaryText.textContent = "";
         }
     }
 

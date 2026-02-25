@@ -7,7 +7,8 @@ const DEFAULT_CONFIG = {
     apiServerUrl: 'ws://localhost:5001',
     showAdvancedFeatures: false,
     defaultHiragana: false,
-    defaultTranslation: false
+    defaultTranslation: false,
+    defaultSummary: false
 };
 
 // DOM要素
@@ -15,9 +16,11 @@ const apiServerUrlInput = document.getElementById('apiServerUrl');
 const showAdvancedFeaturesCheckbox = document.getElementById('showAdvancedFeatures');
 const defaultHiraganaCheckbox = document.getElementById('defaultHiragana');
 const defaultTranslationCheckbox = document.getElementById('defaultTranslation');
+const defaultSummaryCheckbox = document.getElementById('defaultSummary');
 const advancedSubOptions = document.getElementById('advancedSubOptions');
 const labelDefaultHiragana = document.getElementById('labelDefaultHiragana');
 const labelDefaultTranslation = document.getElementById('labelDefaultTranslation');
+const labelDefaultSummary = document.getElementById('labelDefaultSummary');
 const saveButton = document.getElementById('saveButton');
 const resetButton = document.getElementById('resetButton');
 const messageElement = document.getElementById('message');
@@ -31,13 +34,17 @@ function updateAdvancedSubOptionsState(enabled) {
     if (enabled) {
         labelDefaultHiragana.classList.remove('disabled');
         labelDefaultTranslation.classList.remove('disabled');
+        labelDefaultSummary.classList.remove('disabled');
         defaultHiraganaCheckbox.disabled = false;
         defaultTranslationCheckbox.disabled = false;
+        defaultSummaryCheckbox.disabled = false;
     } else {
         labelDefaultHiragana.classList.add('disabled');
         labelDefaultTranslation.classList.add('disabled');
+        labelDefaultSummary.classList.add('disabled');
         defaultHiraganaCheckbox.disabled = true;
         defaultTranslationCheckbox.disabled = true;
+        defaultSummaryCheckbox.disabled = true;
     }
 }
 
@@ -68,6 +75,7 @@ async function loadSettings() {
         showAdvancedFeaturesCheckbox.checked = config.showAdvancedFeatures;
         defaultHiraganaCheckbox.checked = config.defaultHiragana;
         defaultTranslationCheckbox.checked = config.defaultTranslation;
+        defaultSummaryCheckbox.checked = config.defaultSummary;
 
         // 上級者向けサブオプションの初期状態を反映
         updateAdvancedSubOptionsState(config.showAdvancedFeatures);
@@ -88,7 +96,8 @@ async function saveSettings() {
             apiServerUrl: apiServerUrlInput.value.trim(),
             showAdvancedFeatures: showAdvancedFeaturesCheckbox.checked,
             defaultHiragana: defaultHiraganaCheckbox.checked,
-            defaultTranslation: defaultTranslationCheckbox.checked
+            defaultTranslation: defaultTranslationCheckbox.checked,
+            defaultSummary: defaultSummaryCheckbox.checked
         };
 
         // URLのバリデーション
@@ -125,6 +134,7 @@ async function resetSettings() {
         showAdvancedFeaturesCheckbox.checked = DEFAULT_CONFIG.showAdvancedFeatures;
         defaultHiraganaCheckbox.checked = DEFAULT_CONFIG.defaultHiragana;
         defaultTranslationCheckbox.checked = DEFAULT_CONFIG.defaultTranslation;
+        defaultSummaryCheckbox.checked = DEFAULT_CONFIG.defaultSummary;
 
         updateAdvancedSubOptionsState(DEFAULT_CONFIG.showAdvancedFeatures);
 

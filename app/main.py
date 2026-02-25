@@ -305,6 +305,47 @@ async def process_text(request: ProcessTextRequest):
     return JSONResponse(status_code=200, content=result)
 
 
+class SummarizeRequest(BaseModel):
+    text: str
+    api_key: Optional[str] = None
+
+
+@app.post("/summarize")
+async def summarize(request: SummarizeRequest):
+    """テキストを要約するエンドポイント（Phase 13）"""
+    try:
+        if not request.text or not request.text.strip():
+            return JSONResponse(
+                status_code=400,
+                content={"status": "error", "message": "テキストが空です"},
+            )
+
+        from services.summarizer import summarize_text
+
+        summary = await summarize_text(request.text, api_key=request.api_key)
+
+        return JSONResponse(
+            status_code=200,
+            content={"status": "success", "summary": summary},
+        )
+
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "message": str(e)},
+        )
+    except Exception as e:
+        logger.exception("❌ 要約処理中にエラー発生")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": "要約処理中にエラーが発生しました",
+                "detail": str(e),
+            },
+        )
+
+
 @app.get("/health")
 async def health_check():
     return JSONResponse(
@@ -858,6 +899,19 @@ async def finalize_cumulative_session(session_id: str, connection):
             translated_confirmed = await translate_async(final_result.confirmed_text)
             logger.info(f"🌐 最終翻訳完了: {len(translated_confirmed)}文字")
 
+        # 要約（オプション）: 確定テキスト全体を一括要約
+        summary_text = ""
+        if options.get("summary", False) and final_result.confirmed_text:
+            try:
+                await ws_manager.send_progress(session_id, "summarizing", "要約中...", 0)
+                from services.summarizer import summarize_text
+
+                summary_text = await summarize_text(final_result.confirmed_text)
+                logger.info(f"📋 要約完了: {len(summary_text)}文字")
+            except Exception as e:
+                logger.error(f"❌ 要約エラー（スキップ）: {e}")
+                summary_text = ""
+
         # 最終結果を構築
         response_data = {
             "type": "session_end",
@@ -883,6 +937,9 @@ async def finalize_cumulative_session(session_id: str, connection):
                 "confirmed": translated_confirmed,
                 "tentative": "",
             }
+
+        if options.get("summary", False):
+            response_data["summary"] = summary_text
 
         # 最終結果を送信
         await ws_manager.send_json(session_id, response_data)

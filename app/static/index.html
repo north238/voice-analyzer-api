@@ -192,6 +192,12 @@
                                 data-panel="translation">
                                 翻訳
                             </button>
+                            <button
+                                id="mobile-tab-summary"
+                                class="mobile-tab-btn hidden"
+                                data-panel="summary">
+                                要約
+                            </button>
                         </div>
 
                         <!-- コンテンツパネル（共通ラッパー） -->
@@ -213,6 +219,13 @@
                                 <div
                                     id="translation-text-mobile"
                                     class="custom-scrollbar overflow-y-auto h-full"></div>
+                            </div>
+
+                            <!-- 要約パネル（モバイルのみ） -->
+                            <div id="mobile-panel-summary" class="hidden p-5 h-full md:hidden">
+                                <div
+                                    id="summary-text-mobile"
+                                    class="custom-scrollbar overflow-y-auto h-full text-sm text-slate-500 dark:text-slate-400 leading-relaxed"></div>
                             </div>
                         </div>
 
@@ -302,22 +315,33 @@
                 </div>
             </div>
 
-            <!-- 要約カード（実装中） -->
-            <div
-                class="flex-1 flex flex-col bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-slate-700/50 min-h-0">
+            <!-- 要約カード -->
+            <div id="summary-card"
+                class="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-white dark:border-slate-800/50 min-h-0">
                 <div class="flex items-center justify-between px-6 pt-5 pb-4 shrink-0">
                     <div class="flex items-center gap-2">
                         <span
-                            class="material-symbols-outlined text-slate-300 dark:text-slate-600 text-lg">summarize</span>
-                        <span class="text-sm font-bold text-slate-400 dark:text-slate-500">要約</span>
+                            class="material-symbols-outlined text-blue-500 text-lg">summarize</span>
+                        <span class="text-sm font-bold text-slate-700 dark:text-slate-200">要約</span>
                     </div>
-                    <span
-                        class="px-2 py-0.5 bg-amber-50 dark:bg-amber-900/20 text-[10px] text-amber-400 dark:text-amber-500 font-bold rounded uppercase tracking-wider">実装中</span>
+                    <div class="flex items-center gap-2">
+                        <button id="summary-button"
+                            class="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled title="要約を生成">
+                            <span class="material-symbols-outlined" style="font-size:16px;">auto_awesome</span>
+                        </button>
+                        <input type="checkbox" id="enable-summary" class="toggle-checkbox sr-only" />
+                        <label for="enable-summary" class="toggle-label"></label>
+                    </div>
                 </div>
-                <div class="card-body inactive flex-1 px-6 pb-5 min-h-0">
+                <div class="flex-1 px-6 pb-5 min-h-0">
                     <div
                         id="summary-text"
-                        class="text-sm text-slate-400 dark:text-slate-500 leading-relaxed custom-scrollbar overflow-y-auto h-full">
+                        class="text-sm text-slate-500 dark:text-slate-400 leading-relaxed custom-scrollbar overflow-y-auto h-full">
+                    </div>
+                    <div id="summary-loading" class="flex items-center gap-2 text-sm text-slate-400" style="display: none;">
+                        <span class="material-symbols-outlined rotating" style="font-size:16px;">progress_activity</span>
+                        <span>要約を生成中...</span>
                     </div>
                 </div>
             </div>
@@ -353,7 +377,7 @@
                 <label for="enable-hiragana-mobile" class="toggle-label"></label>
             </div>
             <!-- 翻訳トグル -->
-            <div class="flex items-center justify-between py-4">
+            <div class="flex items-center justify-between py-4 border-b border-slate-100 dark:border-slate-800">
                 <div class="flex items-center gap-2">
                     <span class="material-symbols-outlined text-blue-500 text-lg">translate</span>
                     <span class="text-sm font-medium text-slate-700 dark:text-slate-200">翻訳</span>
@@ -362,6 +386,17 @@
                 </div>
                 <input type="checkbox" id="enable-translation-mobile" class="toggle-checkbox sr-only" />
                 <label for="enable-translation-mobile" class="toggle-label"></label>
+            </div>
+            <!-- 要約トグル -->
+            <div class="flex items-center justify-between py-4">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-blue-500 text-lg">summarize</span>
+                    <span class="text-sm font-medium text-slate-700 dark:text-slate-200">要約</span>
+                    <span
+                        class="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-[10px] text-blue-500 font-bold rounded uppercase tracking-wider">AI</span>
+                </div>
+                <input type="checkbox" id="enable-summary-mobile" class="toggle-checkbox sr-only" />
+                <label for="enable-summary-mobile" class="toggle-label"></label>
             </div>
         </div>
     </div>

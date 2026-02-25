@@ -23,6 +23,11 @@ class UIController {
         this.hiraganaCardBody = document.getElementById("hiragana-pane");
         this.translationCardBody = document.getElementById("translation-pane");
 
+        // 要約関連
+        this.summaryCard = document.getElementById("summary-card");
+        this.summaryText = document.getElementById("summary-text");
+        this.summaryLoading = document.getElementById("summary-loading");
+
         this.deviceSelector = document.getElementById("device-selector");
         this.toastContainer = document.getElementById("toast-container");
 
@@ -45,6 +50,7 @@ class UIController {
         this.transcriptionHistory = [];
         this.finalHiragana = "";
         this.finalTranslation = "";
+        this.finalSummary = "";
     }
 
     /**
@@ -56,6 +62,7 @@ class UIController {
         this.transcriptionHistory = [];
         this.finalHiragana = "";
         this.finalTranslation = "";
+        this.finalSummary = "";
         console.log("📝 セッション開始時刻を記録しました");
     }
 
@@ -614,6 +621,48 @@ class UIController {
     }
 
     /**
+     * 確定テキストを取得
+     *
+     * @returns {string} - 現在の確定テキスト
+     */
+    getConfirmedText() {
+        return this.currentConfirmedText;
+    }
+
+    /**
+     * 要約を表示
+     *
+     * @param {string} summary - 要約テキスト
+     */
+    showSummary(summary) {
+        if (this.summaryCard) {
+            this.summaryCard.style.display = "";
+        }
+        if (this.summaryText) {
+            this.summaryText.textContent = summary;
+        }
+        if (this.summaryLoading) {
+            this.summaryLoading.style.display = "none";
+        }
+        this.finalSummary = summary;
+        console.log(`📋 要約表示: ${summary.length}文字`);
+    }
+
+    /**
+     * 要約ローディング表示の切り替え
+     *
+     * @param {boolean} loading - ローディング中かどうか
+     */
+    showSummaryLoading(loading) {
+        if (this.summaryLoading) {
+            this.summaryLoading.style.display = loading ? "flex" : "none";
+        }
+        if (this.summaryText && loading) {
+            this.summaryText.textContent = "";
+        }
+    }
+
+    /**
      * すべてのテキスト表示をクリア
      * 新しい録音セッション開始時に呼び出される
      */
@@ -628,6 +677,21 @@ class UIController {
         }
         if (this.tentativeTranslation) {
             this.tentativeTranslation.textContent = "";
+        }
+
+        // 要約をクリア
+        if (this.summaryCard) {
+            this.summaryCard.style.display = "none";
+        }
+        if (this.summaryText) {
+            this.summaryText.textContent = "";
+        }
+        if (this.summaryLoading) {
+            this.summaryLoading.style.display = "none";
+        }
+        const summaryButton = document.getElementById("summary-button");
+        if (summaryButton) {
+            summaryButton.disabled = true;
         }
 
         // 内部状態をリセット
@@ -647,6 +711,7 @@ class UIController {
         this.transcriptionHistory = [];
         this.finalHiragana = "";
         this.finalTranslation = "";
+        this.finalSummary = "";
 
         // タイピングアニメーションをキャンセル
         this._cancelTypingAnimations();
@@ -752,6 +817,12 @@ class UIController {
         if (processingOptions.enableTranslation && this.finalTranslation) {
             content += "\n--- 翻訳 ---\n";
             content += `${this.finalTranslation}\n`;
+        }
+
+        // 要約セクション
+        if (this.finalSummary) {
+            content += "\n--- 要約 ---\n";
+            content += `${this.finalSummary}\n`;
         }
 
         return content;

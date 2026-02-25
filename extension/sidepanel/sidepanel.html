@@ -75,6 +75,28 @@
                 </div>
             </div>
 
+            <!-- 要約カード -->
+            <div class="ios-card summary-card" id="summary-card" style="display: none;">
+                <div class="summary-header">
+                    <div class="summary-title">
+                        <span class="material-symbols-outlined" style="font-size:14px;">summarize</span>
+                        <span>要約</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <button id="summary-button" class="btn-icon" disabled title="要約を生成">
+                            <span class="material-symbols-outlined" style="font-size:18px;">auto_awesome</span>
+                        </button>
+                        <input type="checkbox" id="enable-summary" class="toggle-checkbox" />
+                        <label for="enable-summary" class="toggle-label"></label>
+                    </div>
+                </div>
+                <div id="summary-text" class="summary-body custom-scrollbar"></div>
+                <div id="summary-loading" class="summary-loading" style="display: none;">
+                    <span class="material-symbols-outlined rotating">progress_activity</span>
+                    <span>要約を生成中...</span>
+                </div>
+            </div>
+
             <!-- ひらがな/翻訳タブカード -->
             <div class="ios-card tab-card">
                 <div class="tab-header">
