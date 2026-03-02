@@ -340,11 +340,6 @@ class RealtimeTranscriptionApp {
                     });
                 }
 
-                // 自動要約結果の表示
-                if (data.summary) {
-                    this.uiController.showSummary(data.summary);
-                }
-
                 this.uiController.setStatus("success");
 
                 // ダウンロードボタンを有効化
@@ -356,7 +351,18 @@ class RealtimeTranscriptionApp {
                     document.getElementById("summary-button").disabled = false;
                 }
 
-                // session_end受信後にクリーンアップ
+                // 要約待ちでなければクリーンアップ
+                if (!this.processingOptions.enableSummary) {
+                    this.forceCleanup();
+                }
+            });
+
+            this.wsClient.on("summary_result", (data) => {
+                console.log("要約結果受信:", data);
+                if (data.summary) {
+                    this.uiController.showSummary(data.summary);
+                }
+                // 要約受信後にクリーンアップ
                 this.forceCleanup();
             });
 

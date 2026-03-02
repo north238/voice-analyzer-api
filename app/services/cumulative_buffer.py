@@ -36,6 +36,7 @@ class TranscriptionResult:
     confirmed_hiragana: str  # 確定テキストのひらがな
     tentative_hiragana: str  # 暫定テキストのひらがな
     is_final: bool  # セッション終了フラグ
+    confirmed_timestamp: float = 0.0  # 新規確定テキストの絶対タイムスタンプ（秒）
 
 
 def extract_diff(previous: str, current: str) -> Tuple[str, str]:
@@ -138,6 +139,10 @@ class CumulativeBuffer:
         # トリミング前コールバック
         self.on_before_trim_callback: Optional[callable] = None
 
+        # タイムスタンプ管理
+        self.trimmed_audio_seconds: float = 0.0  # トリミングで削除された累計秒数
+        self.last_segments: list = []  # 最後の文字起こしセグメント情報
+
         # 作成時刻
         self.created_at: datetime = datetime.now()
 
@@ -228,8 +233,37 @@ class CumulativeBuffer:
             self.total_audio_bytes > self.max_audio_bytes and len(self.audio_chunks) > 1
         ):
             removed = self.audio_chunks.pop(0)
+            removed_seconds = len(removed) / (
+                self.config.sample_rate * self.config.channels * self.config.sample_width
+            )
+            self.trimmed_audio_seconds += removed_seconds
             self.total_audio_bytes -= len(removed)
-            logger.debug(f"🗑️ 古いチャンク削除: 残り{self.current_audio_duration:.1f}秒")
+            logger.debug(
+                f"🗑️ 古いチャンク削除: {removed_seconds:.1f}秒分, "
+                f"トリミング累計={self.trimmed_audio_seconds:.1f}秒, "
+                f"残り{self.current_audio_duration:.1f}秒"
+            )
+
+    def _find_timestamp_for_text_position(self, position: int, segments: list) -> float:
+        """テキスト内の文字位置に対応するセグメントのタイムスタンプを見つける
+
+        Args:
+            position: テキスト内の文字位置
+            segments: セグメント情報リスト [{"text": "...", "start": 0.0, "end": 1.5}, ...]
+
+        Returns:
+            float: 絶対タイムスタンプ（秒）
+        """
+        current_pos = 0
+        for seg in segments:
+            seg_end_pos = current_pos + len(seg["text"])
+            if position < seg_end_pos:
+                return self.trimmed_audio_seconds + seg["start"]
+            current_pos = seg_end_pos
+        # 見つからない場合は最後のセグメントのstartを使用
+        if segments:
+            return self.trimmed_audio_seconds + segments[-1]["start"]
+        return self.trimmed_audio_seconds
 
     def get_accumulated_audio(self) -> bytes:
         """累積音声データをWAV形式で取得"""
@@ -378,7 +412,8 @@ class CumulativeBuffer:
         return prompt if prompt else None
 
     def update_transcription(
-        self, new_text: str, hiragana_converter=None, should_trim: bool = False
+        self, new_text: str, hiragana_converter=None, should_trim: bool = False,
+        segments: Optional[list] = None
     ) -> TranscriptionResult:
         """文字起こし結果を更新し、差分を計算
 
@@ -386,10 +421,15 @@ class CumulativeBuffer:
             new_text: 新しい文字起こし結果
             hiragana_converter: ひらがな変換関数（省略可）
             should_trim: トリミングが必要かどうか（デフォルトFalse）
+            segments: Whisperセグメント情報リスト（タイムスタンプ計算用）
 
         Returns:
             TranscriptionResult: 確定/暫定テキストを含む結果
         """
+        # セグメント情報を保存
+        if segments is not None:
+            self.last_segments = segments
+
         # デバッグログ
         logger.debug(f"🔍 update_transcription呼び出し (should_trim={should_trim})")
         logger.debug(f"   前回: {self.last_transcription[:50] if self.last_transcription else '(なし)'}...")
@@ -399,6 +439,8 @@ class CumulativeBuffer:
         # 新しいアプローチ: 安定性ベースの確定
         newly_confirmed = ""
         tentative = new_text
+        confirmed_timestamp = 0.0  # 新規確定テキストのタイムスタンプ
+        confirmed_text_before = len(self.confirmed_text)  # 確定テキストの更新前の長さ
 
         # ✅ confirmed_textとnew_textの重複を検出（クラスメソッドを使用）
         def remove_confirmed_overlap(confirmed: str, new: str) -> str:
@@ -504,6 +546,14 @@ class CumulativeBuffer:
         logger.debug(f"   暫定テキスト（先頭50文字）: {tentative[:50] if tentative else '(なし)'}...")
         logger.debug(f"   全体テキスト（先頭50文字）: {full_text[:50] if full_text else '(なし)'}...")
 
+        # 新規確定テキストのタイムスタンプを計算
+        if len(self.confirmed_text) > confirmed_text_before and self.last_segments:
+            # 新規確定部分の開始位置に対応するセグメントのタイムスタンプを取得
+            confirmed_timestamp = self._find_timestamp_for_text_position(
+                confirmed_text_before, self.last_segments
+            )
+            logger.debug(f"   確定タイムスタンプ: {confirmed_timestamp:.1f}秒")
+
         logger.info(
             f"📝 文字起こし更新: "
             f"確定={len(self.confirmed_text)}文字, "
@@ -530,6 +580,7 @@ class CumulativeBuffer:
             confirmed_hiragana=self.confirmed_hiragana,
             tentative_hiragana=tentative_hiragana,
             is_final=False,
+            confirmed_timestamp=confirmed_timestamp,
         )
 
     def finalize(self, hiragana_converter=None) -> TranscriptionResult:
@@ -569,6 +620,8 @@ class CumulativeBuffer:
         self.confirmed_hiragana = ""
         self.stable_count = 0
         self.previous_full_text = ""
+        self.trimmed_audio_seconds = 0.0
+        self.last_segments = []
         logger.info("🧹 CumulativeBufferをクリア")
 
     def get_stats(self) -> dict:

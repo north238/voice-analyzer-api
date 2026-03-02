@@ -50,7 +50,7 @@ def get_whisper_model() -> WhisperModel:
 
 def _transcribe_sync(
     audio_data: bytes, suffix: str = ".wav", initial_prompt: Optional[str] = None
-) -> str:
+) -> tuple:
     """
     同期的な音声文字起こし処理
 
@@ -60,7 +60,7 @@ def _transcribe_sync(
         initial_prompt: 文脈として使用する前回の文字起こし結果
 
     Returns:
-        str: 文字起こし結果
+        tuple: (文字起こし結果, セグメント情報リスト)
     """
     import re
     from faster_whisper.vad import VadOptions
@@ -134,10 +134,16 @@ def _transcribe_sync(
 
         # セグメントからテキストを抽出（Phase 12: セグメント単位の品質フィルタリング）
         texts = []
+        segments_info = []
         for s in segments:
             seg_text = s.text.strip()
             if seg_text and is_valid_text(seg_text):
                 texts.append(s.text)
+                segments_info.append({
+                    "text": s.text,
+                    "start": s.start,
+                    "end": s.end,
+                })
             elif seg_text:
                 logger.debug(f"🚫 低品質セグメント除外: {seg_text}")
         text = "".join(texts).strip()
@@ -147,10 +153,10 @@ def _transcribe_sync(
 
         if not text:
             logger.info("🔇 無音チャンク検出（スキップ）")
-            return ""  # 空文字を返して呼び出し元でスキップ処理
+            return "", []
 
         logger.info(f"🗣 Whisper出力: {text}")
-        return text
+        return text, segments_info
 
     except subprocess.CalledProcessError:
         raise ValueError("音声変換に失敗しました")
@@ -165,7 +171,7 @@ def _transcribe_sync(
 
 async def transcribe_async(
     audio_data: bytes, suffix: str = ".wav", initial_prompt: Optional[str] = None
-) -> str:
+) -> tuple:
     """
     非同期的な音声文字起こし処理
 
@@ -175,7 +181,7 @@ async def transcribe_async(
         initial_prompt: 文脈として使用する前回の文字起こし結果
 
     Returns:
-        str: 文字起こし結果
+        tuple: (文字起こし結果, セグメント情報リスト)
     """
     loop = asyncio.get_event_loop()
     executor = get_executor()

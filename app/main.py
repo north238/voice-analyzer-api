@@ -477,7 +477,7 @@ async def process_websocket_chunk(
             session_id, "transcribing", "音声認識中...", chunk_id
         )
         with monitor.measure("transcription"):
-            text = await transcribe_async(audio_data)
+            text, _segments = await transcribe_async(audio_data)
 
         # 無音チャンクはスキップ（エラーではなく正常終了）
         if not text:
@@ -762,7 +762,7 @@ async def perform_cumulative_transcription(
 
         # 文字起こし実行
         with monitor.measure("transcription"):
-            text = await transcribe_async(
+            text, segments = await transcribe_async(
                 accumulated_audio, suffix=".wav", initial_prompt=initial_prompt
             )
 
@@ -806,7 +806,7 @@ async def perform_cumulative_transcription(
             )
 
         # 差分抽出（ひらがな・翻訳はセッション終了時に一括処理）
-        result = buffer.update_transcription(text, should_trim=should_trim)
+        result = buffer.update_transcription(text, should_trim=should_trim, segments=segments)
         logger.info(
             f"📝 差分抽出完了: 確定={len(result.confirmed_text)}文字, 暫定={len(result.tentative_text)}文字"
         )
@@ -828,6 +828,7 @@ async def perform_cumulative_transcription(
                 "confirmed": result.confirmed_text,
                 "tentative": result.tentative_text,
                 "full_text": result.full_text,
+                "confirmed_timestamp": result.confirmed_timestamp,
             },
             "performance": {
                 "transcription_time": transcription_time,
@@ -899,20 +900,7 @@ async def finalize_cumulative_session(session_id: str, connection):
             translated_confirmed = await translate_async(final_result.confirmed_text)
             logger.info(f"🌐 最終翻訳完了: {len(translated_confirmed)}文字")
 
-        # 要約（オプション）: 確定テキスト全体を一括要約
-        summary_text = ""
-        if options.get("summary", False) and final_result.confirmed_text:
-            try:
-                await ws_manager.send_progress(session_id, "summarizing", "要約中...", 0)
-                from services.summarizer import summarize_text
-
-                summary_text = await summarize_text(final_result.confirmed_text)
-                logger.info(f"📋 要約完了: {len(summary_text)}文字")
-            except Exception as e:
-                logger.error(f"❌ 要約エラー（スキップ）: {e}")
-                summary_text = ""
-
-        # 最終結果を構築
+        # 最終結果を構築（要約なし）
         response_data = {
             "type": "session_end",
             "transcription": {
@@ -938,11 +926,28 @@ async def finalize_cumulative_session(session_id: str, connection):
                 "tentative": "",
             }
 
-        if options.get("summary", False):
-            response_data["summary"] = summary_text
-
-        # 最終結果を送信
+        # session_endを先に送信（要約は別途送信）
         await ws_manager.send_json(session_id, response_data)
+
+        # 要約（オプション）: session_end後に別メッセージとして送信
+        if options.get("summary", False) and final_result.confirmed_text:
+            try:
+                await ws_manager.send_progress(session_id, "summarizing", "要約中...", 0)
+                from services.summarizer import summarize_text
+
+                summary_text = await summarize_text(final_result.confirmed_text)
+                logger.info(f"📋 要約完了: {len(summary_text)}文字")
+                await ws_manager.send_json(session_id, {
+                    "type": "summary_result",
+                    "summary": summary_text,
+                })
+            except Exception as e:
+                logger.error(f"❌ 要約エラー（スキップ）: {e}")
+                await ws_manager.send_json(session_id, {
+                    "type": "summary_result",
+                    "summary": "",
+                    "error": str(e),
+                })
 
         logger.info(
             f"🏁 累積バッファセッション終了: session={session_id}, "

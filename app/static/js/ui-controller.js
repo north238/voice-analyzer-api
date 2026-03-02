@@ -181,9 +181,10 @@ class UIController {
             // 最終的に追加されたテキストを履歴に記録し、タイムスタンプ付きブロックで表示
             if (finalText.length > this.currentConfirmedText.length) {
                 const addedText = finalText.slice(this.currentConfirmedText.length);
-                const timestamp = this.sessionStartTime
-                    ? (Date.now() - this.sessionStartTime) / 1000
-                    : 0;
+                // サーバーからのタイムスタンプを優先、なければクライアント側で算出
+                const timestamp = transcription.confirmed_timestamp != null
+                    ? transcription.confirmed_timestamp
+                    : (this.sessionStartTime ? (Date.now() - this.sessionStartTime) / 1000 : 0);
 
                 const addedTranslation = "";
 
@@ -245,9 +246,10 @@ class UIController {
             // タイムスタンプ付きで履歴に記録
             const addedText = newConfirmedText.slice(this.currentConfirmedText.length);
             console.log("✅ 確定テキスト追加:", addedText.trim());
-            const timestamp = this.sessionStartTime
-                ? (Date.now() - this.sessionStartTime) / 1000
-                : 0;
+            // サーバーからのタイムスタンプを優先、なければクライアント側で算出
+            const timestamp = transcription.confirmed_timestamp != null
+                ? transcription.confirmed_timestamp
+                : (this.sessionStartTime ? (Date.now() - this.sessionStartTime) / 1000 : 0);
 
             const addedTranslation = "";
 

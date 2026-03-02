@@ -17,6 +17,7 @@ class WebSocketClient {
         this.onErrorCallback = null;
         this.onSessionEndCallback = null;
         this.onAccumulatingCallback = null;
+        this.onSummaryResultCallback = null;
     }
 
     /**
@@ -111,6 +112,13 @@ class WebSocketClient {
                 console.log("🏁 セッション終了:", data);
                 if (this.onSessionEndCallback) {
                     this.onSessionEndCallback(data);
+                }
+                break;
+
+            case "summary_result":
+                console.log("📋 要約結果受信:", data);
+                if (this.onSummaryResultCallback) {
+                    this.onSummaryResultCallback(data);
                 }
                 break;
 
@@ -219,6 +227,9 @@ class WebSocketClient {
                 break;
             case "session_end":
                 this.onSessionEndCallback = callback;
+                break;
+            case "summary_result":
+                this.onSummaryResultCallback = callback;
                 break;
         }
     }

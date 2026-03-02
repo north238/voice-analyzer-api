@@ -852,22 +852,3 @@ footer {
     animation: rotating 1s linear infinite;
 }
 
-/* 要約ローディングボーダーアニメーション */
-.summary-loading-border {
-    position: relative;
-    overflow: hidden;
-}
-.summary-loading-border::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, #3b82f6, transparent);
-    animation: borderSlide 1.5s ease-in-out infinite;
-}
-@keyframes borderSlide {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
-}
