@@ -316,6 +316,13 @@ class RealtimeTranscriptionApp {
         if (this.wsClient) {
             this.wsClient.sendEndMessage();
 
+            // 要約有効時はボーダーアニメーションで処理中を表示
+            if (this.processingOptions.enableSummary) {
+                const summaryCard = document.getElementById("summary-card");
+                summaryCard.style.display = "";
+                summaryCard.classList.add("summary-loading-border");
+            }
+
             // タイムアウト処理: 要約有効時は120秒、それ以外は20秒
             const timeoutMs = this.processingOptions.enableSummary ? 120000 : 20000;
             this.disconnectTimeout = setTimeout(() => {

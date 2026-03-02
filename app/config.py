@@ -52,19 +52,23 @@ class Settings:
 
     # Ollama設定
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://local-llm:11434")
-    OLLAMA_MODEL: str = "gemma2:2b-instruct-q8_0"
+    OLLAMA_MODEL: str = "gemma3:4b"
     OLLAMA_TIMEOUT: int = 120
-    OLLAMA_TEMPERATURE: float = 0.3
+    OLLAMA_TEMPERATURE: float = 0.2
     OLLAMA_NUM_PREDICT: int = 256
     OLLAMA_TOP_K: int = 10
     OLLAMA_TOP_P: float = 0.9
     OLLAMA_REPEAT_PENALTY: float = 1.1
 
     # 要約設定（Phase 13追加）
-    SUMMARY_PROVIDER: str = os.getenv("SUMMARY_PROVIDER", "ollama")  # "ollama" or "gemini"
+    SUMMARY_PROVIDER: str = os.getenv(
+        "SUMMARY_PROVIDER", "ollama"
+    )  # "ollama" or "gemini"
     # Ollama要約用（デフォルトプロバイダー）
-    OLLAMA_SUMMARY_MODEL: str = os.getenv("OLLAMA_SUMMARY_MODEL", "gemma2:2b-instruct-q8_0")
-    OLLAMA_SUMMARY_NUM_PREDICT: int = int(os.getenv("OLLAMA_SUMMARY_NUM_PREDICT", "1024"))
+    OLLAMA_SUMMARY_MODEL: str = os.getenv("OLLAMA_SUMMARY_MODEL", "gemma3:4b")
+    OLLAMA_SUMMARY_NUM_PREDICT: int = int(
+        os.getenv("OLLAMA_SUMMARY_NUM_PREDICT", "1024")
+    )
     # Gemini要約用
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
@@ -85,7 +89,7 @@ class Settings:
     # 累積バッファ設定
     # Phase 8修正: 30秒 → 15秒（精度優先、表記揺れを最小化）
     CUMULATIVE_MAX_AUDIO_SECONDS: float = float(
-        os.getenv("CUMULATIVE_MAX_AUDIO_SECONDS", "15.0")
+        os.getenv("CUMULATIVE_MAX_AUDIO_SECONDS", "12.0")
     )
     CUMULATIVE_TRANSCRIPTION_INTERVAL: int = int(
         os.getenv("CUMULATIVE_TRANSCRIPTION_INTERVAL", "3")

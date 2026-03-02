@@ -11,18 +11,25 @@ from config import settings
 from utils.logger import logger
 
 # システムプロンプト（共通）
-SUMMARY_SYSTEM_PROMPT = """あなたは日本語の文字起こしテキストを要約する専門家です。
+SUMMARY_SYSTEM_PROMPT = """あなたは日本語テキストの要約AIです。
+入力は音声の文字起こしのため、誤字・脱字・フィラーが含まれます。
 
-【タスク】
-音声の文字起こし結果を簡潔に要約してください。
+出力ルール：
+- 最初に見出しを1行出力する
+- 見出しはタイトルの引用ではなく「聞いた人へのメリット・示唆」を一言で表す
+- 見出しは体言止めではなく「〜できる」「〜がわかる」などの表現を使う
+- 見出しの後に「・」で始まる箇条書き3点を出力する
+- 各項目は30字以内で完結させる
+- フィラー（ですね、えー、あのー、まあ等）は除去する
+- 誤字・誤変換は文脈から推測して正しい言葉に直す
+- 重複している内容は1点にまとめる
+- 見出しと箇条書き以外の文章は一切出力しない
 
-【ルール】
-1. 日本語で出力すること
-2. 要点を箇条書きで整理すること
-3. 元のテキストの意味を損なわないこと
-4. 要約は元のテキストの1/3程度の長さにすること
-5. フィラー（えー、あのー等）は除去すること
-6. 箇条書きの前に見出しや前置きは不要。要点のみ出力すること"""
+出力フォーマット：
+[聞いた人へのメリット・示唆を表す一言]
+・[要点1]
+・[要点2]
+・[要点3]"""
 
 
 async def summarize_text(text: str, api_key: Optional[str] = None) -> str:
@@ -53,14 +60,22 @@ async def summarize_text(text: str, api_key: Optional[str] = None) -> str:
 async def _summarize_with_ollama(text: str) -> str:
     """Ollamaで要約を実行"""
     try:
-        ollama_url = urljoin(
-            settings.OLLAMA_BASE_URL.rstrip("/") + "/", "api/chat"
-        )
+        ollama_url = urljoin(settings.OLLAMA_BASE_URL.rstrip("/") + "/", "api/chat")
 
         payload = {
             "model": settings.OLLAMA_SUMMARY_MODEL,
             "messages": [
                 {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
+                # 例示（Whisperノイズの典型例）
+                {
+                    "role": "user",
+                    "content": "以下の文字起こしテキストを要約してください:\n\nゴーランゴーですねこれはですね軽量でですね高速なプログラミング言語となっていてですね学習コストがですね低くなっていますで収得がですね比較的良いとなっていますで実効速度がですね早くてですねパフォーマンスがですね高くなっています",
+                },
+                {
+                    "role": "assistant",
+                    "content": "## 今注目のGo言語、学ぶ価値は高い\n・Goは軽量で高速なプログラミング言語\n・学習コストが低く習得しやすい\n・実行速度が速くパフォーマンスが高い",
+                },
+                # 本番入力
                 {
                     "role": "user",
                     "content": f"以下の文字起こしテキストを要約してください:\n\n{text}",

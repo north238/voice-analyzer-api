@@ -90,6 +90,36 @@ class UIController {
     }
 
     /**
+     * 表示用タイムスタンプをフォーマット（MM:SS形式、1h超はH:MM:SS）
+     *
+     * @param {number} seconds - 秒数
+     * @returns {string} - [MM:SS] または [H:MM:SS] 形式の文字列
+     */
+    _formatDisplayTimestamp(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+        const mm = String(minutes).padStart(2, "0");
+        const ss = String(secs).padStart(2, "0");
+        return hours > 0 ? `[${hours}:${mm}:${ss}]` : `[${mm}:${ss}]`;
+    }
+
+    /**
+     * 確定テキストブロックを追記
+     *
+     * @param {string} addedText - 追加されたテキスト
+     * @param {number} timestamp - タイムスタンプ（秒）
+     */
+    _appendConfirmedBlock(addedText, timestamp) {
+        const ts = this._formatDisplayTimestamp(timestamp);
+        const block = document.createElement("div");
+        block.className = "confirmed-block";
+        block.innerHTML = `<span class="timestamp">${ts}</span> ${this._escapeHtml(addedText.trim())}`;
+        this.confirmedText.appendChild(block);
+        this.confirmedText.scrollTop = this.confirmedText.scrollHeight;
+    }
+
+    /**
      * 文字起こし結果を更新
      *
      * @param {Object} data - 文字起こしデータ
@@ -139,7 +169,7 @@ class UIController {
                 this.currentHiraganaConfirmed += this.previousHiraganaTentative;
             }
 
-            // 最終的に追加されたテキストを履歴に記録
+            // 最終的に追加されたテキストを履歴に記録し、タイムスタンプ付きブロックで表示
             if (finalText.length > this.currentConfirmedText.length) {
                 const addedText = finalText.slice(this.currentConfirmedText.length);
                 const timestamp = this.sessionStartTime
@@ -170,12 +200,12 @@ class UIController {
                 });
 
                 console.log(`📝 最終履歴記録: [${timestamp.toFixed(1)}s] ${addedText.trim()}`);
+
+                // タイムスタンプ付きブロックで表示
+                this._appendConfirmedBlock(addedText, timestamp);
             }
 
             this.currentConfirmedText = finalText;
-
-            // 確定テキスト欄を更新
-            this.confirmedText.textContent = this.currentConfirmedText;
 
             // 暫定テキストをクリア
             this.tentativeText.textContent = "";
@@ -246,24 +276,12 @@ class UIController {
 
             console.log(`📝 履歴記録: [${timestamp.toFixed(1)}s] ${addedText.trim()}`);
 
-            // 確定テキストを保存・表示（追記のみ）
+            // 確定テキストを保存
             this.currentConfirmedText = newConfirmedText;
             this.currentHiraganaConfirmed = newHiraganaConfirmed;
 
-            // デバッグログ: タイピングアニメーションの引数を確認
-            console.log("🔍 タイピングアニメーション:");
-            console.log("  previousConfirmedText (先頭50文字):", this.previousConfirmedText?.slice(0, 50) || "(なし)");
-            console.log("  newConfirmedText (先頭50文字):", newConfirmedText?.slice(0, 50) || "(なし)");
-            console.log("  addedText (先頭50文字):", addedText?.slice(0, 50) || "(なし)");
-
-            // タイピングアニメーション + ハイライト効果で表示
-            this._typeTextWithHighlight(
-                this.confirmedText,
-                this.previousConfirmedText,
-                newConfirmedText,
-                addedText,
-                50,
-            );
+            // タイムスタンプ付きブロックで表示
+            this._appendConfirmedBlock(addedText, timestamp);
 
             this.previousConfirmedText = newConfirmedText;
             this.previousHiraganaConfirmed = newHiraganaConfirmed;
@@ -336,38 +354,6 @@ class UIController {
      * @param {number} interval - 1文字あたりの表示間隔（ミリ秒）
      */
     _typeText(element, oldText, newText, interval = 30) {
-        // 既存のテキストで始まっている場合は、差分だけを追加
-        if (newText.startsWith(oldText)) {
-            const additionalText = newText.slice(oldText.length);
-            let currentIndex = 0;
-
-            const typeNextChar = () => {
-                if (currentIndex < additionalText.length) {
-                    element.textContent += additionalText[currentIndex];
-                    currentIndex++;
-                    const timer = setTimeout(typeNextChar, interval);
-                    this.typingTimers.push(timer);
-                }
-            };
-
-            element.textContent = oldText;
-            typeNextChar();
-        } else {
-            // 全く異なるテキストの場合は、一度にすべて表示
-            element.textContent = newText;
-        }
-    }
-
-    /**
-     * テキストをタイピングアニメーション + ハイライト効果で表示
-     *
-     * @param {HTMLElement} element - 対象要素
-     * @param {string} oldText - 既存のテキスト
-     * @param {string} newText - 新しいテキスト
-     * @param {string} addedText - 追加されたテキスト
-     * @param {number} interval - 1文字あたりの表示間隔（ミリ秒）
-     */
-    _typeTextWithHighlight(element, oldText, newText, addedText, interval = 30) {
         // 既存のテキストで始まっている場合は、差分だけを追加
         if (newText.startsWith(oldText)) {
             const additionalText = newText.slice(oldText.length);
@@ -637,6 +623,7 @@ class UIController {
     showSummary(summary) {
         if (this.summaryCard) {
             this.summaryCard.style.display = "";
+            this.summaryCard.classList.remove("summary-loading-border");
         }
         if (this.summaryText) {
             this.summaryText.textContent = summary;
@@ -667,8 +654,8 @@ class UIController {
      * 新しい録音セッション開始時に呼び出される
      */
     clearAllText() {
-        // テキスト表示をクリア
-        this.confirmedText.textContent = "";
+        // テキスト表示をクリア（ブロック要素を含むためinnerHTMLでクリア）
+        this.confirmedText.innerHTML = "";
         this.tentativeText.textContent = "";
         this.hiraganaText.innerHTML = "";
 
@@ -720,7 +707,7 @@ class UIController {
     }
 
     /**
-     * タイムスタンプをフォーマット
+     * タイムスタンプをフォーマット（ダウンロード用 [HH:MM:SS] 形式）
      *
      * @param {number} seconds - 秒数
      * @returns {string} - [HH:MM:SS] 形式の文字列
@@ -908,7 +895,6 @@ class UIController {
         if (this.previousTentativeText) {
             // 暫定テキストを確定テキストに追加
             this.currentConfirmedText += this.previousTentativeText;
-            this.confirmedText.textContent = this.currentConfirmedText;
 
             // 履歴に記録
             const timestamp = this.sessionStartTime
@@ -923,6 +909,9 @@ class UIController {
             });
 
             console.log(`📝 強制確定履歴記録: [${timestamp.toFixed(1)}s] ${this.previousTentativeText.trim()}`);
+
+            // タイムスタンプ付きブロックで表示
+            this._appendConfirmedBlock(this.previousTentativeText, timestamp);
 
             // 暫定テキストをクリア
             this.tentativeText.textContent = "";
