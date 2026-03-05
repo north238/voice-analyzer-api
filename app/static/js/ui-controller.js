@@ -37,6 +37,9 @@ class UIController {
         this.currentConfirmedText = "";
         this.currentHiraganaConfirmed = "";
 
+        // タイムスタンプ逆転防止（最後に表示したセグメントの end 時刻）
+        this._lastSegmentEndTime = 0;
+
         // セッションデータ（ダウンロード用）
         this.sessionStartTime = null;
         this.transcriptionHistory = [];
@@ -243,35 +246,54 @@ class UIController {
             console.log("  newConfirmedText.length:", newConfirmedText.length);
             console.log("  this.currentConfirmedText (先頭50文字):", this.currentConfirmedText.slice(0, 50) || "(空)");
 
-            // タイムスタンプ付きで履歴に記録
             const addedText = newConfirmedText.slice(this.currentConfirmedText.length);
             console.log("✅ 確定テキスト追加:", addedText.trim());
+
             // サーバーからのタイムスタンプを優先、なければクライアント側で算出
             const timestamp = transcription.confirmed_timestamp != null
                 ? transcription.confirmed_timestamp
                 : (this.sessionStartTime ? (Date.now() - this.sessionStartTime) / 1000 : 0);
 
-            const addedTranslation = "";
-
             const addedHiragana = newHiraganaConfirmed
                 ? newHiraganaConfirmed.slice(this.currentHiraganaConfirmed.length)
                 : "";
 
-            this.transcriptionHistory.push({
-                timestamp: timestamp,
-                text: addedText.trim(),
-                hiragana: addedHiragana.trim(),
-                translation: addedTranslation.trim()
-            });
-
-            console.log(`📝 履歴記録: [${timestamp.toFixed(1)}s] ${addedText.trim()}`);
+            // Phase 12.2: セグメント単位でブロックを追加
+            const segments = transcription.new_confirmed_segments || [];
+            if (segments.length > 0) {
+                for (const seg of segments) {
+                    if (!seg.text.trim()) continue;
+                    // Phase 12.3: タイムスタンプ逆転チェック（重複表示を防止）
+                    // Phase 12.4: マージンを -0.5 → -2.0 に拡大（Whisperの表記揺れによるズレを吸収）
+                    if (seg.start < this._lastSegmentEndTime - 2.0) {
+                        console.warn(`⚠️ タイムスタンプ逆転を検出してスキップ: ${seg.start.toFixed(1)}s < ${this._lastSegmentEndTime.toFixed(1)}s`);
+                        continue;
+                    }
+                    this._appendConfirmedBlock(seg.text, seg.start);
+                    this._lastSegmentEndTime = seg.end;
+                    this.transcriptionHistory.push({
+                        timestamp: seg.start,
+                        text: seg.text.trim(),
+                        hiragana: "",
+                        translation: ""
+                    });
+                    console.log(`📝 セグメント履歴記録: [${seg.start.toFixed(1)}s] ${seg.text.trim()}`);
+                }
+            } else {
+                // フォールバック: セグメント情報がない場合は従来の方式
+                this.transcriptionHistory.push({
+                    timestamp: timestamp,
+                    text: addedText.trim(),
+                    hiragana: addedHiragana.trim(),
+                    translation: ""
+                });
+                console.log(`📝 履歴記録: [${timestamp.toFixed(1)}s] ${addedText.trim()}`);
+                this._appendConfirmedBlock(addedText, timestamp);
+            }
 
             // 確定テキストを保存
             this.currentConfirmedText = newConfirmedText;
             this.currentHiraganaConfirmed = newHiraganaConfirmed;
-
-            // タイムスタンプ付きブロックで表示
-            this._appendConfirmedBlock(addedText, timestamp);
 
             this.previousConfirmedText = newConfirmedText;
             this.previousHiraganaConfirmed = newHiraganaConfirmed;
@@ -517,6 +539,7 @@ class UIController {
 
         this.currentConfirmedText = "";
         this.currentHiraganaConfirmed = "";
+        this._lastSegmentEndTime = 0;
 
         // 要約リセット（カードは常時表示）
         this.finalSummary = "";

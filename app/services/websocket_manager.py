@@ -128,16 +128,16 @@ class WebSocketManager:
         """
         connection = self.get_connection(session_id)
         if connection is None:
+            logger.warning(f"⚠️ [WS] send_json: セッション接続なし (session_id={session_id}, type={data.get('type')})")
             return False
 
         try:
-            # WebSocketの状態を確認
             if connection.websocket.client_state.name != "CONNECTED":
                 return False
             await connection.websocket.send_json(data)
             return True
         except Exception:
-            # 切断済みの場合は静かに失敗（ログ出力しない）
+            # 切断済みの場合は静かに失敗
             return False
 
     async def send_progress(
@@ -148,7 +148,7 @@ class WebSocketManager:
 
         Args:
             session_id: 送信先のセッションID
-            step: 処理ステップ名（transcribing, normalizing, translating）
+            step: 処理ステップ名（transcribing, normalizing, translating, summarizing）
             message: 進捗メッセージ
             chunk_id: 処理中のチャンクID（オプション）
 

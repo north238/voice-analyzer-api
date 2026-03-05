@@ -37,6 +37,7 @@ class TranscriptionResult:
     tentative_hiragana: str  # 暫定テキストのひらがな
     is_final: bool  # セッション終了フラグ
     confirmed_timestamp: float = 0.0  # 新規確定テキストの絶対タイムスタンプ（秒）
+    new_confirmed_segments: list = field(default_factory=list)  # Phase 12.2: 新規確定セグメントのリスト
 
 
 def extract_diff(previous: str, current: str) -> Tuple[str, str]:
@@ -142,6 +143,7 @@ class CumulativeBuffer:
         # タイムスタンプ管理
         self.trimmed_audio_seconds: float = 0.0  # トリミングで削除された累計秒数
         self.last_segments: list = []  # 最後の文字起こしセグメント情報
+        self.last_confirmed_segment_end: float = 0.0  # 最後に確定したセグメントの終了時刻（絶対秒）
 
         # 作成時刻
         self.created_at: datetime = datetime.now()
@@ -244,6 +246,103 @@ class CumulativeBuffer:
                 f"残り{self.current_audio_duration:.1f}秒"
             )
 
+    def _merge_short_segments(self, segments: list) -> list:
+        """短すぎるセグメントを隣のセグメントに結合
+
+        Args:
+            segments: セグメントリスト [{"text": "...", "start": 0.0, "end": 1.5}, ...]
+
+        Returns:
+            list: 短セグメントを結合したリスト
+        """
+        # Phase 12.4: 5 → 15文字に引き上げ（「すね」「すと」等の断片を除去）
+        MIN_SEGMENT_LENGTH = 15
+
+        if not segments:
+            return []
+
+        # パス1: 短いセグメントを前のセグメントに結合（後方結合）
+        merged = [dict(segments[0])]
+        for seg in segments[1:]:
+            if len(seg["text"].strip()) < MIN_SEGMENT_LENGTH:
+                # 前のセグメントに結合
+                merged[-1]["text"] += seg["text"]
+                merged[-1]["end"] = seg["end"]
+            else:
+                merged.append(dict(seg))
+
+        # Phase 12.4: パス2: 先頭セグメントが短い場合、後続のセグメントに前方結合
+        if len(merged) >= 2 and len(merged[0]["text"].strip()) < MIN_SEGMENT_LENGTH:
+            merged[1]["text"] = merged[0]["text"] + merged[1]["text"]
+            merged[1]["start"] = merged[0]["start"]
+            merged = merged[1:]
+
+        return merged
+
+    def _get_segments_for_confirmed(self, newly_confirmed: str, segments: list) -> list:
+        """newly_confirmedに対応するセグメントを抽出（絶対タイムスタンプ付き）
+
+        Args:
+            newly_confirmed: 新規確定テキスト
+            segments: セグメント情報リスト（バッファ相対タイムスタンプ）
+
+        Returns:
+            list: 絶対タイムスタンプ付きセグメントのリスト
+        """
+        if not segments or not newly_confirmed:
+            return []
+
+        # セグメントのテキストを結合してnewly_confirmedの位置を特定
+        combined_text = "".join(seg["text"] for seg in segments)
+        pos = combined_text.find(newly_confirmed)
+
+        if pos < 0:
+            logger.debug(f"   セグメント検索失敗: '{newly_confirmed[:20]}...' が見つかりません")
+            return []
+
+        start_pos = pos
+        end_pos = pos + len(newly_confirmed)
+
+        result_segments = []
+        current_pos = 0
+
+        for seg in segments:
+            seg_start = current_pos
+            seg_end = current_pos + len(seg["text"])
+
+            # このセグメントが範囲と重なる場合
+            if seg_end > start_pos and seg_start < end_pos:
+                abs_start = self.trimmed_audio_seconds + seg["start"]
+                abs_end = self.trimmed_audio_seconds + seg["end"]
+
+                # Phase 12.3: 前回確定済みの音声区間と重複するセグメントはスキップ
+                if abs_end <= self.last_confirmed_segment_end:
+                    logger.debug(
+                        f"   セグメントスキップ（確定済み範囲）: "
+                        f"{abs_start:.1f}-{abs_end:.1f}s <= {self.last_confirmed_segment_end:.1f}s"
+                    )
+                    current_pos = seg_end
+                    continue
+
+                result_segments.append({
+                    "text": seg["text"].strip(),
+                    "start": abs_start,
+                    "end": abs_end,
+                })
+
+            current_pos = seg_end
+
+        # 短いセグメントを結合
+        merged = self._merge_short_segments(result_segments)
+        logger.debug(f"   セグメント抽出: {len(result_segments)}個 → 結合後{len(merged)}個")
+
+        # 最後に確定したセグメントの終了時刻を更新
+        if merged:
+            self.last_confirmed_segment_end = merged[-1]["end"]
+            logger.debug(f"   確定済み終了時刻を更新: {self.last_confirmed_segment_end:.1f}s")
+
+        return merged
+
     def _find_timestamp_for_text_position(self, position: int, segments: list) -> float:
         """テキスト内の文字位置に対応するセグメントのタイムスタンプを見つける
 
@@ -296,6 +395,13 @@ class CumulativeBuffer:
         """confirmed_textとnew_textの重複部分を除外してtentativeを返す（類似度ベース対応）"""
         if not confirmed:
             return new
+
+        # Phase 12.4: confirmed が new より長い場合、末尾部分のみを比較対象にする
+        # バッファトリミング後に confirmed_text が new_text より長くなる問題に対応
+        # （confirmed 全体 vs new を比較すると方法3のelseに到達してしまう）
+        if len(confirmed) > len(new):
+            confirmed = confirmed[-len(new):]
+            logger.debug(f"   重複除外: confirmed を末尾{len(confirmed)}文字に絞って比較")
 
         # 方法1: 最長一致（完全一致）
         overlap_len = 0
@@ -377,6 +483,25 @@ class CumulativeBuffer:
         if hiragana_converter:
             self.confirmed_hiragana += hiragana_converter(remaining)
 
+        # Phase 12.3: last_confirmed_segment_end を更新（重複防止）
+        # セグメント情報がある場合、確定テキストに対応するセグメントの終了時刻を記録する
+        if self.last_segments:
+            segments = self._get_segments_for_confirmed(remaining, self.last_segments)
+            if segments:
+                logger.debug(
+                    f"   強制確定: last_confirmed_segment_end を "
+                    f"{self.last_confirmed_segment_end:.1f}s に更新"
+                )
+            # 検索失敗時はセグメント全体の終了時刻をフォールバックとして使用
+            elif self.last_segments:
+                last_seg_end = self.trimmed_audio_seconds + self.last_segments[-1]["end"]
+                if last_seg_end > self.last_confirmed_segment_end:
+                    self.last_confirmed_segment_end = last_seg_end
+                    logger.debug(
+                        f"   強制確定（フォールバック）: last_confirmed_segment_end を "
+                        f"{self.last_confirmed_segment_end:.1f}s に更新"
+                    )
+
         logger.info(
             f"🔒 暫定テキストを強制確定（トリミング前）: "
             f"+{len(remaining)}文字, 合計{len(self.confirmed_text)}文字"
@@ -440,6 +565,7 @@ class CumulativeBuffer:
         newly_confirmed = ""
         tentative = new_text
         confirmed_timestamp = 0.0  # 新規確定テキストのタイムスタンプ
+        new_confirmed_segments = []  # Phase 12.2: 新規確定セグメント
         confirmed_text_before = len(self.confirmed_text)  # 確定テキストの更新前の長さ
 
         # ✅ confirmed_textとnew_textの重複を検出（クラスメソッドを使用）
@@ -461,9 +587,9 @@ class CumulativeBuffer:
 
                     if remaining:
                         # 残りの部分から、適切な区切りまでを確定に追加
-                        # 句読点・空白で区切る
+                        # Phase 12.4: スペースを除外（文の途中での不要な区切りを防止）
                         break_points = []
-                        for char in ["。", "！", "？", " ", "　"]:
+                        for char in ["。", "！", "？"]:
                             pos = remaining.find(char)
                             if pos > 0:
                                 break_points.append(pos + 1)
@@ -472,9 +598,19 @@ class CumulativeBuffer:
                             # 最初の区切りまでを確定
                             cut_pos = min(break_points)
                             newly_confirmed = remaining[:cut_pos]
-                            self.confirmed_text += newly_confirmed
-                            tentative = remaining[cut_pos:]
-                            logger.debug(f"   新規確定: {newly_confirmed[:30]}...")
+
+                            # Phase 12.4: newly_confirmed の繰り返し検出
+                            if newly_confirmed and not is_valid_text(newly_confirmed):
+                                logger.warning("⚠️ newly_confirmedに繰り返しを検出、スキップします")
+                                newly_confirmed = ""
+                                tentative = remaining
+                            else:
+                                self.confirmed_text += newly_confirmed
+                                tentative = remaining[cut_pos:]
+                                # Phase 12.3: 確定後に stable_count をリセット（重複防止）
+                                # threshold-1 にすることで次の1チャンクで再確定可能
+                                self.stable_count = 0
+                                logger.debug(f"   新規確定: {newly_confirmed[:30]}... → stable_count リセット")
                         else:
                             # 区切りがない場合、残り全体を暫定のまま
                             tentative = remaining
@@ -495,7 +631,9 @@ class CumulativeBuffer:
                         newly_confirmed = new_text[:cut_pos]
                         self.confirmed_text = newly_confirmed
                         tentative = new_text[cut_pos:]
-                        logger.debug(f"   初回確定: {newly_confirmed[:30]}...")
+                        # Phase 12.3: 確定後に stable_count をリセット（重複防止）
+                        self.stable_count = 0
+                        logger.debug(f"   初回確定: {newly_confirmed[:30]}... → stable_count リセット")
                     else:
                         # 句読点がない場合、全て暫定のまま
                         tentative = new_text
@@ -554,6 +692,12 @@ class CumulativeBuffer:
             )
             logger.debug(f"   確定タイムスタンプ: {confirmed_timestamp:.1f}秒")
 
+            # Phase 12.2: セグメント単位の確定情報を計算
+            if newly_confirmed:
+                new_confirmed_segments = self._get_segments_for_confirmed(
+                    newly_confirmed, self.last_segments
+                )
+
         logger.info(
             f"📝 文字起こし更新: "
             f"確定={len(self.confirmed_text)}文字, "
@@ -581,6 +725,7 @@ class CumulativeBuffer:
             tentative_hiragana=tentative_hiragana,
             is_final=False,
             confirmed_timestamp=confirmed_timestamp,
+            new_confirmed_segments=new_confirmed_segments,
         )
 
     def finalize(self, hiragana_converter=None) -> TranscriptionResult:
@@ -622,6 +767,7 @@ class CumulativeBuffer:
         self.previous_full_text = ""
         self.trimmed_audio_seconds = 0.0
         self.last_segments = []
+        self.last_confirmed_segment_end = 0.0
         logger.info("🧹 CumulativeBufferをクリア")
 
     def get_stats(self) -> dict:

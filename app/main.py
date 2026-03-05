@@ -19,6 +19,7 @@ from utils.normalizer import JapaneseNormalizer
 from utils.performance_monitor import PerformanceMonitor
 from utils.logger import logger
 from config import settings
+import asyncio
 import time
 import json
 import os
@@ -829,6 +830,7 @@ async def perform_cumulative_transcription(
                 "tentative": result.tentative_text,
                 "full_text": result.full_text,
                 "confirmed_timestamp": result.confirmed_timestamp,
+                "new_confirmed_segments": result.new_confirmed_segments,  # Phase 12.2
             },
             "performance": {
                 "transcription_time": transcription_time,
@@ -931,10 +933,11 @@ async def finalize_cumulative_session(session_id: str, connection):
 
         # 要約（オプション）: session_end後に別メッセージとして送信
         if options.get("summary", False) and final_result.confirmed_text:
+            # クライアントがsession_endを処理する時間を確保してからsummarizingを送信
+            await asyncio.sleep(0.15)
             try:
                 await ws_manager.send_progress(session_id, "summarizing", "要約中...", 0)
                 from services.summarizer import summarize_text
-
                 summary_text = await summarize_text(final_result.confirmed_text)
                 logger.info(f"📋 要約完了: {len(summary_text)}文字")
                 await ws_manager.send_json(session_id, {
