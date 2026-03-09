@@ -1,14 +1,17 @@
 # voice-analyzer-api
 
-日本語音声をリアルタイムで「文字起こし → ひらがな正規化 → 翻訳」する FastAPI ベースのサービスです。
+日本語音声をリアルタイムで「文字起こし → ひらがな正規化 → 翻訳 → 要約」する FastAPI ベースのサービスです。
 Chrome拡張機能として動作し、YouTubeなどのタブ音声をワンクリックで文字起こしできます。
 
 ## 主な機能
 
 - **リアルタイム文字起こし**: faster-whisper による高速・高精度な日本語音声認識
+- **タイムスタンプ表示**: Whisperセグメント単位の正確な発話タイムスタンプ付き表示
 - **ひらがな正規化**: janome 形態素解析によるひらがな変換（オプション）
 - **日英翻訳**: Helsinki-NLP/opus-mt-ja-en による日本語→英語翻訳（オプション）
+- **AI要約**: 録音終了後にGemini 2.0 Flash または Ollama で要約生成（オプション）
 - **Chrome拡張機能**: ワンクリックでタブ音声をキャプチャしてサイドパネルに表示
+- **Zenモード**: 余分なUIを排除してテキスト読書に集中できるモード
 - **テキスト出力**: タイムスタンプ付きテキストファイルのダウンロード
 
 ## クイックスタート
@@ -46,7 +49,7 @@ python client/realtime_client.py --cumulative
   ↓
 WebSocket (累積バッファ方式)
   ↓
-faster-whisper 文字起こし
+faster-whisper 文字起こし（セグメントタイムスタンプ付き）
   ↓
 text_filter: フィラー除去
   ↓
@@ -55,6 +58,8 @@ normalizer: ひらがな正規化（オプション）
 translator: 日→英翻訳（オプション）
   ↓
 確定テキスト返却
+  ↓
+summarizer: AI要約（オプション・録音終了後）
 ```
 
 ## 開発コマンド
@@ -98,9 +103,11 @@ app/
 ├── config.py           # 設定管理
 ├── services/
 │   ├── audio_processor.py      # Whisper文字起こし
-│   ├── cumulative_buffer.py    # 累積バッファ管理
+│   ├── async_processor.py      # 非同期処理ラッパー（セグメント情報付き）
+│   ├── cumulative_buffer.py    # 累積バッファ管理（タイムスタンプベース確定）
 │   ├── session_manager.py      # セッション管理
 │   ├── translator.py           # 日英翻訳
+│   ├── summarizer.py           # AI要約（Gemini / Ollama）
 │   └── websocket_manager.py    # WebSocket管理
 ├── utils/
 │   └── normalizer.py           # ひらがな正規化
@@ -117,15 +124,20 @@ docs/                   # 実装ドキュメント
 
 環境変数で上書き可能（`app/config.py`）:
 
-| 変数名                              | デフォルト | 説明                     |
-| ----------------------------------- | ---------- | ------------------------ |
-| `WHISPER_MODEL_SIZE`                | base       | Whisperモデルサイズ      |
-| `WHISPER_BEAM_SIZE`                 | 3          | ビームサーチ幅           |
-| `CUMULATIVE_MAX_AUDIO_SECONDS`      | 30         | バッファ最大長（秒）     |
-| `CUMULATIVE_TRANSCRIPTION_INTERVAL` | 3          | 再処理間隔（チャンク数） |
+| 変数名                              | デフォルト              | 説明                     |
+| ----------------------------------- | ----------------------- | ------------------------ |
+| `WHISPER_MODEL_SIZE`                | base                    | Whisperモデルサイズ      |
+| `WHISPER_BEAM_SIZE`                 | 3                       | ビームサーチ幅           |
+| `CUMULATIVE_MAX_AUDIO_SECONDS`      | 30                      | バッファ最大長（秒）     |
+| `CUMULATIVE_TRANSCRIPTION_INTERVAL` | 3                       | 再処理間隔（チャンク数） |
+| `SUMMARY_PROVIDER`                  | gemini                  | 要約プロバイダー（gemini / ollama） |
+| `GEMINI_API_KEY`                    | （空）                  | Google Gemini APIキー    |
+| `GEMINI_MODEL`                      | gemini-2.0-flash        | 使用するGeminiモデル     |
+| `OLLAMA_BASE_URL`                   | http://ollama:11434     | OllamaサーバーURL        |
 
 ## 既知の制限
 
 - Chrome専用（Safari / Firefox では動作しない）
 - APIサーバー必須（ローカルまたはリモートでサーバー起動が必要）
 - 翻訳は大まかな内容把握用途（Helsinki-NLP 軽量モデル）
+- AI要約はGemini利用時はAPIキーが必要
