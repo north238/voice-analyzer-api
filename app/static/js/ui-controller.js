@@ -71,8 +71,12 @@ class UIController {
             this.hiraganaText.classList.add("processing");
         }
         // 翻訳セクションが表示中なら翻訳中インジケーターを表示
-        if (this.hiraganaTextMobile) { this.hiraganaTextMobile.innerHTML = ""; }
-        if (this.translationTextMobile) { this.translationTextMobile.textContent = ""; }
+        if (this.hiraganaTextMobile) {
+            this.hiraganaTextMobile.innerHTML = "";
+        }
+        if (this.translationTextMobile) {
+            this.translationTextMobile.textContent = "";
+        }
         if (this.translationText) {
             this.translationText.textContent = "";
             this.translationText.classList.add("processing");
@@ -126,7 +130,7 @@ class UIController {
         const ts = this._formatDisplayTimestamp(timestamp);
         const block = document.createElement("div");
         block.className = "confirmed-block";
-        block.innerHTML = `<span class="timestamp">${ts}</span> ${this._escapeHtml(addedText.trim())}`;
+        block.innerHTML = `<span class="timestamp">${ts}</span>${this._escapeHtml(addedText.trim())}`;
         this.transcriptionText.appendChild(block);
         this.transcriptionText.scrollTop = this.transcriptionText.scrollHeight;
     }
@@ -185,9 +189,12 @@ class UIController {
             if (finalText.length > this.currentConfirmedText.length) {
                 const addedText = finalText.slice(this.currentConfirmedText.length);
                 // サーバーからのタイムスタンプを優先、なければクライアント側で算出
-                const timestamp = transcription.confirmed_timestamp != null
-                    ? transcription.confirmed_timestamp
-                    : (this.sessionStartTime ? (Date.now() - this.sessionStartTime) / 1000 : 0);
+                const timestamp =
+                    transcription.confirmed_timestamp != null
+                        ? transcription.confirmed_timestamp
+                        : this.sessionStartTime
+                            ? (Date.now() - this.sessionStartTime) / 1000
+                            : 0;
 
                 const addedTranslation = "";
 
@@ -207,7 +214,7 @@ class UIController {
                     timestamp: timestamp,
                     text: addedText.trim(),
                     hiragana: addedHiragana.trim(),
-                    translation: addedTranslation.trim()
+                    translation: addedTranslation.trim(),
                 });
 
                 console.log(`📝 最終履歴記録: [${timestamp.toFixed(1)}s] ${addedText.trim()}`);
@@ -250,9 +257,12 @@ class UIController {
             console.log("✅ 確定テキスト追加:", addedText.trim());
 
             // サーバーからのタイムスタンプを優先、なければクライアント側で算出
-            const timestamp = transcription.confirmed_timestamp != null
-                ? transcription.confirmed_timestamp
-                : (this.sessionStartTime ? (Date.now() - this.sessionStartTime) / 1000 : 0);
+            const timestamp =
+                transcription.confirmed_timestamp != null
+                    ? transcription.confirmed_timestamp
+                    : this.sessionStartTime
+                        ? (Date.now() - this.sessionStartTime) / 1000
+                        : 0;
 
             const addedHiragana = newHiraganaConfirmed
                 ? newHiraganaConfirmed.slice(this.currentHiraganaConfirmed.length)
@@ -266,7 +276,9 @@ class UIController {
                     // Phase 12.3: タイムスタンプ逆転チェック（重複表示を防止）
                     // Phase 12.4: マージンを -0.5 → -2.0 に拡大（Whisperの表記揺れによるズレを吸収）
                     if (seg.start < this._lastSegmentEndTime - 2.0) {
-                        console.warn(`⚠️ タイムスタンプ逆転を検出してスキップ: ${seg.start.toFixed(1)}s < ${this._lastSegmentEndTime.toFixed(1)}s`);
+                        console.warn(
+                            `⚠️ タイムスタンプ逆転を検出してスキップ: ${seg.start.toFixed(1)}s < ${this._lastSegmentEndTime.toFixed(1)}s`,
+                        );
                         continue;
                     }
                     this._appendConfirmedBlock(seg.text, seg.start);
@@ -275,7 +287,7 @@ class UIController {
                         timestamp: seg.start,
                         text: seg.text.trim(),
                         hiragana: "",
-                        translation: ""
+                        translation: "",
                     });
                     console.log(`📝 セグメント履歴記録: [${seg.start.toFixed(1)}s] ${seg.text.trim()}`);
                 }
@@ -285,7 +297,7 @@ class UIController {
                     timestamp: timestamp,
                     text: addedText.trim(),
                     hiragana: addedHiragana.trim(),
-                    translation: ""
+                    translation: "",
                 });
                 console.log(`📝 履歴記録: [${timestamp.toFixed(1)}s] ${addedText.trim()}`);
                 this._appendConfirmedBlock(addedText, timestamp);
@@ -312,9 +324,6 @@ class UIController {
         if (newHiraganaTentative !== this.previousHiraganaTentative) {
             this.previousHiraganaTentative = newHiraganaTentative;
         }
-
-
-
     }
 
     /**
@@ -426,8 +435,6 @@ class UIController {
         this.showToast(message, "error", 5000);
     }
 
-
-
     /**
      * トースト通知を表示
      *
@@ -521,21 +528,22 @@ class UIController {
         this.hiraganaText.classList.remove("processing");
         this.hiraganaText.innerHTML = "";
 
-        if (this.hiraganaTextMobile) { this.hiraganaTextMobile.innerHTML = ""; }
-        if (this.translationTextMobile) { this.translationTextMobile.textContent = ""; }
+        if (this.hiraganaTextMobile) {
+            this.hiraganaTextMobile.innerHTML = "";
+        }
+        if (this.translationTextMobile) {
+            this.translationTextMobile.textContent = "";
+        }
         if (this.translationText) {
             this.translationText.classList.remove("processing");
             this.translationText.textContent = "";
         }
-
-
 
         // 内部状態をリセット
         this.previousConfirmedText = "";
         this.previousTentativeText = "";
         this.previousHiraganaConfirmed = "";
         this.previousHiraganaTentative = "";
-
 
         this.currentConfirmedText = "";
         this.currentHiraganaConfirmed = "";
@@ -590,13 +598,13 @@ class UIController {
             day: "2-digit",
             hour: "2-digit",
             minute: "2-digit",
-            second: "2-digit"
+            second: "2-digit",
         });
 
         const sourceLabels = {
             microphone: "マイク入力",
             video: "動画ファイル",
-            tab: "タブ共有"
+            tab: "タブ共有",
         };
 
         const hiraganaStatus = processingOptions.enableHiragana ? "ON" : "OFF";
@@ -675,7 +683,9 @@ class UIController {
     setFinalResults(hiragana, translation) {
         this.finalHiragana = hiragana || "";
         this.finalTranslation = translation || "";
-        console.log(`📝 最終結果を保存: ひらがな=${this.finalHiragana.length}文字, 翻訳=${this.finalTranslation.length}文字`);
+        console.log(
+            `📝 最終結果を保存: ひらがな=${this.finalHiragana.length}文字, 翻訳=${this.finalTranslation.length}文字`,
+        );
     }
 
     /**
@@ -693,7 +703,7 @@ class UIController {
         const textContent = this.generateTranscriptText(inputSource, processingOptions);
 
         // UTF-8 BOM付きでBlob生成（Excel対応）
-        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const bom = new Uint8Array([0xef, 0xbb, 0xbf]);
         const blob = new Blob([bom, textContent], { type: "text/plain;charset=utf-8" });
 
         const url = URL.createObjectURL(blob);
@@ -789,15 +799,13 @@ class UIController {
             this.currentConfirmedText += this.previousTentativeText;
 
             // 履歴に記録
-            const timestamp = this.sessionStartTime
-                ? (Date.now() - this.sessionStartTime) / 1000
-                : 0;
+            const timestamp = this.sessionStartTime ? (Date.now() - this.sessionStartTime) / 1000 : 0;
 
             this.transcriptionHistory.push({
                 timestamp: timestamp,
                 text: this.previousTentativeText.trim(),
                 hiragana: this.previousHiraganaTentative.trim(),
-                translation: ""
+                translation: "",
             });
 
             console.log(`📝 強制確定履歴記録: [${timestamp.toFixed(1)}s] ${this.previousTentativeText.trim()}`);
@@ -818,7 +826,5 @@ class UIController {
             this._updateHiraganaDisplay(this.currentHiraganaConfirmed);
             this.previousHiraganaTentative = "";
         }
-
-
     }
 }

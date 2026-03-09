@@ -117,7 +117,7 @@ class UIController {
         const ts = this._formatDisplayTimestamp(timestamp);
         const block = document.createElement("div");
         block.className = "confirmed-block";
-        block.innerHTML = `<span class="timestamp">${ts}</span> ${this._escapeHtml(addedText.trim())}`;
+        block.innerHTML = `<span class="timestamp">${ts}</span>${this._escapeHtml(addedText.trim())}`;
         this.confirmedText.appendChild(block);
         this.confirmedText.scrollTop = this.confirmedText.scrollHeight;
     }

@@ -643,6 +643,7 @@ section h2 {
     animation: confirmFadeIn 0.3s ease-in;
 }
 .timestamp {
+    display: block;
     color: #888;
     font-size: 0.85em;
     font-family: monospace;

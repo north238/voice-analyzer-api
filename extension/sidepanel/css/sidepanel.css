@@ -575,6 +575,7 @@ body.recording #confirmed-text:empty {
     animation: fadeIn 0.3s ease-in;
 }
 .timestamp {
+    display: block;
     color: #888;
     font-size: 0.85em;
     font-family: monospace;
@@ -620,3 +621,4 @@ body.zen-mode .card-controls {
 body.zen-mode #volume-meter { display: none !important; }
 body.zen-mode #state-indicator { display: none !important; }
 body.zen-mode #zen-toggle { color: #3b82f6; }
+body.zen-mode .timestamp { display: none; }

@@ -424,6 +424,18 @@ body.zen-mode #download-button {
     display: none;
 }
 
+.timestamp {
+    display: block;
+    color: #888;
+    font-size: 0.85em;
+    font-family: monospace;
+    user-select: none;
+}
+
+body.zen-mode .timestamp {
+    display: none;
+}
+
 #zen-exit-float {
     display: none;
 }
