@@ -37,11 +37,20 @@ class UIController {
         this.currentConfirmedText = "";
         this.currentHiraganaConfirmed = "";
 
+        // タイムスタンプ逆転防止（最後に表示したセグメントの end 時刻）
+        this._lastSegmentEndTime = 0;
+
         // セッションデータ（ダウンロード用）
         this.sessionStartTime = null;
         this.transcriptionHistory = [];
         this.finalHiragana = "";
         this.finalTranslation = "";
+        this.finalSummary = "";
+
+        // 要約関連DOM
+        this.summaryCard = document.getElementById("summary-card");
+        this.summaryText = document.getElementById("summary-text");
+        this.summaryLoading = document.getElementById("summary-loading");
     }
 
     /**
@@ -53,14 +62,21 @@ class UIController {
         this.transcriptionHistory = [];
         this.finalHiragana = "";
         this.finalTranslation = "";
+        this.finalSummary = "";
+        // 要約テキストをリセット（カードは常時表示）
+        if (this.summaryText) this.summaryText.textContent = "";
         // ひらがなセクションが表示中なら変換中インジケーターを表示
         if (this.hiraganaText) {
             this.hiraganaText.textContent = "";
             this.hiraganaText.classList.add("processing");
         }
         // 翻訳セクションが表示中なら翻訳中インジケーターを表示
-        if (this.hiraganaTextMobile) { this.hiraganaTextMobile.innerHTML = ""; }
-        if (this.translationTextMobile) { this.translationTextMobile.textContent = ""; }
+        if (this.hiraganaTextMobile) {
+            this.hiraganaTextMobile.innerHTML = "";
+        }
+        if (this.translationTextMobile) {
+            this.translationTextMobile.textContent = "";
+        }
         if (this.translationText) {
             this.translationText.textContent = "";
             this.translationText.classList.add("processing");
@@ -87,6 +103,36 @@ class UIController {
         const normalized = Math.max(0, Math.min(100, ((volumeDb + 60) / 60) * 100));
         // バーの幅（形）のみで音量を表現
         this.volumeBar.style.width = `${normalized}%`;
+    }
+
+    /**
+     * 表示用タイムスタンプをフォーマット（MM:SS形式、1h超はH:MM:SS）
+     *
+     * @param {number} seconds - 秒数
+     * @returns {string} - [MM:SS] または [H:MM:SS] 形式の文字列
+     */
+    _formatDisplayTimestamp(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+        const mm = String(minutes).padStart(2, "0");
+        const ss = String(secs).padStart(2, "0");
+        return hours > 0 ? `[${hours}:${mm}:${ss}]` : `[${mm}:${ss}]`;
+    }
+
+    /**
+     * 確定テキストブロックを追記
+     *
+     * @param {string} addedText - 追加されたテキスト
+     * @param {number} timestamp - タイムスタンプ（秒）
+     */
+    _appendConfirmedBlock(addedText, timestamp) {
+        const ts = this._formatDisplayTimestamp(timestamp);
+        const block = document.createElement("div");
+        block.className = "confirmed-block";
+        block.innerHTML = `<span class="timestamp">${ts}</span>${this._escapeHtml(addedText.trim())}`;
+        this.transcriptionText.appendChild(block);
+        this.transcriptionText.scrollTop = this.transcriptionText.scrollHeight;
     }
 
     /**
@@ -139,12 +185,16 @@ class UIController {
                 this.currentHiraganaConfirmed += this.previousHiraganaTentative;
             }
 
-            // 最終的に追加されたテキストを履歴に記録
+            // 最終的に追加されたテキストを履歴に記録し、タイムスタンプ付きブロックで表示
             if (finalText.length > this.currentConfirmedText.length) {
                 const addedText = finalText.slice(this.currentConfirmedText.length);
-                const timestamp = this.sessionStartTime
-                    ? (Date.now() - this.sessionStartTime) / 1000
-                    : 0;
+                // サーバーからのタイムスタンプを優先、なければクライアント側で算出
+                const timestamp =
+                    transcription.confirmed_timestamp != null
+                        ? transcription.confirmed_timestamp
+                        : this.sessionStartTime
+                            ? (Date.now() - this.sessionStartTime) / 1000
+                            : 0;
 
                 const addedTranslation = "";
 
@@ -164,16 +214,17 @@ class UIController {
                     timestamp: timestamp,
                     text: addedText.trim(),
                     hiragana: addedHiragana.trim(),
-                    translation: addedTranslation.trim()
+                    translation: addedTranslation.trim(),
                 });
 
                 console.log(`📝 最終履歴記録: [${timestamp.toFixed(1)}s] ${addedText.trim()}`);
+
+                // タイムスタンプ付きブロックで表示
+                this._appendConfirmedBlock(addedText, timestamp);
             }
 
             this.currentConfirmedText = finalText;
 
-            // テキストエリアを更新（確定のみ）
-            this._updateTranscriptionDisplay(this.currentConfirmedText);
             this.previousTentativeText = "";
             this.previousHiraganaTentative = "";
             this.previousConfirmedText = this.currentConfirmedText;
@@ -202,40 +253,59 @@ class UIController {
             console.log("  newConfirmedText.length:", newConfirmedText.length);
             console.log("  this.currentConfirmedText (先頭50文字):", this.currentConfirmedText.slice(0, 50) || "(空)");
 
-            // タイムスタンプ付きで履歴に記録
             const addedText = newConfirmedText.slice(this.currentConfirmedText.length);
             console.log("✅ 確定テキスト追加:", addedText.trim());
-            const timestamp = this.sessionStartTime
-                ? (Date.now() - this.sessionStartTime) / 1000
-                : 0;
 
-            const addedTranslation = "";
+            // サーバーからのタイムスタンプを優先、なければクライアント側で算出
+            const timestamp =
+                transcription.confirmed_timestamp != null
+                    ? transcription.confirmed_timestamp
+                    : this.sessionStartTime
+                        ? (Date.now() - this.sessionStartTime) / 1000
+                        : 0;
 
             const addedHiragana = newHiraganaConfirmed
                 ? newHiraganaConfirmed.slice(this.currentHiraganaConfirmed.length)
                 : "";
 
-            this.transcriptionHistory.push({
-                timestamp: timestamp,
-                text: addedText.trim(),
-                hiragana: addedHiragana.trim(),
-                translation: addedTranslation.trim()
-            });
+            // Phase 12.2: セグメント単位でブロックを追加
+            const segments = transcription.new_confirmed_segments || [];
+            if (segments.length > 0) {
+                for (const seg of segments) {
+                    if (!seg.text.trim()) continue;
+                    // Phase 12.3: タイムスタンプ逆転チェック（重複表示を防止）
+                    // Phase 12.4: マージンを -0.5 → -2.0 に拡大（Whisperの表記揺れによるズレを吸収）
+                    if (seg.start < this._lastSegmentEndTime - 2.0) {
+                        console.warn(
+                            `⚠️ タイムスタンプ逆転を検出してスキップ: ${seg.start.toFixed(1)}s < ${this._lastSegmentEndTime.toFixed(1)}s`,
+                        );
+                        continue;
+                    }
+                    this._appendConfirmedBlock(seg.text, seg.start);
+                    this._lastSegmentEndTime = seg.end;
+                    this.transcriptionHistory.push({
+                        timestamp: seg.start,
+                        text: seg.text.trim(),
+                        hiragana: "",
+                        translation: "",
+                    });
+                    console.log(`📝 セグメント履歴記録: [${seg.start.toFixed(1)}s] ${seg.text.trim()}`);
+                }
+            } else {
+                // フォールバック: セグメント情報がない場合は従来の方式
+                this.transcriptionHistory.push({
+                    timestamp: timestamp,
+                    text: addedText.trim(),
+                    hiragana: addedHiragana.trim(),
+                    translation: "",
+                });
+                console.log(`📝 履歴記録: [${timestamp.toFixed(1)}s] ${addedText.trim()}`);
+                this._appendConfirmedBlock(addedText, timestamp);
+            }
 
-            console.log(`📝 履歴記録: [${timestamp.toFixed(1)}s] ${addedText.trim()}`);
-
-            // 確定テキストを保存・表示（追記のみ）
+            // 確定テキストを保存
             this.currentConfirmedText = newConfirmedText;
             this.currentHiraganaConfirmed = newHiraganaConfirmed;
-
-            // デバッグログ: タイピングアニメーションの引数を確認
-            console.log("🔍 タイピングアニメーション:");
-            console.log("  previousConfirmedText (先頭50文字):", this.previousConfirmedText?.slice(0, 50) || "(なし)");
-            console.log("  newConfirmedText (先頭50文字):", newConfirmedText?.slice(0, 50) || "(なし)");
-            console.log("  addedText (先頭50文字):", addedText?.slice(0, 50) || "(なし)");
-
-            // テキストエリアを更新（確定テキスト追記アニメーション）
-            this._updateTranscriptionDisplay(newConfirmedText, true, this.previousConfirmedText);
 
             this.previousConfirmedText = newConfirmedText;
             this.previousHiraganaConfirmed = newHiraganaConfirmed;
@@ -254,9 +324,6 @@ class UIController {
         if (newHiraganaTentative !== this.previousHiraganaTentative) {
             this.previousHiraganaTentative = newHiraganaTentative;
         }
-
-
-
     }
 
     /**
@@ -265,38 +332,6 @@ class UIController {
     _cancelTypingAnimations() {
         this.typingTimers.forEach((timer) => clearTimeout(timer));
         this.typingTimers = [];
-    }
-
-    /**
-     * 文字起こしテキストエリアを更新（確定テキストのみ表示）
-     *
-     * @param {string} confirmed - 確定テキスト
-     * @param {boolean} animate - タイピングアニメーションで表示するか
-     * @param {string} oldConfirmed - アニメーション前の確定テキスト
-     */
-    _updateTranscriptionDisplay(confirmed, animate = false, oldConfirmed = "") {
-        if (animate && confirmed.startsWith(oldConfirmed)) {
-            const additionalText = confirmed.slice(oldConfirmed.length);
-            let currentConfirmed = oldConfirmed;
-            let currentIndex = 0;
-
-            const typeNextChar = () => {
-                if (currentIndex < additionalText.length) {
-                    currentConfirmed += additionalText[currentIndex];
-                    currentIndex++;
-                    this.transcriptionText.textContent = currentConfirmed;
-                    this.transcriptionText.scrollTop = this.transcriptionText.scrollHeight;
-                    const timer = setTimeout(typeNextChar, 50);
-                    this.typingTimers.push(timer);
-                }
-            };
-
-            this.transcriptionText.textContent = oldConfirmed;
-            typeNextChar();
-        } else {
-            this.transcriptionText.textContent = confirmed;
-            this.transcriptionText.scrollTop = this.transcriptionText.scrollHeight;
-        }
     }
 
     /**
@@ -400,8 +435,6 @@ class UIController {
         this.showToast(message, "error", 5000);
     }
 
-
-
     /**
      * トースト通知を表示
      *
@@ -476,23 +509,35 @@ class UIController {
     }
 
     /**
+     * 要約セクションの表示/非表示を切り替え
+     *
+     * @param {boolean} enabled - 表示するかどうか
+     */
+    toggleSummarySection(enabled) {
+        // デスクトップ: カードは常時表示（トグルは自動要約の有効/無効のみ制御）
+        // モバイル: タブの表示/非表示は main.js で制御
+    }
+
+    /**
      * すべてのテキスト表示をクリア
      * 新しい録音セッション開始時に呼び出される
      */
     clearAllText() {
-        // テキスト表示をクリア
+        // テキスト表示をクリア（ブロック要素を含むためinnerHTMLでクリア）
         this.transcriptionText.innerHTML = "";
         this.hiraganaText.classList.remove("processing");
         this.hiraganaText.innerHTML = "";
 
-        if (this.hiraganaTextMobile) { this.hiraganaTextMobile.innerHTML = ""; }
-        if (this.translationTextMobile) { this.translationTextMobile.textContent = ""; }
+        if (this.hiraganaTextMobile) {
+            this.hiraganaTextMobile.innerHTML = "";
+        }
+        if (this.translationTextMobile) {
+            this.translationTextMobile.textContent = "";
+        }
         if (this.translationText) {
             this.translationText.classList.remove("processing");
             this.translationText.textContent = "";
         }
-
-
 
         // 内部状態をリセット
         this.previousConfirmedText = "";
@@ -500,9 +545,13 @@ class UIController {
         this.previousHiraganaConfirmed = "";
         this.previousHiraganaTentative = "";
 
-
         this.currentConfirmedText = "";
         this.currentHiraganaConfirmed = "";
+        this._lastSegmentEndTime = 0;
+
+        // 要約リセット（カードは常時表示）
+        this.finalSummary = "";
+        if (this.summaryText) this.summaryText.textContent = "";
 
         // セッションデータをリセット
         this.sessionStartTime = null;
@@ -517,7 +566,7 @@ class UIController {
     }
 
     /**
-     * タイムスタンプをフォーマット
+     * タイムスタンプをフォーマット（ダウンロード用 [HH:MM:SS] 形式）
      *
      * @param {number} seconds - 秒数
      * @returns {string} - [HH:MM:SS] 形式の文字列
@@ -549,13 +598,13 @@ class UIController {
             day: "2-digit",
             hour: "2-digit",
             minute: "2-digit",
-            second: "2-digit"
+            second: "2-digit",
         });
 
         const sourceLabels = {
             microphone: "マイク入力",
             video: "動画ファイル",
-            tab: "タブ共有"
+            tab: "タブ共有",
         };
 
         const hiraganaStatus = processingOptions.enableHiragana ? "ON" : "OFF";
@@ -616,6 +665,12 @@ class UIController {
             content += `${this.finalTranslation}\n`;
         }
 
+        // 要約セクション
+        if (this.finalSummary) {
+            content += "\n--- 要約 ---\n";
+            content += `${this.finalSummary}\n`;
+        }
+
         return content;
     }
 
@@ -628,7 +683,9 @@ class UIController {
     setFinalResults(hiragana, translation) {
         this.finalHiragana = hiragana || "";
         this.finalTranslation = translation || "";
-        console.log(`📝 最終結果を保存: ひらがな=${this.finalHiragana.length}文字, 翻訳=${this.finalTranslation.length}文字`);
+        console.log(
+            `📝 最終結果を保存: ひらがな=${this.finalHiragana.length}文字, 翻訳=${this.finalTranslation.length}文字`,
+        );
     }
 
     /**
@@ -646,7 +703,7 @@ class UIController {
         const textContent = this.generateTranscriptText(inputSource, processingOptions);
 
         // UTF-8 BOM付きでBlob生成（Excel対応）
-        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const bom = new Uint8Array([0xef, 0xbb, 0xbf]);
         const blob = new Blob([bom, textContent], { type: "text/plain;charset=utf-8" });
 
         const url = URL.createObjectURL(blob);
@@ -689,6 +746,47 @@ class UIController {
     }
 
     /**
+     * 確定テキストを取得
+     *
+     * @returns {string} - 現在の確定テキスト
+     */
+    getConfirmedText() {
+        return this.currentConfirmedText || "";
+    }
+
+    /**
+     * 要約結果を表示
+     *
+     * @param {string} summary - 要約テキスト
+     */
+    showSummary(summary) {
+        this.finalSummary = summary;
+        if (this.summaryText) this.summaryText.textContent = summary;
+        if (this.summaryLoading) this.summaryLoading.style.display = "none";
+        // ボーダーアニメーションを停止
+        const summaryCard = document.getElementById("summary-card");
+        if (summaryCard) summaryCard.classList.remove("summary-loading-border");
+        // モバイル要約パネルにも反映
+        const summaryTextMobile = document.getElementById("summary-text-mobile");
+        if (summaryTextMobile) summaryTextMobile.textContent = summary;
+        console.log("📝 要約を表示しました");
+    }
+
+    /**
+     * 要約ローディング表示の切り替え
+     *
+     * @param {boolean} loading - ローディング中かどうか
+     */
+    showSummaryLoading(loading) {
+        if (this.summaryLoading) {
+            this.summaryLoading.style.display = loading ? "flex" : "none";
+        }
+        if (this.summaryText && loading) {
+            this.summaryText.textContent = "";
+        }
+    }
+
+    /**
      * 強制確定処理（タイムアウト時用）
      * 現在の暫定テキストを確定テキストに強制的に移行します。
      */
@@ -699,21 +797,21 @@ class UIController {
         if (this.previousTentativeText) {
             // 暫定テキストを確定テキストに追加
             this.currentConfirmedText += this.previousTentativeText;
-            this._updateTranscriptionDisplay(this.currentConfirmedText);
 
             // 履歴に記録
-            const timestamp = this.sessionStartTime
-                ? (Date.now() - this.sessionStartTime) / 1000
-                : 0;
+            const timestamp = this.sessionStartTime ? (Date.now() - this.sessionStartTime) / 1000 : 0;
 
             this.transcriptionHistory.push({
                 timestamp: timestamp,
                 text: this.previousTentativeText.trim(),
                 hiragana: this.previousHiraganaTentative.trim(),
-                translation: ""
+                translation: "",
             });
 
             console.log(`📝 強制確定履歴記録: [${timestamp.toFixed(1)}s] ${this.previousTentativeText.trim()}`);
+
+            // タイムスタンプ付きブロックで表示
+            this._appendConfirmedBlock(this.previousTentativeText, timestamp);
 
             // 暫定テキストをクリア
             this.previousTentativeText = "";
@@ -728,7 +826,5 @@ class UIController {
             this._updateHiraganaDisplay(this.currentHiraganaConfirmed);
             this.previousHiraganaTentative = "";
         }
-
-
     }
 }

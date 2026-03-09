@@ -38,6 +38,10 @@ RUN pip install --no-cache-dir \
     transformers>=4.30.0 \
     sentencepiece>=0.1.99
 
+# Gemini API（要約機能用、Phase 13追加）
+RUN pip install --no-cache-dir \
+    google-generativeai>=0.8.0
+
 # テストツール
 RUN pip install --no-cache-dir \
     pytest>=7.0.0 \

@@ -59,7 +59,7 @@ settingsClose.addEventListener("click", closeDrawer);
 settingsOverlay.addEventListener("click", closeDrawer);
 
 // モバイルトグル → デスクトップトグルに連動 + カードタブの表示制御
-["hiragana", "translation"].forEach((key) => {
+["hiragana", "translation", "summary"].forEach((key) => {
     const mobile = document.getElementById("enable-" + key + "-mobile");
     const desktop = document.getElementById("enable-" + key);
     const tab = document.getElementById("mobile-tab-" + key);
@@ -82,7 +82,7 @@ settingsOverlay.addEventListener("click", closeDrawer);
 
 // モバイルカードタブの切り替え
 function switchMobilePanel(panelName) {
-    ["transcription", "hiragana", "translation"].forEach((name) => {
+    ["transcription", "hiragana", "translation", "summary"].forEach((name) => {
         const panel = document.getElementById("mobile-panel-" + name);
         const btn = document.querySelector('[data-panel="' + name + '"]');
         if (panel) panel.classList.toggle("hidden", name !== panelName);

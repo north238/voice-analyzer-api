@@ -8,6 +8,7 @@ from faster_whisper.vad import VadOptions
 from fastapi import UploadFile, HTTPException
 
 from config import settings
+from services.text_filter import is_valid_text
 from utils.logger import logger
 
 whisper_model = WhisperModel(
@@ -55,24 +56,42 @@ async def transcribe_audio(file: UploadFile) -> str:
             speech_pad_ms=settings.WHISPER_VAD_SPEECH_PAD_MS,
         )
 
+        # transcribeのパラメータを構築
+        transcribe_params = {
+            "language": "ja",
+            "beam_size": settings.WHISPER_BEAM_SIZE,
+            "best_of": settings.WHISPER_BEST_OF,
+            "temperature": settings.WHISPER_TEMPERATURE,
+            "vad_filter": settings.WHISPER_VAD_ENABLED,
+            "vad_parameters": vad_options,
+            # Phase 12: ハルシネーション抑制パラメータ
+            "condition_on_previous_text": settings.WHISPER_CONDITION_ON_PREVIOUS_TEXT,
+            "repetition_penalty": settings.WHISPER_REPETITION_PENALTY,
+            "compression_ratio_threshold": settings.WHISPER_COMPRESSION_RATIO_THRESHOLD,
+            "log_prob_threshold": settings.WHISPER_LOG_PROB_THRESHOLD,
+            "no_speech_threshold": settings.WHISPER_NO_SPEECH_THRESHOLD,
+        }
+
+        # no_repeat_ngram_size: 0より大きい場合のみ設定
+        if settings.WHISPER_NO_REPEAT_NGRAM_SIZE > 0:
+            transcribe_params["no_repeat_ngram_size"] = settings.WHISPER_NO_REPEAT_NGRAM_SIZE
+
         # Whisperで文字起こし
-        segments, info = whisper_model.transcribe(
-            converted_path,
-            language="ja",
-            beam_size=settings.WHISPER_BEAM_SIZE,
-            best_of=settings.WHISPER_BEST_OF,
-            temperature=settings.WHISPER_TEMPERATURE,
-            vad_filter=settings.WHISPER_VAD_ENABLED,
-            vad_parameters=vad_options,
-        )
+        segments, info = whisper_model.transcribe(converted_path, **transcribe_params)
 
         logger.info(f"✅️info出力: {info}")
 
         if not segments:
             raise ValueError("音声が認識されませんでした（無音またはノイズの可能性）")
 
+        # セグメントからテキストを抽出（Phase 12: セグメント単位の品質フィルタリング）
         texts = []
-        texts = [s.text for s in segments if s.text.strip()]
+        for s in segments:
+            seg_text = s.text.strip()
+            if seg_text and is_valid_text(seg_text):
+                texts.append(s.text)
+            elif seg_text:
+                logger.debug(f"🚫 低品質セグメント除外: {seg_text}")
         text = "".join(texts).strip()
 
         # 数字間の不要なスペース（半角・全角）を削除

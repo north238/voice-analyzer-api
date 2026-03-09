@@ -82,6 +82,21 @@ body {
     }
 }
 
+/* 要約ローディングアニメーション */
+.rotating {
+    animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 /* トースト */
 #toast-container {
     position: fixed;
@@ -409,6 +424,18 @@ body.zen-mode #download-button {
     display: none;
 }
 
+.timestamp {
+    display: block;
+    color: #888;
+    font-size: 0.85em;
+    font-family: monospace;
+    user-select: none;
+}
+
+body.zen-mode .timestamp {
+    display: none;
+}
+
 #zen-exit-float {
     display: none;
 }
@@ -441,4 +468,24 @@ body {
 
 #settings-overlay {
     transition: opacity 0.3s ease;
+}
+
+/* 要約ローディングボーダーアニメーション */
+.summary-loading-border {
+    position: relative;
+    overflow: hidden;
+}
+.summary-loading-border::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+    animation: borderSlide 1.5s ease-in-out infinite;
+}
+@keyframes borderSlide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
 }

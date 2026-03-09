@@ -636,6 +636,25 @@ section h2 {
 
 
 
+/* 確定テキストブロック */
+.confirmed-block {
+    margin-bottom: 0.25em;
+    line-height: 1.6;
+    animation: confirmFadeIn 0.3s ease-in;
+}
+.timestamp {
+    display: block;
+    color: #888;
+    font-size: 0.85em;
+    font-family: monospace;
+    user-select: none;
+    margin-right: 0.25em;
+}
+@keyframes confirmFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
 /* フッター */
 footer {
     background: #f9fafb;
@@ -823,3 +842,14 @@ footer {
         grid-template-columns: 1fr;
     }
 }
+
+/* 回転アニメーション（要約ローディング等） */
+@keyframes rotating {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.rotating {
+    animation: rotating 1s linear infinite;
+}
+
