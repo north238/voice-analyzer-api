@@ -1,0 +1,65 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# PYTHONPATHを設定
+ENV PYTHONPATH=/
+
+# ARM64向け必要パッケージ（libgomp1はctranslate2のOpenMP依存）
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# pipのアップグレード
+RUN pip install --upgrade pip
+
+# Python依存関係のインストール
+RUN pip install --no-cache-dir \
+    fastapi>=0.104.0 \
+    uvicorn[standard]>=0.24.0 \
+    python-multipart>=0.0.6 \
+    pykakasi>=2.2.0 \
+    jaconv>=0.3.0 \
+    janome>=0.4.2 \
+    requests>=2.31.0
+
+# faster-whisper（ARM64対応: ctranslate2 4.x以降はARM64サポート済み）
+RUN pip install --no-cache-dir av==12.0.0
+RUN pip install --no-cache-dir faster-whisper --no-deps
+RUN pip install --no-cache-dir \
+    ctranslate2>=4.0.0 \
+    huggingface-hub>=0.13 \
+    tokenizers>=0.13
+
+# onnxruntime ARM64版（GPU不要）
+RUN pip install --no-cache-dir onnxruntime
+
+# PyTorch CPU版（ARM64ではCUDA不要、標準pipでCPU版がインストールされる）
+RUN pip install --no-cache-dir \
+    torch>=2.0.0 \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# Hugging Face Transformers（翻訳用）
+RUN pip install --no-cache-dir \
+    transformers>=4.30.0 \
+    sentencepiece>=0.1.99
+
+# Gemini API（要約機能用）
+RUN pip install --no-cache-dir \
+    google-generativeai>=0.8.0
+
+# テストツール
+RUN pip install --no-cache-dir \
+    pytest>=7.0.0 \
+    pytest-cov>=4.0.0
+
+# アプリケーションコードをコピー
+COPY ./app /app
+
+# 非rootユーザで実行
+RUN useradd -m -u 1000 appuser
+RUN mkdir -p /app/logs && chown -R appuser:appuser /app/logs
+
+# 本番運用: --reload なし
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5001"]
