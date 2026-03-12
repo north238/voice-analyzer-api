@@ -11,8 +11,6 @@ services:
       - ./sample:/sample
       - ./models:/root/.cache/huggingface
       - ./logs:/logs
-    depends_on:
-      - local-llm
     environment:
       - TZ=Asia/Tokyo
       - LOG_LEVEL=INFO
@@ -25,27 +23,13 @@ services:
       - WHISPER_BEST_OF=1
       # CPUスレッド数（Pi 4/5の4コアに合わせる）
       - WHISPER_CPU_THREADS=4
-      # 要約機能（Geminiを使う場合はAPIキーを設定）
+      # 要約機能をGeminiで使う場合はAPIキーを設定
       # - GEMINI_API_KEY=your_api_key_here
       # - SUMMARY_PROVIDER=gemini
     restart: unless-stopped
     networks:
       - pi_network
 
-  local-llm:
-    image: ollama/ollama
-    container_name: local-llm
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - pi_network
-    ports:
-      - "11434:11434"
-    restart: unless-stopped
-
 networks:
   pi_network:
     driver: bridge
-
-volumes:
-  ollama_data:
