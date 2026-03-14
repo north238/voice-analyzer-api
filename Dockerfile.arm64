@@ -2,19 +2,19 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# PYTHONPATHを設定
 ENV PYTHONPATH=/
 
-# ARM64向け必要パッケージ（libgomp1はctranslate2のOpenMP依存）
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libgomp1 \
+    cmake \
+    build-essential \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# pipのアップグレード
 RUN pip install --upgrade pip
 
-# Python依存関係のインストール
+# 基本依存
 RUN pip install --no-cache-dir \
     fastapi>=0.104.0 \
     uvicorn[standard]>=0.24.0 \
@@ -24,42 +24,30 @@ RUN pip install --no-cache-dir \
     janome>=0.4.2 \
     requests>=2.31.0
 
-# faster-whisper（ARM64対応: ctranslate2 4.x以降はARM64サポート済み）
+# ctranslate2をARMv8.0-A向けにソースビルド（Pi 4対応）
+RUN git clone --recursive --depth 1 \
+    https://github.com/OpenNMT/CTranslate2.git /tmp/ct2 \
+    && cd /tmp/ct2 \
+    && CXXFLAGS="-march=armv8-a" pip install --no-cache-dir . \
+    && rm -rf /tmp/ct2
+
+# faster-whisper
 RUN pip install --no-cache-dir av==12.0.0
 RUN pip install --no-cache-dir faster-whisper --no-deps
 RUN pip install --no-cache-dir \
-    ctranslate2==3.24.0 \
     huggingface-hub>=0.13 \
     tokenizers>=0.13
 
-# onnxruntime ARM64版（GPU不要）
-RUN pip install --no-cache-dir onnxruntime
+# PyTorch + Transformers（翻訳用）
+RUN pip install --no-cache-dir torch>=2.0.0
 
-# PyTorch CPU版（ARM64ではCUDA不要、標準pipでCPU版がインストールされる）
-RUN pip install --no-cache-dir \
-    torch>=2.0.0 \
-    --index-url https://download.pytorch.org/whl/cpu
-
-# Hugging Face Transformers（翻訳用）
 RUN pip install --no-cache-dir \
     transformers>=4.30.0 \
     sentencepiece>=0.1.99
 
-# Gemini API（要約機能用）
-RUN pip install --no-cache-dir \
-    google-generativeai>=0.8.0
-
-# テストツール
-RUN pip install --no-cache-dir \
-    pytest>=7.0.0 \
-    pytest-cov>=4.0.0
-
-# アプリケーションコードをコピー
 COPY ./app /app
 
-# 非rootユーザで実行
 RUN useradd -m -u 1000 appuser
 RUN mkdir -p /app/logs && chown -R appuser:appuser /app/logs
 
-# 本番運用: --reload なし
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5001"]
