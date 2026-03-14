@@ -28,7 +28,7 @@ RUN pip install --no-cache-dir \
 RUN pip install --no-cache-dir av==12.0.0
 RUN pip install --no-cache-dir faster-whisper --no-deps
 RUN pip install --no-cache-dir \
-    ctranslate2>=4.0.0 \
+    ctranslate2==3.24.0 \
     huggingface-hub>=0.13 \
     tokenizers>=0.13
 
