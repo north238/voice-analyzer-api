@@ -25,7 +25,7 @@
     "activeTab"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "http://192.168.0.13:5001/*"
   ],
   "options_page": "settings/settings.html",
   "web_accessible_resources": [

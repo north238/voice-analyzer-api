@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, Form, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from services.audio_processor import transcribe_audio
 from services.text_filter import is_valid_text
 from services.translator import translate_text
@@ -27,6 +28,13 @@ from typing import Optional, Dict
 from pydantic import BaseModel
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["chrome-extension://*"],  # LAN内ならこれで十分
+    allow_methods=["POST", "GET"],
+    allow_headers=["*"],
+)
 
 # 正規化インスタンスの初期化
 normalizer = JapaneseNormalizer()
@@ -300,7 +308,9 @@ async def process_text(request: ProcessTextRequest):
     """テキストのひらがな変換・翻訳を行うエンドポイント（タイムアウト時などの補完用）"""
     result = {}
     if request.hiragana and request.text:
-        result["hiragana"] = normalizer.to_hiragana(request.text, keep_punctuation=False)
+        result["hiragana"] = normalizer.to_hiragana(
+            request.text, keep_punctuation=False
+        )
     if request.translation and request.text:
         result["translation"] = await translate_async(request.text)
     return JSONResponse(status_code=200, content=result)
@@ -803,11 +813,17 @@ async def perform_cumulative_transcription(
         if should_trim:
             await ws_manager.send_json(
                 session_id,
-                {"type": "buffer_trim_start", "chunk_id": chunk_id, "message": "バッファ整理中..."}
+                {
+                    "type": "buffer_trim_start",
+                    "chunk_id": chunk_id,
+                    "message": "バッファ整理中...",
+                },
             )
 
         # 差分抽出（ひらがな・翻訳はセッション終了時に一括処理）
-        result = buffer.update_transcription(text, should_trim=should_trim, segments=segments)
+        result = buffer.update_transcription(
+            text, should_trim=should_trim, segments=segments
+        )
         logger.info(
             f"📝 差分抽出完了: 確定={len(result.confirmed_text)}文字, 暫定={len(result.tentative_text)}文字"
         )
@@ -815,7 +831,11 @@ async def perform_cumulative_transcription(
         if should_trim:
             await ws_manager.send_json(
                 session_id,
-                {"type": "buffer_trim_complete", "chunk_id": chunk_id, "message": "バッファ整理完了"}
+                {
+                    "type": "buffer_trim_complete",
+                    "chunk_id": chunk_id,
+                    "message": "バッファ整理完了",
+                },
             )
 
         # 処理時間
@@ -889,7 +909,9 @@ async def finalize_cumulative_session(session_id: str, connection):
         # ひらがな正規化（オプション）: 確定テキスト全体を一括変換
         hiragana_confirmed = ""
         if options.get("hiragana", False) and final_result.confirmed_text:
-            await ws_manager.send_progress(session_id, "normalizing", "ひらがな変換中...", 0)
+            await ws_manager.send_progress(
+                session_id, "normalizing", "ひらがな変換中...", 0
+            )
             hiragana_confirmed = normalizer.to_hiragana(
                 final_result.confirmed_text, keep_punctuation=False
             )
@@ -936,21 +958,30 @@ async def finalize_cumulative_session(session_id: str, connection):
             # クライアントがsession_endを処理する時間を確保してからsummarizingを送信
             await asyncio.sleep(0.15)
             try:
-                await ws_manager.send_progress(session_id, "summarizing", "要約中...", 0)
+                await ws_manager.send_progress(
+                    session_id, "summarizing", "要約中...", 0
+                )
                 from services.summarizer import summarize_text
+
                 summary_text = await summarize_text(final_result.confirmed_text)
                 logger.info(f"📋 要約完了: {len(summary_text)}文字")
-                await ws_manager.send_json(session_id, {
-                    "type": "summary_result",
-                    "summary": summary_text,
-                })
+                await ws_manager.send_json(
+                    session_id,
+                    {
+                        "type": "summary_result",
+                        "summary": summary_text,
+                    },
+                )
             except Exception as e:
                 logger.error(f"❌ 要約エラー（スキップ）: {e}")
-                await ws_manager.send_json(session_id, {
-                    "type": "summary_result",
-                    "summary": "",
-                    "error": str(e),
-                })
+                await ws_manager.send_json(
+                    session_id,
+                    {
+                        "type": "summary_result",
+                        "summary": "",
+                        "error": str(e),
+                    },
+                )
 
         logger.info(
             f"🏁 累積バッファセッション終了: session={session_id}, "
