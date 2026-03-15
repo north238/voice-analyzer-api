@@ -27,6 +27,15 @@ RUN pip install --no-cache-dir \
 # ctranslate2をARMv8.0-A向けにソースビルド（Pi 4対応）
 RUN git clone --recursive --depth 1 \
     https://github.com/OpenNMT/CTranslate2.git /tmp/ct2 \
+    && mkdir /tmp/ct2/build \
+    && cd /tmp/ct2/build \
+    && cmake .. \
+        -DCMAKE_CXX_FLAGS="-march=armv8-a" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DWITH_CUDA=OFF \
+        -DWITH_MKL=OFF \
+    && make -j4 \
+    && make install \
     && cd /tmp/ct2/python \
     && CXXFLAGS="-march=armv8-a" pip install --no-cache-dir . \
     && rm -rf /tmp/ct2
