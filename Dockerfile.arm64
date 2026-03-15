@@ -34,6 +34,7 @@ RUN git clone --recursive --depth 1 \
         -DCMAKE_BUILD_TYPE=Release \
         -DWITH_CUDA=OFF \
         -DWITH_MKL=OFF \
+        -DOPENMP_RUNTIME=COMP \
     && make -j4 \
     && make install \
     && cd /tmp/ct2/python \
