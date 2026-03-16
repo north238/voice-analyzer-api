@@ -7,9 +7,6 @@ ENV PYTHONPATH=/
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libgomp1 \
-    cmake \
-    build-essential \
-    git \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade pip
