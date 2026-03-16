@@ -11,7 +11,7 @@ class Settings:
         "WHISPER_MODEL_SIZE", "small"
     )
     WHISPER_DEVICE: str = "cpu"
-    WHISPER_COMPUTE_TYPE: str = "int8"
+    WHISPER_COMPUTE_TYPE: str = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
     WHISPER_CPU_THREADS: int = 4
     WHISPER_NUM_WORKERS: int = 1
 
