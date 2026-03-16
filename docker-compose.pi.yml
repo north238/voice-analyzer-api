@@ -23,6 +23,7 @@ services:
       - WHISPER_BEST_OF=1
       # CPUスレッド数（Pi 4/5の4コアに合わせる）
       - WHISPER_CPU_THREADS=4
+      - WHISPER_COMPUTE_TYPE=float32
       # 要約機能をGeminiで使う場合はAPIキーを設定
       # - GEMINI_API_KEY=your_api_key_here
       # - SUMMARY_PROVIDER=gemini
