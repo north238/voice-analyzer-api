@@ -12,17 +12,21 @@ class Settings:
     )
     WHISPER_DEVICE: str = "cpu"
     WHISPER_COMPUTE_TYPE: str = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
-    WHISPER_CPU_THREADS: int = 4
-    WHISPER_NUM_WORKERS: int = 1
+    WHISPER_CPU_THREADS: int = int(os.getenv("WHISPER_CPU_THREADS", "4"))
+    WHISPER_NUM_WORKERS: int = int(os.getenv("WHISPER_NUM_WORKERS", "1"))
 
     # 文字起こし設定
     # Phase 12: beam_size/best_of を 1 に変更（smallモデルの精度でgreedy decodingでも十分）
     WHISPER_BEAM_SIZE: int = int(os.getenv("WHISPER_BEAM_SIZE", "1"))
     WHISPER_BEST_OF: int = int(os.getenv("WHISPER_BEST_OF", "1"))
     WHISPER_TEMPERATURE: float = 0.0
-    WHISPER_VAD_ENABLED: bool = True
-    WHISPER_VAD_MIN_SILENCE_MS: int = 500
-    WHISPER_VAD_SPEECH_PAD_MS: int = 400
+    WHISPER_VAD_ENABLED: bool = (
+        os.getenv("WHISPER_VAD_ENABLED", "true").lower() == "true"
+    )
+    WHISPER_VAD_MIN_SILENCE_MS: int = int(
+        os.getenv("WHISPER_VAD_MIN_SILENCE_MS", "500")
+    )
+    WHISPER_VAD_SPEECH_PAD_MS: int = int(os.getenv("WHISPER_VAD_SPEECH_PAD_MS", "400"))
 
     # ハルシネーション抑制設定（Phase 12追加）
     # condition_on_previous_text: 前の出力への依存を断ち、繰り返しの連鎖を防止
@@ -50,31 +54,6 @@ class Settings:
         os.getenv("WHISPER_NO_REPEAT_NGRAM_SIZE", "0")
     )
 
-    # Ollama設定
-    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://local-llm:11434")
-    OLLAMA_MODEL: str = "gemma3:4b"
-    OLLAMA_TIMEOUT: int = 120
-    OLLAMA_TEMPERATURE: float = 0.2
-    OLLAMA_NUM_PREDICT: int = 256
-    OLLAMA_TOP_K: int = 10
-    OLLAMA_TOP_P: float = 0.9
-    OLLAMA_REPEAT_PENALTY: float = 1.1
-
-    # 要約設定（Phase 13追加）
-    SUMMARY_PROVIDER: str = os.getenv(
-        "SUMMARY_PROVIDER", "ollama"
-    )  # "ollama" or "gemini"
-    # Ollama要約用（デフォルトプロバイダー）
-    OLLAMA_SUMMARY_MODEL: str = os.getenv("OLLAMA_SUMMARY_MODEL", "gemma3:4b")
-    OLLAMA_SUMMARY_NUM_PREDICT: int = int(
-        os.getenv("OLLAMA_SUMMARY_NUM_PREDICT", "1024")
-    )
-    # Gemini要約用
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-    GEMINI_MAX_OUTPUT_TOKENS: int = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "512"))
-    GEMINI_TEMPERATURE: float = float(os.getenv("GEMINI_TEMPERATURE", "0.3"))
-
     # 翻訳設定
     TRANSLATION_MODEL: str = os.getenv(
         "TRANSLATION_MODEL", "Helsinki-NLP/opus-mt-ja-en"
@@ -99,7 +78,36 @@ class Settings:
     )
 
     # テキスト処理設定
-    MAX_TEXT_LENGTH: int = 50
+    MAX_TEXT_LENGTH: int = int(os.getenv("MAX_TEXT_LENGTH", "50"))
+
+    #################################################################################
+    # ブラウザ版で使用（ラズパイは不使用）
+    # Ollama設定（API）
+    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://local-llm:11434")
+    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "gemma3:4b")
+    OLLAMA_TIMEOUT: int = int(os.getenv("OLLAMA_TIMEOUT", "120"))
+    OLLAMA_TEMPERATURE: float = 0.2
+    OLLAMA_NUM_PREDICT: int = 256
+    OLLAMA_TOP_K: int = 10
+    OLLAMA_TOP_P: float = 0.9
+    OLLAMA_REPEAT_PENALTY: float = 1.1
+
+    # 要約設定（Phase 13追加）
+    SUMMARY_PROVIDER: str = os.getenv(
+        "SUMMARY_PROVIDER", "ollama"
+    )  # "ollama" or "gemini"
+
+    # Ollama要約用（デフォルトプロバイダー）
+    OLLAMA_SUMMARY_MODEL: str = os.getenv("OLLAMA_SUMMARY_MODEL", "gemma3:4b")
+    OLLAMA_SUMMARY_NUM_PREDICT: int = int(
+        os.getenv("OLLAMA_SUMMARY_NUM_PREDICT", "1024")
+    )
+    # Gemini要約用
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    GEMINI_MAX_OUTPUT_TOKENS: int = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "512"))
+    GEMINI_TEMPERATURE: float = float(os.getenv("GEMINI_TEMPERATURE", "0.3"))
+    #################################################################################
 
     # API設定
     API_TITLE: str = "Voice Analyzer API"

@@ -12,7 +12,8 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --upgrade pip
 
 # 基本依存
-RUN pip install --no-cache-dir \
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir \
     fastapi>=0.104.0 \
     uvicorn[standard]>=0.24.0 \
     python-multipart>=0.0.6 \
@@ -21,22 +22,18 @@ RUN pip install --no-cache-dir \
     janome>=0.4.2 \
     requests>=2.31.0
 
-# ctranslate2をインストール
-RUN pip install --no-cache-dir ctranslate2
-
-# faster-whisper
-RUN pip install --no-cache-dir av==12.0.0
-RUN pip install --no-cache-dir faster-whisper --no-deps
 RUN pip install --no-cache-dir \
+    ctranslate2 \
+    av==12.0.0 \
+    onnxruntime \
     huggingface-hub>=0.13 \
-    tokenizers>=0.13
-
-# PyTorch + Transformers（翻訳用）
-RUN pip install --no-cache-dir torch==2.0.1
-
-RUN pip install --no-cache-dir \
+    tokenizers>=0.13 \
+    torch==2.0.1 \
     transformers>=4.30.0 \
     sentencepiece>=0.1.99
+
+# faster-whisper
+RUN pip install --no-cache-dir faster-whisper --no-deps
 
 COPY ./app /app
 
