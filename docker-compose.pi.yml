@@ -13,7 +13,7 @@ services:
       - ./logs:/logs
     environment:
       - TZ=Asia/Tokyo
-      - LOG_LEVEL=INFO
+      - LOG_LEVEL=DEBUG
       - ENV=production
       - LOG_BACKUP_COUNT=14
       - LOG_DIR=/logs
@@ -23,10 +23,11 @@ services:
       - WHISPER_BEST_OF=1
       # CPUスレッド数（Pi 4/5の4コアに合わせる）
       - WHISPER_CPU_THREADS=4
-      - WHISPER_COMPUTE_TYPE=float32
+      - WHISPER_COMPUTE_TYPE=int8
       - WHISPER_VAD_ENABLED=false
-      # チャンク設定（レスポンスが遅いとタイムアウトするため）
-      - CUMULATIVE_MAX_AUDIO_SECONDS=6.0
+      # チャンク設定（3秒 × TRANSCRIPTION_INTERVAL より必ず大きくすること。
+      # 下回ると毎回トリミングが走りタイムスタンプ整合が壊れてテキストが欠落する）
+      - CUMULATIVE_MAX_AUDIO_SECONDS=20.0
       - CUMULATIVE_TRANSCRIPTION_INTERVAL=5
       # 要約機能をGeminiで使う場合はAPIキーを設定
       # - GEMINI_API_KEY=your_api_key_here
