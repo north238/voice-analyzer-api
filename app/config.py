@@ -66,14 +66,19 @@ class Settings:
     MAX_CHUNKS_PER_SESSION: int = int(os.getenv("MAX_CHUNKS_PER_SESSION", "100"))
 
     # 累積バッファ設定
-    # Phase 8修正: 30秒 → 12秒（精度優先、表記揺れを最小化）
-    # 注意: 3秒 × CUMULATIVE_TRANSCRIPTION_INTERVAL より大きい値にすること。
+    # チャンクが届くたびに文字起こしする（INTERVAL=1）ことで画面更新の間隔を詰める。
+    # ローカル実行(small/int8)では1回の文字起こしに3〜4秒かかるため、
+    # クライアント側のチャンク長は5秒にしてある（処理時間 < チャンク間隔 を満たし、
+    # 遅延が累積しないようにするため）。実測: 遅延 3.8〜4.7秒
+    #
+    # 注意: CUMULATIVE_MAX_AUDIO_SECONDS は
+    #       チャンク長 × CUMULATIVE_TRANSCRIPTION_INTERVAL より大きい値にすること。
     #       下回ると毎回トリミングが走り、タイムスタンプ整合が壊れてテキストが欠落する
     CUMULATIVE_MAX_AUDIO_SECONDS: float = float(
-        os.getenv("CUMULATIVE_MAX_AUDIO_SECONDS", "12.0")
+        os.getenv("CUMULATIVE_MAX_AUDIO_SECONDS", "10.0")
     )
     CUMULATIVE_TRANSCRIPTION_INTERVAL: int = int(
-        os.getenv("CUMULATIVE_TRANSCRIPTION_INTERVAL", "3")
+        os.getenv("CUMULATIVE_TRANSCRIPTION_INTERVAL", "1")
     )
     CUMULATIVE_STABLE_THRESHOLD: int = int(
         os.getenv("CUMULATIVE_STABLE_THRESHOLD", "3")

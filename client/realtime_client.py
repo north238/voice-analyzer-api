@@ -507,8 +507,8 @@ def main():
     parser.add_argument(
         "--chunk-duration",
         type=float,
-        default=3.0,
-        help="固定チャンク長（秒）- VAD無効時に使用（デフォルト: 3.0）",
+        default=5.0,
+        help="固定チャンク長（秒）- VAD無効時に使用（デフォルト: 5.0）",
     )
     parser.add_argument(
         "--device",
