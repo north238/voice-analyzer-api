@@ -1,7 +1,7 @@
 # voice-analyzer-api
 
 日本語音声をリアルタイムで「文字起こし → ひらがな正規化 → 翻訳 → 要約」する FastAPI ベースのサービスです。
-Raspberry Pi 上で動作させることを想定し、CLIクライアントから利用します。
+ローカル環境での実行を前提とし、CLIクライアントから利用します。
 
 > 本リポジトリのコードおよびドキュメントは、生成AI（Claude Code）を活用して作成しています。
 
@@ -55,117 +55,49 @@ python client/realtime_client.py --cumulative
 # VADモード（音声区間検出）
 python client/realtime_client.py --cumulative --enable-vad
 
-# リモートのサーバーに接続する場合
+# 別ホストのサーバーに接続する場合
 python client/realtime_client.py --cumulative \
-  --url ws://<ラズパイのIP>:5001/ws/transcribe-stream-cumulative
+  --url ws://<サーバーのIP>:5001/ws/transcribe-stream-cumulative
 ```
 
 ---
 
-## Raspberry Pi 4 環境構築
+## リアルタイム性について
 
-### 動作確認済み構成
+「発話してから画面に出るまで数秒以内」を要件とし、ローカル実行(Mac)で実測して
+既定値を決めています。
 
-| 項目            | 内容                        |
-| --------------- | --------------------------- |
-| ハードウェア    | Raspberry Pi 4 (8GB)        |
-| OS              | Ubuntu 64bit (aarch64)      |
-| IPアドレス      | 192.168.0.x（有線固定推奨） |
-| Dockerイメージ  | `Dockerfile.arm64`          |
-| composeファイル | `docker-compose.pi.yml`     |
+| 項目            | 値                       |
+| --------------- | ------------------------ |
+| 遅延            | 3.7〜4.6秒（累積しない） |
+| 画面更新        | 5秒ごと                  |
+| 1回の文字起こし | 3〜4秒（small / int8）   |
 
-### 注意事項（ハマりポイント）
+### 設定の考え方
 
-> **torch は `==2.0.1` に固定すること。**
-> 2.1以降のバージョンはARMv8.2以降向けにコンパイルされており、
-> Pi 4（ARMv8.0-A / Cortex-A72）では SIGILL クラッシュが発生する。
-
-> **WHISPER_COMPUTE_TYPE は `float32` を使用すること。**
-> Pi 4は int8 演算に非対応のため、`int8` を指定するとエラーが発生する。
-
-> **CUMULATIVE_MAX_AUDIO_SECONDS は `3秒 × CUMULATIVE_TRANSCRIPTION_INTERVAL` より大きくすること。**
-> トリミングは文字起こし後にしか実行されないため、これを下回る値を設定すると
-> 毎回トリミングが走り、タイムスタンプ整合が壊れて文字起こし結果が段落単位で欠落する。
-
-### 初回セットアップ
-
-```bash
-# リポジトリのクローン
-git clone https://github.com/north238/voice-analyzer-api.git
-cd voice-analyzer-api
-
-# ネットワーク作成（初回のみ）
-docker network create pi_network
-
-# ビルド・起動（初回は30〜60分かかる場合あり）
-docker compose -f docker-compose.pi.yml build --no-cache
-docker compose -f docker-compose.pi.yml up -d
+```text
+CUMULATIVE_TRANSCRIPTION_INTERVAL=1   チャンクが届くたびに文字起こしする
+CUMULATIVE_MAX_AUDIO_SECONDS=10.0     累積バッファの上限
+--chunk-duration 5.0                  クライアントのチャンク長
 ```
 
-### 通常の起動・停止
+**チャンク長は「処理時間 < チャンク間隔」を満たす必要があります。**
+3秒間隔にすると、1回3〜4秒かかる処理が追いつかず遅延が累積します
+（実測で7秒超まで悪化）。5秒あれば処理が間に合い、遅延が一定に保たれます。
 
-```bash
-# 起動
-dc -f docker-compose.pi.yml up -d
+### 調整する場合の注意
 
-# 停止
-dc -f docker-compose.pi.yml down
-
-# ログ確認
-docker logs voice-analyzer-api
-
-# 状態確認
-dc ps
-```
-
-### 動作確認
-
-```bash
-# ヘルスチェック
-curl http://<ラズパイのIP>:5001/health
-
-# 音声ファイルでテスト
-curl -X POST http://<ラズパイのIP>:5001/transcribe \
-  -F "file=@sample/001-sibutomo.mp3" \
-  -F "intent=raw"
-```
-
-### Pi向け環境変数（docker-compose.pi.yml）
-
-```yaml
-environment:
-  - TZ=Asia/Tokyo
-  - LOG_LEVEL=INFO
-  - ENV=production
-  - LOG_BACKUP_COUNT=14
-  - LOG_DIR=/logs
-  # Whisper設定（Pi 4向け最適化）
-  - WHISPER_MODEL_SIZE=base # tiny も可（2倍速、精度低）
-  - WHISPER_BEAM_SIZE=1
-  - WHISPER_BEST_OF=1
-  - WHISPER_CPU_THREADS=4
-  - WHISPER_COMPUTE_TYPE=float32 # Pi 4はint8非対応のためfloat32必須
-  - WHISPER_VAD_ENABLED=false # onnxruntime未インストール時はfalse（Dockerfile.arm64 line:28）
-  # 累積バッファ（処理速度とのトレードオフ）
-  - CUMULATIVE_MAX_AUDIO_SECONDS=20.0 # 3秒 × TRANSCRIPTION_INTERVAL より大きくすること
-  - CUMULATIVE_TRANSCRIPTION_INTERVAL=5
-```
-
-### パフォーマンス目安（float32 / Pi 4）
-
-| モデル | 処理時間 | 精度 | メモリ |
-| ------ | -------- | ---- | ------ |
-| tiny   | 約14秒   | 低   | ~0.8GB |
-| base   | 約28秒   | 中   | ~1.5GB |
-
-### CLIクライアントからの接続
-
-`--url` でラズパイのサーバーを指定します。
-
-```bash
-python client/realtime_client.py --cumulative \
-  --url ws://<ラズパイのIP>:5001/ws/transcribe-stream-cumulative
-```
+- **Whisper は30秒単位でパディングするため、処理対象の音声を短くしても
+  処理時間はほとんど減りません**（9秒分でも18秒分でも3〜4秒台）。
+  `CUMULATIVE_MAX_AUDIO_SECONDS` を削っても遅延は縮まりません。
+  遅延に効くのは**モデルサイズとチャンク間隔**だけです。
+- `WHISPER_MODEL_SIZE=base` にすると遅延は1.3〜1.9秒まで縮みますが、
+  固有名詞と数字が崩れます（「すこやかに」→「スクイアカ」、
+  電話番号が分断される）。精度を優先して `small` を既定にしています。
+- `CUMULATIVE_MAX_AUDIO_SECONDS` は
+  `チャンク長 × CUMULATIVE_TRANSCRIPTION_INTERVAL` より大きくすること。
+  下回ると毎回トリミングが走り、タイムスタンプ整合が壊れて
+  文字起こし結果が段落単位で欠落します。
 
 ---
 
@@ -293,9 +225,15 @@ Raspberry Pi 4（ARMv8.0-A / Cortex-A72）上では文字起こしに **実測 1
 int8 非対応・torch 2.0.1 固定というハード制約があり、量子化やモデル縮小を試みても
 最小の tiny モデルで約14秒と、性能面の打ち手が残っていなかった。
 
+その後、CLI の要件を「発話から数秒以内に表示される」と定めた結果、
+これも Pi 4 では達成できないことが確定したため、**実行環境をローカルに一本化し
+Raspberry Pi 向けの構成（`Dockerfile.arm64` / `docker-compose.pi.yml`）も削除した**。
+同時に、文字起こしに専念する方針としてひらがな正規化・翻訳・要約は
+CLI から提供していない（サーバー側の実装は残置）。
+
 判断の詳細（実測データ、撤退の過程で発見した設計上の問題、
 あえて修正を見送った理由）は [`docs/PHASE15_DECISION.md`](docs/PHASE15_DECISION.md) に記録している。
-UIに関する実装ドキュメントは [`docs/archive/`](docs/archive/) に移した。
+UI と Pi デプロイに関する実装ドキュメントは [`docs/archive/`](docs/archive/) に移した。
 
 拡張機能・ブラウザUIを含む最終版は、タグ `v1.0-extension` で参照できる。
 

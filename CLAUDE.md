@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 音声を受け取り「文字起こし → フィルタリング → ひらがな正規化 → 翻訳 → 要約」を行う
-FastAPI 製の日本語音声解析API。Raspberry Pi 上での動作を想定し、CLIクライアントから利用する。
+FastAPI 製の日本語音声解析API。ローカル環境で動作させ、CLIクライアントから利用する。
 
 ## ドキュメント運用ルール
 
@@ -34,29 +34,30 @@ CLIクライアント + サーバーのみ。ブラウザUI・Chrome拡張は Ph
   `client/realtime_client.py` が `{"type": "options"}` を送信しないため、
   サーバー側の処理オプションが常に全て `False` になる（受信側の処理は実装済み）。
   対応は `docs/TODO.md` に記載
-- **Pi 4 では文字起こしに 10.9〜17.3秒/回かかる。**
-  3秒チャンク前提の設計に追いつかない。int8 非対応・torch 2.0.1 固定というハード制約があり、
-  設定では解決できない
+- **リアルタイム性は「遅延 3.7〜4.6秒 / 画面更新 5秒ごと」で安定**（ローカル実行の実測）。
+  1回の文字起こしに3〜4秒かかるため、チャンク長5秒で「処理時間 < チャンク間隔」を
+  満たしている。ここを崩すと遅延が累積する（詳細は README「リアルタイム性について」）
 
 ## 開発コマンド
 
 ### Docker
 
+`docker-compose.yml` は Docker ネットワークとボリュームを external として参照するため、
+初回のみ `docker network create voice_analysis_network` と
+`docker volume create ollama_data` が必要（詳細は README）。
+
 ```bash
-# Mac（開発環境）
 docker compose up --build -d
 docker compose logs -f voice-analyzer
 docker compose down
 
-# Raspberry Pi（本番）
-docker compose -f docker-compose.pi.yml up --build -d
-docker compose -f docker-compose.pi.yml logs -f voice-analyzer
+# 要約を使わない場合は Ollama を起動しなくてよい
+docker compose up -d --no-deps voice-analyzer
 ```
 
 ### テスト
 
 テストは `app/tests/` にある（`tests/` ではない）。
-`Dockerfile.arm64` に pytest は含まれないため、**テストは Mac 側（`Dockerfile`）で実行する**。
 
 ```bash
 docker compose exec voice-analyzer pytest /app/tests/ -v
@@ -76,9 +77,9 @@ python client/realtime_client.py --cumulative      # 累積バッファモード
 python client/realtime_client.py --cumulative --enable-vad   # VADモード
 python client/realtime_client.py --cumulative --device 2     # デバイス指定
 
-# ラズパイのサーバーに接続
+# 別ホストのサーバーに接続
 python client/realtime_client.py --cumulative \
-  --url ws://<ラズパイのIP>:5001/ws/transcribe-stream-cumulative
+  --url ws://<サーバーのIP>:5001/ws/transcribe-stream-cumulative
 ```
 
 ## アーキテクチャ
@@ -142,15 +143,16 @@ translator: 日→英翻訳（オプション）
 
 環境変数で上書き可能。主なもの:
 
-- `WHISPER_MODEL_SIZE`: small（デフォルト。ラズパイは base に上書き）
+- `WHISPER_MODEL_SIZE`: small（base にすると遅延1.3〜1.9秒まで縮むが、
+  固有名詞と数字が崩れるため精度優先で small）
 - `WHISPER_BEAM_SIZE`: 1
-- `WHISPER_COMPUTE_TYPE`: int8（**ラズパイは float32 必須**。Pi 4 は int8 非対応）
+- `WHISPER_COMPUTE_TYPE`: int8
 - `TRANSLATION_MODEL`: Helsinki-NLP/opus-mt-ja-en
-- `CUMULATIVE_MAX_AUDIO_SECONDS`: 12.0秒（ラズパイは 20.0）
-- `CUMULATIVE_TRANSCRIPTION_INTERVAL`: 3チャンク（ラズパイは 5）
+- `CUMULATIVE_MAX_AUDIO_SECONDS`: 10.0秒
+- `CUMULATIVE_TRANSCRIPTION_INTERVAL`: 1チャンク（届くたびに文字起こし）
 
 **重要な制約**: `CUMULATIVE_MAX_AUDIO_SECONDS` は
-`3秒 × CUMULATIVE_TRANSCRIPTION_INTERVAL` より大きくすること。
+`チャンク長 × CUMULATIVE_TRANSCRIPTION_INTERVAL` より大きくすること。
 トリミングは文字起こし後にしか実行されないため、下回ると毎回トリミングが走り、
 タイムスタンプ整合が壊れて文字起こし結果が段落単位で欠落する。
 
@@ -174,12 +176,6 @@ translator: 日→英翻訳（オプション）
 Phase 7.0 でトリミングタイミングを「文字起こし後」に変更し、中間部分のテキスト喪失を改善。
 処理順序（データ更新 → コールバック → クリーンアップ）が重要で、
 文字起こし前にトリミングすると `last_transcription` が古いまま強制確定が失敗する。
-
-### Raspberry Pi 4 の制約
-
-- **int8 非対応** — `WHISPER_COMPUTE_TYPE=float32` が必須（int8 はエラー）
-- **torch は `==2.0.1` 固定** — 2.1以降は ARMv8.2 向けビルドで SIGILL クラッシュ
-- 処理速度は tiny で約14秒、base で約28秒
 
 ## Git
 
