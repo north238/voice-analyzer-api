@@ -3,6 +3,8 @@
 日本語音声をリアルタイムで「文字起こし → ひらがな正規化 → 翻訳 → 要約」する FastAPI ベースのサービスです。
 Chrome拡張機能として動作し、YouTubeなどのタブ音声をワンクリックで文字起こしできます。
 
+> 本リポジトリのコードおよびドキュメントは、生成AI（Claude Code）を活用して作成しています。
+
 ## 主な機能
 
 - **リアルタイム文字起こし**: faster-whisper による高速・高精度な日本語音声認識
@@ -50,13 +52,13 @@ python client/realtime_client.py --cumulative
 
 ### 動作確認済み構成
 
-| 項目            | 内容                         |
-| --------------- | ---------------------------- |
-| ハードウェア    | Raspberry Pi 4 (8GB)         |
-| OS              | Ubuntu 64bit (aarch64)       |
-| IPアドレス      | 192.168.0.13（有線固定推奨） |
-| Dockerイメージ  | `Dockerfile.arm64`           |
-| composeファイル | `docker-compose.pi.yml`      |
+| 項目            | 内容                        |
+| --------------- | --------------------------- |
+| ハードウェア    | Raspberry Pi 4 (8GB)        |
+| OS              | Ubuntu 64bit (aarch64)      |
+| IPアドレス      | 192.168.0.x（有線固定推奨） |
+| Dockerイメージ  | `Dockerfile.arm64`          |
+| composeファイル | `docker-compose.pi.yml`     |
 
 ### 注意事項（ハマりポイント）
 
@@ -66,6 +68,10 @@ python client/realtime_client.py --cumulative
 
 > **WHISPER_COMPUTE_TYPE は `float32` を使用すること。**
 > Pi 4は int8 演算に非対応のため、`int8` を指定するとエラーが発生する。
+
+> **CUMULATIVE_MAX_AUDIO_SECONDS は `3秒 × CUMULATIVE_TRANSCRIPTION_INTERVAL` より大きくすること。**
+> トリミングは文字起こし後にしか実行されないため、これを下回る値を設定すると
+> 毎回トリミングが走り、タイムスタンプ整合が壊れて文字起こし結果が段落単位で欠落する。
 
 ### 初回セットアップ
 
@@ -102,10 +108,10 @@ dc ps
 
 ```bash
 # ヘルスチェック
-curl http://192.168.0.13:5001/health
+curl http://<ラズパイのIP>:5001/health
 
 # 音声ファイルでテスト
-curl -X POST http://192.168.0.13:5001/transcribe \
+curl -X POST http://<ラズパイのIP>:5001/transcribe \
   -F "file=@sample/001-sibutomo.mp3" \
   -F "intent=raw"
 ```
@@ -127,7 +133,7 @@ environment:
   - WHISPER_COMPUTE_TYPE=float32 # Pi 4はint8非対応のためfloat32必須
   - WHISPER_VAD_ENABLED=false # onnxruntime未インストール時はfalse（Dockerfile.arm64 line:28）
   # 累積バッファ（処理速度とのトレードオフ）
-  - CUMULATIVE_MAX_AUDIO_SECONDS=6.0 # 短くすると速くなるが精度低下
+  - CUMULATIVE_MAX_AUDIO_SECONDS=20.0 # 3秒 × TRANSCRIPTION_INTERVAL より大きくすること
   - CUMULATIVE_TRANSCRIPTION_INTERVAL=5
 ```
 
@@ -142,16 +148,16 @@ environment:
 
 拡張機能の設定画面（`chrome://extensions/` → オプション）でAPIサーバーURLを変更：
 
-```
+```text
 変更前: ws://localhost:5001
-変更後: ws://192.168.0.13:5001
+変更後: ws://<ラズパイのIP>:5001
 ```
 
 ---
 
 ## アーキテクチャ
 
-```
+```text
 音声入力（タブ / マイク / 動画）
   ↓
 WebSocket (累積バッファ方式)
@@ -204,7 +210,7 @@ docker compose exec voice-analyzer pytest /app/tests/ --cov=app --cov-report=ter
 
 ## ファイル構成
 
-```
+```text
 extension/              # Chrome拡張機能
 ├── manifest.json
 ├── sidepanel/          # サイドパネルUI
@@ -239,18 +245,18 @@ docs/                   # 実装ドキュメント
 
 環境変数で上書き可能（`app/config.py`）:
 
-| 変数名                              | デフォルト          | 説明                                |
-| ----------------------------------- | ------------------- | ----------------------------------- |
-| `WHISPER_MODEL_SIZE`                | base                | Whisperモデルサイズ                 |
-| `WHISPER_COMPUTE_TYPE`              | int8                | 計算精度（Pi 4はfloat32必須）       |
-| `WHISPER_BEAM_SIZE`                 | 3                   | ビームサーチ幅                      |
-| `WHISPER_VAD_ENABLED`               | true                | VAD有効/無効                        |
-| `CUMULATIVE_MAX_AUDIO_SECONDS`      | 12.0                | バッファ最大長（秒）                |
-| `CUMULATIVE_TRANSCRIPTION_INTERVAL` | 3                   | 再処理間隔（チャンク数）            |
-| `SUMMARY_PROVIDER`                  | gemini              | 要約プロバイダー（gemini / ollama） |
-| `GEMINI_API_KEY`                    | （空）              | Google Gemini APIキー               |
-| `GEMINI_MODEL`                      | gemini-2.0-flash    | 使用するGeminiモデル                |
-| `OLLAMA_BASE_URL`                   | http://ollama:11434 | OllamaサーバーURL                   |
+| 変数名                              | デフォルト               | 説明                                |
+| ----------------------------------- | ------------------------ | ----------------------------------- |
+| `WHISPER_MODEL_SIZE`                | small                    | Whisperモデルサイズ                 |
+| `WHISPER_COMPUTE_TYPE`              | int8                     | 計算精度（Pi 4はfloat32必須）       |
+| `WHISPER_BEAM_SIZE`                 | 1                        | ビームサーチ幅                      |
+| `WHISPER_VAD_ENABLED`               | true                     | VAD有効/無効                        |
+| `CUMULATIVE_MAX_AUDIO_SECONDS`      | 12.0                     | バッファ最大長（秒）                |
+| `CUMULATIVE_TRANSCRIPTION_INTERVAL` | 3                        | 再処理間隔（チャンク数）            |
+| `SUMMARY_PROVIDER`                  | ollama                   | 要約プロバイダー（gemini / ollama） |
+| `GEMINI_API_KEY`                    | （空）                   | Google Gemini APIキー               |
+| `GEMINI_MODEL`                      | gemini-2.0-flash         | 使用するGeminiモデル                |
+| `OLLAMA_BASE_URL`                   | `http://local-llm:11434` | OllamaサーバーURL                   |
 
 ---
 
@@ -261,3 +267,23 @@ docs/                   # 実装ドキュメント
 - 翻訳は大まかな内容把握用途（Helsinki-NLP 軽量モデル）
 - AI要約はGemini利用時はAPIキーが必要
 - Pi 4では float32 のみ対応（int8 不可）
+
+---
+
+## 設計判断の経緯
+
+Phase 5系〜10.5 で実装した **ブラウザUI と Chrome拡張機能は、Phase 15 で廃止し CLI に集約する**判断をした。
+
+Raspberry Pi 4（ARMv8.0-A / Cortex-A72）上では文字起こしに **実測 10.9〜17.3秒/回**かかり、
+3秒チャンクを前提としたリアルタイムUIが成立しなかったことが理由である。
+int8 非対応・torch 2.0.1 固定というハード制約があり、量子化やモデル縮小を試みても
+最小の tiny モデルで約14秒と、性能面の打ち手が残っていなかった。
+
+判断の詳細（実測データ、撤退の過程で発見した設計上の問題、
+あえて修正を見送った理由）は [`docs/PHASE15_DECISION.md`](docs/PHASE15_DECISION.md) に記録している。
+
+拡張機能・ブラウザUIを含む最終版は、タグ `v1.0-extension` で参照できる。
+
+```bash
+git checkout v1.0-extension
+```
