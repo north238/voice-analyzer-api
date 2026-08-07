@@ -1,7 +1,7 @@
 # voice-analyzer-api
 
 日本語音声をリアルタイムで「文字起こし → ひらがな正規化 → 翻訳 → 要約」する FastAPI ベースのサービスです。
-Chrome拡張機能として動作し、YouTubeなどのタブ音声をワンクリックで文字起こしできます。
+Raspberry Pi 上で動作させることを想定し、CLIクライアントから利用します。
 
 > 本リポジトリのコードおよびドキュメントは、生成AI（Claude Code）を活用して作成しています。
 
@@ -12,38 +12,52 @@ Chrome拡張機能として動作し、YouTubeなどのタブ音声をワンク�
 - **ひらがな正規化**: janome 形態素解析によるひらがな変換（オプション）
 - **日英翻訳**: Helsinki-NLP/opus-mt-ja-en による日本語→英語翻訳（オプション）
 - **AI要約**: 録音終了後にGemini 2.0 Flash または Ollama で要約生成（オプション）
-- **Chrome拡張機能**: ワンクリックでタブ音声をキャプチャしてサイドパネルに表示
-- **Zenモード**: 余分なUIを排除してテキスト読書に集中できるモード
-- **テキスト出力**: タイムスタンプ付きテキストファイルのダウンロード
+- **CLIクライアント**: マイク入力からのリアルタイム文字起こし（VADモード対応）
+
+> ひらがな正規化・翻訳・要約はサーバー側に実装済みですが、CLIからの有効化は未対応です。
+> 対応予定は [`docs/TODO.md`](docs/TODO.md) を参照してください。
 
 ---
 
 ## クイックスタート（開発環境）
 
+`docker-compose.yml` は Docker ネットワークとボリュームを external として参照するため、
+初回のみ手動で作成する必要があります。
+
 ```bash
-# サーバー起動
-docker compose up -d
+# ネットワーク・ボリューム作成（初回のみ）
+docker network create voice_analysis_network
+docker volume create ollama_data
+
+# ビルド・起動
+docker compose up --build -d
 ```
 
-### Chrome拡張機能（推奨）
-
-1. `chrome://extensions/` を開く
-2. 「デベロッパーモード」を有効化
-3. 「パッケージ化されていない拡張機能を読み込む」をクリック
-4. `extension/` フォルダを選択
-5. 拡張機能アイコンをクリックしてサイドパネルを表示
-
-### ブラウザUI（従来版）
+`voice-analyzer` は `depends_on` で `local-llm`（Ollama）を参照しているため、
+上記では Ollama も起動します。要約機能を使わない場合は `--no-deps` で除外できます。
 
 ```bash
-open http://localhost:5001/static/index.html
+docker compose up -d --no-deps voice-analyzer
 ```
 
 ### CLIクライアント
 
 ```bash
 source venv/bin/activate
+pip install -r client/requirements.txt   # 初回のみ
+
+# デバイス一覧を確認
+python client/realtime_client.py --list-devices
+
+# リアルタイム文字起こし（累積バッファモード）
 python client/realtime_client.py --cumulative
+
+# VADモード（音声区間検出）
+python client/realtime_client.py --cumulative --enable-vad
+
+# リモートのサーバーに接続する場合
+python client/realtime_client.py --cumulative \
+  --url ws://<ラズパイのIP>:5001/ws/transcribe-stream-cumulative
 ```
 
 ---
@@ -144,13 +158,13 @@ environment:
 | tiny   | 約14秒   | 低   | ~0.8GB |
 | base   | 約28秒   | 中   | ~1.5GB |
 
-### Chrome拡張機能との接続
+### CLIクライアントからの接続
 
-拡張機能の設定画面（`chrome://extensions/` → オプション）でAPIサーバーURLを変更：
+`--url` でラズパイのサーバーを指定します。
 
-```text
-変更前: ws://localhost:5001
-変更後: ws://<ラズパイのIP>:5001
+```bash
+python client/realtime_client.py --cumulative \
+  --url ws://<ラズパイのIP>:5001/ws/transcribe-stream-cumulative
 ```
 
 ---
@@ -211,12 +225,6 @@ docker compose exec voice-analyzer pytest /app/tests/ --cov=app --cov-report=ter
 ## ファイル構成
 
 ```text
-extension/              # Chrome拡張機能
-├── manifest.json
-├── sidepanel/          # サイドパネルUI
-├── settings/           # 設定画面
-└── background/         # Service Worker
-
 app/
 ├── main.py             # FastAPIエンドポイント
 ├── config.py           # 設定管理
@@ -230,13 +238,18 @@ app/
 │   └── websocket_manager.py    # WebSocket管理
 ├── utils/
 │   └── normalizer.py           # ひらがな正規化
-└── static/             # ブラウザUI（従来版）
+└── tests/              # テストスイート
 
 client/
-└── realtime_client.py  # CLIリアルタイムクライアント
+├── realtime_client.py  # CLIリアルタイムクライアント（マイク入力）
+├── ws_client.py        # WebSocketクライアント（音声ファイル用）
+├── chunk_client.py     # HTTPチャンククライアント
+└── audio_capture.py    # マイクキャプチャ（sounddevice）
 
-tests/                  # テストスイート
-docs/                   # 実装ドキュメント
+docs/
+├── TODO.md             # やることリスト
+├── PHASE15_DECISION.md # UI廃止の判断記録
+└── archive/            # 廃止したUIに関するドキュメント
 ```
 
 ---
@@ -262,8 +275,9 @@ docs/                   # 実装ドキュメント
 
 ## 既知の制限
 
-- Chrome専用（Safari / Firefox では動作しない）
 - APIサーバー必須（ローカルまたはリモートでサーバー起動が必要）
+- ひらがな正規化・翻訳・要約はCLIから有効化できない（[`docs/TODO.md`](docs/TODO.md) で対応予定）
+- Pi 4 では文字起こしに 10.9〜17.3秒/回かかり、リアルタイム処理には追いつかない
 - 翻訳は大まかな内容把握用途（Helsinki-NLP 軽量モデル）
 - AI要約はGemini利用時はAPIキーが必要
 - Pi 4では float32 のみ対応（int8 不可）
@@ -272,7 +286,7 @@ docs/                   # 実装ドキュメント
 
 ## 設計判断の経緯
 
-Phase 5系〜10.5 で実装した **ブラウザUI と Chrome拡張機能は、Phase 15 で廃止し CLI に集約する**判断をした。
+Phase 5系〜10.5 で実装した **ブラウザUI と Chrome拡張機能は、Phase 15 で廃止し CLI に集約した**。
 
 Raspberry Pi 4（ARMv8.0-A / Cortex-A72）上では文字起こしに **実測 10.9〜17.3秒/回**かかり、
 3秒チャンクを前提としたリアルタイムUIが成立しなかったことが理由である。
@@ -281,6 +295,7 @@ int8 非対応・torch 2.0.1 固定というハード制約があり、量子化
 
 判断の詳細（実測データ、撤退の過程で発見した設計上の問題、
 あえて修正を見送った理由）は [`docs/PHASE15_DECISION.md`](docs/PHASE15_DECISION.md) に記録している。
+UIに関する実装ドキュメントは [`docs/archive/`](docs/archive/) に移した。
 
 拡張機能・ブラウザUIを含む最終版は、タグ `v1.0-extension` で参照できる。
 
