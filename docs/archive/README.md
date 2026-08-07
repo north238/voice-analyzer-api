@@ -4,7 +4,8 @@
 両機能は Phase 15 で廃止し CLI に集約したため、ここへ移しました。
 
 廃止の判断と経緯は [`../PHASE15_DECISION.md`](../PHASE15_DECISION.md) を参照してください。
-実装そのものはタグ `v1.0-extension` から参照できます。
+実装そのもの、および UI のデザインモックアップ（`design/`）は
+タグ `v1.0-extension` から参照できます。
 
 ```bash
 git checkout v1.0-extension
