@@ -66,7 +66,9 @@ class Settings:
     MAX_CHUNKS_PER_SESSION: int = int(os.getenv("MAX_CHUNKS_PER_SESSION", "100"))
 
     # 累積バッファ設定
-    # Phase 8修正: 30秒 → 15秒（精度優先、表記揺れを最小化）
+    # Phase 8修正: 30秒 → 12秒（精度優先、表記揺れを最小化）
+    # 注意: 3秒 × CUMULATIVE_TRANSCRIPTION_INTERVAL より大きい値にすること。
+    #       下回ると毎回トリミングが走り、タイムスタンプ整合が壊れてテキストが欠落する
     CUMULATIVE_MAX_AUDIO_SECONDS: float = float(
         os.getenv("CUMULATIVE_MAX_AUDIO_SECONDS", "12.0")
     )
