@@ -13,7 +13,7 @@
 
 ## ファイル構成
 
-```
+```text
 icons/
 ├── icon.svg          # ソースSVGファイル（128x128）
 ├── icon16.png        # ツールバー用（16x16）
@@ -60,6 +60,7 @@ DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib python create_icons.py
 ```
 
 実行すると、以下のファイルが生成されます：
+
 - `icon16.png` (16x16px)
 - `icon48.png` (48x48px)
 - `icon128.png` (128x128px)
