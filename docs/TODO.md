@@ -20,13 +20,6 @@
 - [ ] CLI 引数 `--hiragana` / `--translate` / `--summary` を追加する
 - [ ] 要約結果の表示に対応する（`summary_result` の受信ハンドリング）
 
-## 検証
-
-- [ ] ラズパイ実機でバッファ設定修正の動作確認
-      `CUMULATIVE_MAX_AUDIO_SECONDS` を 6.0 → 20.0 に修正したが未検証。
-      文字起こし結果が欠落なく `confirmed_text` に積み上がることを確認する。
-      手順は [`PHASE15_DECISION.md`](PHASE15_DECISION.md) を参照
-
 ## 性能（Raspberry Pi 4）
 
 Pi 4 では文字起こしに実測 10.9〜17.3秒/回かかり、3秒チャンクに追いつかない。
@@ -34,6 +27,15 @@ int8 非対応・torch 2.0.1 固定というハード制約があり、設定で
 
 - [ ] チャンク間隔の延長を検討する（3秒 → 10〜15秒。リアルタイム性を落として追いつかせる）
 - [ ] 上記で不十分な場合、ハード変更（Pi 5 等）の要否を判断する
+
+## 開発環境（docker-compose.yml）
+
+CLI 集約により Ollama を使わなくなったため、Mac 側の compose を整理できる。
+
+- [ ] `voice-analyzer` の `depends_on: local-llm` を外す
+      要約を使わない構成では Ollama の起動が不要
+- [ ] `local-llm` サービスと external な `voice_analysis_network` / `ollama_data` の要否を判断する
+      不要なら Pi 版（`docker-compose.pi.yml`）と同じく bridge ネットワークに寄せられる
 
 ## 技術的負債
 

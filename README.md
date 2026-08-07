@@ -21,9 +21,23 @@ Raspberry Pi 上で動作させることを想定し、CLIクライアントか�
 
 ## クイックスタート（開発環境）
 
+`docker-compose.yml` は Docker ネットワークとボリュームを external として参照するため、
+初回のみ手動で作成する必要があります。
+
 ```bash
-# サーバー起動
-docker compose up -d
+# ネットワーク・ボリューム作成（初回のみ）
+docker network create voice_analysis_network
+docker volume create ollama_data
+
+# ビルド・起動
+docker compose up --build -d
+```
+
+`voice-analyzer` は `depends_on` で `local-llm`（Ollama）を参照しているため、
+上記では Ollama も起動します。要約機能を使わない場合は `--no-deps` で除外できます。
+
+```bash
+docker compose up -d --no-deps voice-analyzer
 ```
 
 ### CLIクライアント
