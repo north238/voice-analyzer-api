@@ -1,7 +1,6 @@
 from fastapi import FastAPI, UploadFile, Form, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
 from services.audio_processor import transcribe_audio
 from services.text_filter import is_valid_text
 from services.translator import translate_text
@@ -28,13 +27,6 @@ from typing import Optional, Dict
 from pydantic import BaseModel
 
 app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["chrome-extension://*"],  # LAN内ならこれで十分
-    allow_methods=["POST", "GET"],
-    allow_headers=["*"],
-)
 
 # 正規化インスタンスの初期化
 normalizer = JapaneseNormalizer()
@@ -295,25 +287,6 @@ async def translate_chunk(
                 "detail": str(e),
             },
         )
-
-
-class ProcessTextRequest(BaseModel):
-    text: str
-    hiragana: bool = False
-    translation: bool = False
-
-
-@app.post("/process-text")
-async def process_text(request: ProcessTextRequest):
-    """テキストのひらがな変換・翻訳を行うエンドポイント（タイムアウト時などの補完用）"""
-    result = {}
-    if request.hiragana and request.text:
-        result["hiragana"] = normalizer.to_hiragana(
-            request.text, keep_punctuation=False
-        )
-    if request.translation and request.text:
-        result["translation"] = await translate_async(request.text)
-    return JSONResponse(status_code=200, content=result)
 
 
 class SummarizeRequest(BaseModel):
@@ -993,30 +966,8 @@ async def finalize_cumulative_session(session_id: str, connection):
         await ws_manager.send_error(session_id, f"セッション終了処理エラー: {str(e)}")
 
 
-# 静的ファイル配信の設定
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-if os.path.exists(static_dir):
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
-    logger.info(f"📁 静的ファイル配信を有効化: {static_dir}")
-
 # サンプルファイル配信の設定
 sample_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "sample")
 if os.path.exists(sample_dir):
     app.mount("/sample", StaticFiles(directory=sample_dir), name="sample")
     logger.info(f"📁 サンプルファイル配信を有効化: {sample_dir}")
-
-
-@app.get("/")
-async def serve_web_ui():
-    """Web UIのHTMLを返す"""
-    html_path = os.path.join(static_dir, "index.html")
-    if os.path.exists(html_path):
-        return FileResponse(html_path)
-    return JSONResponse(
-        status_code=200,
-        content={
-            "message": "Voice Analyzer API",
-            "version": "1.0.0",
-            "web_ui": "Web UIは /static/index.html を配置してください",
-        },
-    )
