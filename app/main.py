@@ -1,6 +1,5 @@
 from fastapi import FastAPI, UploadFile, Form, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from services.audio_processor import transcribe_audio
 from services.text_filter import is_valid_text
 from services.session_manager import get_session_manager
@@ -16,7 +15,6 @@ from config import settings
 import asyncio
 import time
 import json
-import os
 from typing import Optional, Dict
 from pydantic import BaseModel
 
@@ -395,9 +393,3 @@ async def finalize_cumulative_session(session_id: str, connection):
         logger.exception(f"❌ セッション終了処理エラー: {e}")
         await ws_manager.send_error(session_id, f"セッション終了処理エラー: {str(e)}")
 
-
-# サンプルファイル配信の設定
-sample_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "sample")
-if os.path.exists(sample_dir):
-    app.mount("/sample", StaticFiles(directory=sample_dir), name="sample")
-    logger.info(f"📁 サンプルファイル配信を有効化: {sample_dir}")

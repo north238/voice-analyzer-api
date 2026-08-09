@@ -10,16 +10,12 @@
 
 ---
 
-## 残っている整理
-
-- [ ] `/sample` マウント（`app/main.py`）の要否を判断する
-      どこからも参照されていない。サンプル音声をHTTPで配信する必要がなければ削除できる
-- [ ] `client/realtime_client.py` のクラス名 `RealtimeTranslationClient` を実態に合わせる
-      翻訳を削除したため名前が合っていない（例: `RealtimeTranscriptionClient`）
-
 ## 改善候補
 
 - [ ] 文字起こし結果のファイル出力を検討する
-      現在は標準出力のみ。長時間の録音では保存できると使いやすい
-- [ ] `initial_prompt` の活用を検討する
-      固有名詞の認識精度を上げられる可能性がある（`app/services/audio_processor.py`）
+      現在は標準出力のみ。長時間の録音では保存できると使いやすい。
+      終了時に確定テキストをテキストファイルへ書き出す想定
+- [ ] 固有名詞の認識精度を上げる手段を検討する
+      `initial_prompt` には前回の確定テキストを渡して文脈を保持しているが
+      （`cumulative_buffer.get_initial_prompt()`）、
+      固有名詞リストを設定から与える仕組みは無い
