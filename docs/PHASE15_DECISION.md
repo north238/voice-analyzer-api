@@ -262,3 +262,61 @@ CLI の用途を文字起こしに専念させる判断をした。
   更新間隔を詰める（INTERVAL=3→1）だけでは遅延が悪化した。
   処理時間がチャンク間隔を超えると累積するという構造を
   実測で把握して初めて、正しい方向（チャンク長を伸ばす）が見えた。
+
+---
+
+## 続編2: 文字起こし専用への絞り込み（2026-08-10）
+
+CLI の用途を「マイク音声のリアルタイム文字起こし」に確定させ、
+**ひらがな正規化・翻訳・要約を削除した**。
+
+### 判断の理由
+
+- ひらがな正規化は CLI 利用者に求められていない
+- 翻訳・要約もリアルタイム文字起こしという目的から外れる
+- そもそも `client/realtime_client.py` が `{"type": "options"}` を送っておらず、
+  これらの機能は**既に誰からも到達できないデッドコードだった**
+
+### 効果
+
+|                 | 削除前               | 削除後                |
+| --------------- | -------------------- | --------------------- |
+| Docker イメージ | 9.97GB               | **1.59GB**（84%削減） |
+| エンドポイント  | 7個                  | 2個                   |
+| テスト          | 179件（うち2件失敗） | 64件（全て成功）      |
+
+イメージの大部分は翻訳用の `torch` / `transformers` / `sentencepiece` で、
+このレイヤーだけで **4.96GB** を占めていた。
+
+**faster-whisper / ctranslate2 は torch に依存しない**ことを
+PyPI の wheel メタデータで確認したうえで削除した
+（`transformers[torch]` はモデル変換用の extra 依存で、通常インストールでは入らない）。
+そのため torch を落としても文字起こしには影響しない。
+
+### 削除したもの
+
+- `app/services/translator.py`、`summarizer.py`
+- `app/utils/normalizer.py`、`number_converter.py`
+- `client/ws_client.py`、`chunk_client.py`、`audio_input.py`
+- `script/`（`/translate-chunk` の手動確認用）
+- エンドポイント: `POST /transcribe`、`POST /translate`、`POST /translate-chunk`、
+  `POST /summarize`、`WS /ws/translate-stream`
+- 依存: torch、transformers、sentencepiece、google-generativeai、janome、jaconv、
+  pykakasi（元々未使用）、pydub
+
+併せて、参照ゼロだった `inventory_parser.py`、`llm_analyzer.py`、
+`number_normalizer.py`、`text_stats.py` も削除した。
+
+削除前の実装はタグ `v1.1-full-pipeline` から参照できる。
+
+### この段階での学び
+
+- **「使っていない」と「到達できない」は別物で、後者はより強い削除の根拠になる。**
+  今回はオプションが常に False で機能が動作しない状態が続いていた。
+  仕様として提供しているつもりのものが実際には死んでいたわけで、
+  この事実が判明した時点で削除の判断は自明だった。
+
+- **依存の重さは、その機能を使うかどうかとは別に評価すべきだった。**
+  翻訳機能のために torch を入れた結果、使っていない機能が
+  イメージの半分を占めていた。導入時にこのコストを見積もっていれば、
+  もっと早く外部API化などの選択肢を検討できた。
