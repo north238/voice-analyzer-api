@@ -52,16 +52,16 @@ def create_volume_meter(volume_db: float, is_speech: bool, width: int = 30) -> s
     return f"{status} [{bar}] {volume_db:5.1f}dB"
 
 
-class RealtimeTranslationClient:
+class RealtimeTranscriptionClient:
     """
     リアルタイム文字起こしクライアント（累積バッファ方式）
 
     使用例:
-        client = RealtimeTranslationClient("ws://localhost:5001/ws/transcribe-stream-cumulative")
+        client = RealtimeTranscriptionClient("ws://localhost:5001/ws/transcribe-stream-cumulative")
         await client.run()
 
     使用例（VADモード）:
-        client = RealtimeTranslationClient("ws://localhost:5001/ws/transcribe-stream-cumulative")
+        client = RealtimeTranscriptionClient("ws://localhost:5001/ws/transcribe-stream-cumulative")
         await client.run(enable_vad=True, silence_duration_ms=500)
     """
 
@@ -493,7 +493,7 @@ def main():
     url = args.url or "ws://localhost:5001/ws/transcribe-stream-cumulative"
 
     # クライアント起動
-    client = RealtimeTranslationClient(url, device_index=args.device)
+    client = RealtimeTranscriptionClient(url, device_index=args.device)
 
     try:
         asyncio.run(
