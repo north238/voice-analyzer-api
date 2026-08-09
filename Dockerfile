@@ -18,9 +18,6 @@ RUN pip install --no-cache-dir \
     fastapi>=0.104.0 \
     uvicorn[standard]>=0.24.0 \
     python-multipart>=0.0.6 \
-    pykakasi>=2.2.0 \
-    jaconv>=0.3.0 \
-    janome>=0.4.2 \
     requests>=2.31.0
 
 # faster-whisperのみインストール（PyAV依存を回避）
@@ -31,16 +28,6 @@ RUN pip install --no-cache-dir \
     huggingface-hub>=0.13 \
     tokenizers>=0.13 \
     onnxruntime>=1.14
-
-# Hugging Face Transformers（翻訳用）
-RUN pip install --no-cache-dir \
-    torch>=2.0.0 \
-    transformers>=4.30.0 \
-    sentencepiece>=0.1.99
-
-# Gemini API（要約機能用、Phase 13追加）
-RUN pip install --no-cache-dir \
-    google-generativeai>=0.8.0
 
 # テストツール
 RUN pip install --no-cache-dir \
