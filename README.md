@@ -16,17 +16,11 @@
 
 ## クイックスタート（開発環境）
 
-`docker-compose.yml` は Docker ネットワークとボリュームを external として参照するため、
-初回のみ手動で作成する必要があります。
-
 ```bash
-# ネットワーク・ボリューム作成（初回のみ）
-docker network create voice_analysis_network
-docker volume create ollama_data
-
-# ビルド・起動
 docker compose up --build -d
 ```
+
+初回はモデルのダウンロードを含むため数分かかります。
 
 ### CLIクライアント
 
