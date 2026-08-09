@@ -193,69 +193,6 @@ async def transcribe_async(
     return await loop.run_in_executor(executor, transcribe_func)
 
 
-def _normalize_sync(text: str, keep_punctuation: bool = True) -> str:
-    """
-    同期的なひらがな正規化処理
-
-    Args:
-        text: 正規化するテキスト
-        keep_punctuation: 句読点を保持するか
-
-    Returns:
-        str: ひらがな化されたテキスト
-    """
-    from utils.normalizer import JapaneseNormalizer
-
-    normalizer = JapaneseNormalizer()
-    return normalizer.to_hiragana(text, keep_punctuation=keep_punctuation)
-
-
-async def normalize_async(text: str, keep_punctuation: bool = True) -> str:
-    """
-    非同期的なひらがな正規化処理
-
-    Args:
-        text: 正規化するテキスト
-        keep_punctuation: 句読点を保持するか
-
-    Returns:
-        str: ひらがな化されたテキスト
-    """
-    loop = asyncio.get_event_loop()
-    executor = get_executor()
-    return await loop.run_in_executor(executor, _normalize_sync, text, keep_punctuation)
-
-
-def _translate_sync(text: str) -> str:
-    """
-    同期的な翻訳処理
-
-    Args:
-        text: 翻訳するテキスト
-
-    Returns:
-        str: 翻訳結果
-    """
-    from services.translator import translate_text
-
-    return translate_text(text)
-
-
-async def translate_async(text: str) -> str:
-    """
-    非同期的な翻訳処理
-
-    Args:
-        text: 翻訳するテキスト
-
-    Returns:
-        str: 翻訳結果
-    """
-    loop = asyncio.get_event_loop()
-    executor = get_executor()
-    return await loop.run_in_executor(executor, _translate_sync, text)
-
-
 def shutdown_executor():
     """エグゼキューターをシャットダウン"""
     global _executor

@@ -54,19 +54,15 @@ def create_volume_meter(volume_db: float, is_speech: bool, width: int = 30) -> s
 
 class RealtimeTranslationClient:
     """
-    リアルタイム音声翻訳クライアント（Phase 3.2 + 累積バッファ対応）
+    リアルタイム文字起こしクライアント（累積バッファ方式）
 
     使用例:
-        client = RealtimeTranslationClient("ws://localhost:5001/ws/translate-stream")
-        await client.run(chunk_duration=3.0)
+        client = RealtimeTranslationClient("ws://localhost:5001/ws/transcribe-stream-cumulative")
+        await client.run()
 
     使用例（VADモード）:
-        client = RealtimeTranslationClient("ws://localhost:5001/ws/translate-stream")
-        await client.run(enable_vad=True, silence_duration_ms=500)
-
-    使用例（累積バッファモード）:
         client = RealtimeTranslationClient("ws://localhost:5001/ws/transcribe-stream-cumulative")
-        await client.run(cumulative_mode=True)
+        await client.run(enable_vad=True, silence_duration_ms=500)
     """
 
     def __init__(self, url: str, device_index: Optional[int] = None):
@@ -86,15 +82,12 @@ class RealtimeTranslationClient:
         self.last_volume_db = -60.0
         self.last_is_speech = False
 
-        # 累積バッファモード用
-        self.cumulative_mode = False
+        # 累積バッファ用
         self.confirmed_text = ""  # 確定テキスト
         self.tentative_text = ""  # 暫定テキスト
-        self.confirmed_hiragana = ""  # 確定ひらがな
-        self.tentative_hiragana = ""  # 暫定ひらがな
 
         # 確定テキストの履歴（過去の入力を保持）
-        self.confirmed_history = []  # [{"text": str, "hiragana": str, "timestamp": datetime}, ...]
+        self.confirmed_history = []  # [{"text": str, "timestamp": datetime}, ...]
         self.last_confirmed_text = ""  # 前回の確定テキスト（変更検出用）
 
     async def run(
@@ -106,10 +99,9 @@ class RealtimeTranslationClient:
         min_chunk_duration_ms: int = 500,
         max_chunk_duration_ms: int = 10000,
         show_volume_meter: bool = True,
-        cumulative_mode: bool = False,
     ):
         """
-        リアルタイム翻訳セッションを開始
+        リアルタイム文字起こしセッションを開始
 
         Args:
             chunk_duration: 固定チャンク長（秒）- VAD無効時に使用
@@ -119,17 +111,13 @@ class RealtimeTranslationClient:
             min_chunk_duration_ms: 最小チャンク長（ミリ秒）
             max_chunk_duration_ms: 最大チャンク長（ミリ秒）
             show_volume_meter: 音量メーター表示フラグ
-            cumulative_mode: 累積バッファモード有効化フラグ
         """
         self.show_volume_meter = show_volume_meter
-        self.cumulative_mode = cumulative_mode
 
-        logger.info("=== リアルタイム音声翻訳クライアント起動 ===")
+        logger.info("=== リアルタイム文字起こしクライアント起動 ===")
         logger.info(f"接続先: {self.url}")
 
-        if cumulative_mode:
-            logger.info("モード: 累積バッファ（リアルタイム文字起こし）")
-        elif enable_vad:
+        if enable_vad:
             logger.info(
                 f"モード: VAD（感度: {vad_aggressiveness}、無音閾値: {silence_duration_ms}ms）"
             )
@@ -304,35 +292,6 @@ class RealtimeTranslationClient:
             message = data.get("message", "")
             logger.info(f"  [{step}] {message}")
 
-        elif msg_type == "result":
-            # 翻訳結果（従来モード）
-            chunk_id = data.get("chunk_id")
-            results = data.get("results", {})
-            performance = data.get("performance", {})
-
-            # 処理時間計算
-            chunk_info = next(
-                (c for c in self.chunk_times if c["chunk_id"] == chunk_id), None
-            )
-            if chunk_info:
-                elapsed = (datetime.now() - chunk_info["sent_at"]).total_seconds()
-                self.total_processing_time += elapsed
-
-            print(f"\n{'='*60}")
-            print(f"チャンク#{chunk_id} 結果")
-            print(f"{'='*60}")
-            print(f"📝 文字起こし: {results.get('original_text', '')}")
-            print(f"🔤 ひらがな  : {results.get('hiragana_text', '')}")
-            print(f"🌍 翻訳      : {results.get('translated_text', '')}")
-            print(f"\n⏱️  処理時間:")
-            print(f"  - 文字起こし: {performance.get('transcription_time', 0):.2f}秒")
-            print(f"  - 正規化    : {performance.get('normalization_time', 0):.2f}秒")
-            print(f"  - 翻訳      : {performance.get('translation_time', 0):.2f}秒")
-            print(f"  - 合計      : {performance.get('total_time', 0):.2f}秒")
-            if chunk_info:
-                print(f"  - レイテンシ: {elapsed:.2f}秒（送信〜受信）")
-            print(f"{'='*60}\n")
-
         elif msg_type == "accumulating":
             # 累積中の通知（累積バッファモード）
             accumulated = data.get("accumulated_seconds", 0)
@@ -346,27 +305,22 @@ class RealtimeTranslationClient:
             # 累積バッファモードの文字起こし結果
             chunk_id = data.get("chunk_id")
             transcription = data.get("transcription", {})
-            hiragana = data.get("hiragana", {})
             performance = data.get("performance", {})
             is_silent = data.get("is_silent", False)
 
             # 確定/暫定テキストを更新
             new_confirmed_text = transcription.get("confirmed", "")
             self.tentative_text = transcription.get("tentative", "")
-            new_confirmed_hiragana = hiragana.get("confirmed", "")
-            self.tentative_hiragana = hiragana.get("tentative", "")
 
             # 確定テキストが更新されたら履歴に追加
             if new_confirmed_text and new_confirmed_text != self.last_confirmed_text:
                 self.confirmed_history.append({
                     "text": new_confirmed_text,
-                    "hiragana": new_confirmed_hiragana,
                     "timestamp": datetime.now()
                 })
                 self.last_confirmed_text = new_confirmed_text
 
             self.confirmed_text = new_confirmed_text
-            self.confirmed_hiragana = new_confirmed_hiragana
 
             if is_silent:
                 logger.info("🔇 無音区間")
@@ -395,50 +349,37 @@ class RealtimeTranslationClient:
 
         elif msg_type == "session_end":
             # セッション終了
-            if self.cumulative_mode:
-                # 累積バッファモードの最終結果
-                transcription = data.get("transcription", {})
-                hiragana = data.get("hiragana", {})
-                statistics = data.get("statistics", {})
+            transcription = data.get("transcription", {})
+            statistics = data.get("statistics", {})
 
-                final_confirmed_text = transcription.get("confirmed", "")
-                final_confirmed_hiragana = hiragana.get("confirmed", "")
+            final_confirmed_text = transcription.get("confirmed", "")
 
-                # 最終確定テキストが履歴にない場合は追加
-                if final_confirmed_text and final_confirmed_text != self.last_confirmed_text:
-                    self.confirmed_history.append({
-                        "text": final_confirmed_text,
-                        "hiragana": final_confirmed_hiragana,
-                        "timestamp": datetime.now()
-                    })
+            # 最終確定テキストが履歴にない場合は追加
+            if final_confirmed_text and final_confirmed_text != self.last_confirmed_text:
+                self.confirmed_history.append({
+                    "text": final_confirmed_text,
+                    "timestamp": datetime.now()
+                })
 
-                print(f"\n{'='*60}")
-                print("🏁 セッション終了 - 全履歴")
-                print(f"{'='*60}")
+            print(f"\n{'='*60}")
+            print("🏁 セッション終了 - 全履歴")
+            print(f"{'='*60}")
 
-                if self.confirmed_history:
-                    print(f"\n📝 確定テキスト履歴:")
-                    for i, entry in enumerate(self.confirmed_history, 1):
-                        timestamp = entry["timestamp"].strftime("%H:%M:%S")
-                        print(f"   {i}. [{timestamp}] {entry['text']}")
-
-                    print(f"\n🔤 ひらがな履歴:")
-                    for i, entry in enumerate(self.confirmed_history, 1):
-                        timestamp = entry["timestamp"].strftime("%H:%M:%S")
-                        print(f"   {i}. [{timestamp}] {entry['hiragana']}")
-                else:
-                    print(f"\n📝 確定テキスト: （なし）")
-
-                print(f"\n📊 統計:")
-                print(f"   - 処理チャンク数: {statistics.get('chunk_count', 0)}")
-                print(f"   - 確定入力数: {len(self.confirmed_history)}")
-                print(
-                    f"   - 累積音声: {statistics.get('audio_duration_seconds', 0):.1f}秒"
-                )
-                print(f"{'='*60}\n")
+            if self.confirmed_history:
+                print(f"\n📝 確定テキスト履歴:")
+                for i, entry in enumerate(self.confirmed_history, 1):
+                    timestamp = entry["timestamp"].strftime("%H:%M:%S")
+                    print(f"   {i}. [{timestamp}] {entry['text']}")
             else:
-                total_chunks = data.get("total_chunks", 0)
-                logger.info(f"セッション終了（合計 {total_chunks} チャンク）")
+                print(f"\n📝 確定テキスト: （なし）")
+
+            print(f"\n📊 統計:")
+            print(f"   - 処理チャンク数: {statistics.get('chunk_count', 0)}")
+            print(f"   - 確定入力数: {len(self.confirmed_history)}")
+            print(
+                f"   - 累積音声: {statistics.get('audio_duration_seconds', 0):.1f}秒"
+            )
+            print(f"{'='*60}\n")
 
     def _display_cumulative_result(self, performance: dict):
         """累積バッファモードの結果を表示（履歴保持版）"""
@@ -456,16 +397,6 @@ class RealtimeTranslationClient:
         # 暫定テキスト（グレー表示をシミュレート）
         if self.tentative_text:
             print(f"\n⏳ 暫定: \033[90m{self.tentative_text}\033[0m")
-
-        # ひらがな表示
-        print(f"\n🔤 ひらがな:")
-        if self.confirmed_history:
-            print("   確定履歴:")
-            for i, entry in enumerate(self.confirmed_history, 1):
-                timestamp = entry["timestamp"].strftime("%H:%M:%S")
-                print(f"     [{timestamp}] {entry['hiragana']}")
-        if self.tentative_hiragana:
-            print(f"   暫定: \033[90m{self.tentative_hiragana}\033[0m")
 
         # パフォーマンス情報
         print(f"\n⏱️  処理時間:")
@@ -497,12 +428,7 @@ def main():
         description="リアルタイム音声翻訳クライアント（Phase 3.2 + 累積バッファ対応）"
     )
     parser.add_argument(
-        "--url", default=None, help="WebSocketサーバーURL（--cumulativeで自動設定）"
-    )
-    parser.add_argument(
-        "--cumulative",
-        action="store_true",
-        help="累積バッファモード（リアルタイム文字起こし）を有効化",
+        "--url", default=None, help="WebSocketサーバーURL（省略時はlocalhost）"
     )
     parser.add_argument(
         "--chunk-duration",
@@ -564,13 +490,7 @@ def main():
         list_audio_devices()
         sys.exit(0)
 
-    # URL設定（累積モードか通常モードかで自動設定）
-    if args.url:
-        url = args.url
-    elif args.cumulative:
-        url = "ws://localhost:5001/ws/transcribe-stream-cumulative"
-    else:
-        url = "ws://localhost:5001/ws/translate-stream"
+    url = args.url or "ws://localhost:5001/ws/transcribe-stream-cumulative"
 
     # クライアント起動
     client = RealtimeTranslationClient(url, device_index=args.device)
@@ -585,7 +505,6 @@ def main():
                 min_chunk_duration_ms=args.min_chunk_duration_ms,
                 max_chunk_duration_ms=args.max_chunk_duration_ms,
                 show_volume_meter=not args.no_volume_meter,
-                cumulative_mode=args.cumulative,
             )
         )
     except KeyboardInterrupt:
