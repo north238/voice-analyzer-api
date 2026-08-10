@@ -48,23 +48,19 @@ def get_whisper_model() -> WhisperModel:
     return _whisper_model
 
 
-def _transcribe_sync(
-    audio_data: bytes, suffix: str = ".wav", initial_prompt: Optional[str] = None
-) -> tuple:
+def _transcribe_sync(audio_data: bytes, suffix: str = ".wav") -> tuple:
     """
     同期的な音声文字起こし処理
 
     Args:
         audio_data: 音声データのバイト列
         suffix: ファイル拡張子
-        initial_prompt: 文脈として使用する前回の文字起こし結果
 
     Returns:
         tuple: (文字起こし結果, セグメント情報リスト)
     """
     import re
     from faster_whisper.vad import VadOptions
-    from services.text_filter import is_valid_text
 
     tmp_path = None
     converted_path = None
@@ -125,19 +121,15 @@ def _transcribe_sync(
         if settings.WHISPER_NO_REPEAT_NGRAM_SIZE > 0:
             transcribe_params["no_repeat_ngram_size"] = settings.WHISPER_NO_REPEAT_NGRAM_SIZE
 
-        # initial_promptが指定されている場合は追加
-        if initial_prompt:
-            transcribe_params["initial_prompt"] = initial_prompt
-            logger.debug(f"📝 initial_prompt設定: {initial_prompt[:50]}...")
-
         segments, info = model.transcribe(converted_path, **transcribe_params)
 
-        # セグメントからテキストを抽出（Phase 12: セグメント単位の品質フィルタリング）
+        # セグメントからテキストを抽出
+        # R-1, R-2: Whisperの出力を加工せずそのまま返す
         texts = []
         segments_info = []
         for s in segments:
             seg_text = s.text.strip()
-            if seg_text and is_valid_text(seg_text):
+            if seg_text:
                 texts.append(s.text)
                 segments_info.append({
                     "text": s.text,
@@ -169,16 +161,13 @@ def _transcribe_sync(
             os.remove(converted_path)
 
 
-async def transcribe_async(
-    audio_data: bytes, suffix: str = ".wav", initial_prompt: Optional[str] = None
-) -> tuple:
+async def transcribe_async(audio_data: bytes, suffix: str = ".wav") -> tuple:
     """
     非同期的な音声文字起こし処理
 
     Args:
         audio_data: 音声データのバイト列
         suffix: ファイル拡張子
-        initial_prompt: 文脈として使用する前回の文字起こし結果
 
     Returns:
         tuple: (文字起こし結果, セグメント情報リスト)
@@ -186,10 +175,9 @@ async def transcribe_async(
     loop = asyncio.get_event_loop()
     executor = get_executor()
 
-    # functools.partialでinitial_promptを渡す
     from functools import partial
 
-    transcribe_func = partial(_transcribe_sync, audio_data, suffix, initial_prompt)
+    transcribe_func = partial(_transcribe_sync, audio_data, suffix)
     return await loop.run_in_executor(executor, transcribe_func)
 
 
