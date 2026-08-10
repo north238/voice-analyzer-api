@@ -1,129 +1,56 @@
 # voice-analyzer-api
 
-日本語音声をリアルタイムで文字起こしする FastAPI ベースのサービスです。
-ローカル環境での実行を前提とし、CLIクライアントから利用します。
+開発中の思考を音声で吐き出し、**LLM に渡すための忠実なテキスト**として残すためのツールです。
+
+キーボードで書くと思考が止まるが、声に出すだけなら止まらない。
+その発話をテキストとして残し、最終的に LLM へ渡して要約・整理させることを目的としています。
 
 > 本リポジトリのコードおよびドキュメントは、生成AI（Claude Code）を活用して作成しています。
 
-## 主な機能
+## 中核となる方針: 何も直さない
 
-- **リアルタイム文字起こし**: faster-whisper による高速・高精度な日本語音声認識
-- **タイムスタンプ表示**: Whisperセグメント単位の正確な発話タイムスタンプ付き表示
-- **CLIクライアント**: マイク入力からのリアルタイム文字起こし（VADモード対応）
-- **フィラー除去**: 「えー」「あのー」等を除去して読みやすくする
+読み手は人間ではなく LLM です。言い直しの過程そのものが思考の情報であり、
+読みやすさを優先して除去・修正すると LLM が判断材料を失います。
 
----
+そのため、次のことを**行いません**。
 
-## クイックスタート（開発環境）
+- 言い間違い、言い直し、口ごもりの除去
+- 読みやすさのための整形
+- 意味を推測した補完・修正
 
-```bash
-docker compose up --build -d
-```
-
-初回はモデルのダウンロードを含むため数分かかります。
-
-### CLIクライアント
-
-```bash
-source venv/bin/activate
-pip install -r client/requirements.txt   # 初回のみ
-
-# デバイス一覧を確認
-python client/realtime_client.py --list-devices
-
-# リアルタイム文字起こし
-python client/realtime_client.py
-
-# VADモード（音声区間検出）
-python client/realtime_client.py --enable-vad
-
-# 別ホストのサーバーに接続する場合
-python client/realtime_client.py \
-  --url ws://<サーバーのIP>:5001/ws/transcribe-stream-cumulative
-```
+要求の詳細は [`docs/requirements.md`](docs/requirements.md) を参照してください。
 
 ---
 
-## リアルタイム性について
+## 現在の状態
 
-「発話してから画面に出るまで数秒以内」を要件とし、ローカル実行(Mac)で実測して
-既定値を決めています。
+**第1段階（不要機能の削除）が完了した時点です。動作する CLI はまだありません。**
 
-| 項目            | 値                       |
-| --------------- | ------------------------ |
-| 遅延            | 3.7〜4.6秒（累積しない） |
-| 画面更新        | 5秒ごと                  |
-| 1回の文字起こし | 3〜4秒（small / int8）   |
+サーバ構成（FastAPI + WebSocket）からローカル CLI ツールへ作り替える途中で、
+通信層・セッション管理・リアルタイム表示の仕組みを削除しました。
+CLI の組み立ては第2段階以降で行います。
 
-### 設定の考え方
+作業範囲は [`docs/01_cleaanup_and_spike.md`](docs/01_cleaanup_and_spike.md) を参照してください。
 
-```text
-CUMULATIVE_TRANSCRIPTION_INTERVAL=1   チャンクが届くたびに文字起こしする
-CUMULATIVE_MAX_AUDIO_SECONDS=10.0     累積バッファの上限
---chunk-duration 5.0                  クライアントのチャンク長
-```
+### 残っている部品
 
-**チャンク長は「処理時間 < チャンク間隔」を満たす必要があります。**
-3秒間隔にすると、1回3〜4秒かかる処理が追いつかず遅延が累積します
-（実測で7秒超まで悪化）。5秒あれば処理が間に合い、遅延が一定に保たれます。
+| ファイル                           | 役割                                          |
+| ---------------------------------- | --------------------------------------------- |
+| `app/services/async_processor.py`  | faster-whisper のモデルロードと文字起こし実行 |
+| `app/config.py`                    | Whisper のパラメータ設定                      |
+| `client/audio_capture.py`          | マイク入力（sounddevice）と VAD（webrtcvad）  |
+| `app/utils/logger.py`              | ロガー                                        |
+| `app/utils/performance_monitor.py` | 処理時間の計測                                |
 
-### 調整する場合の注意
+いずれも単体で import でき、互いに強く結合していません。
 
-- **Whisper は30秒単位でパディングするため、処理対象の音声を短くしても
-  処理時間はほとんど減りません**（9秒分でも18秒分でも3〜4秒台）。
-  `CUMULATIVE_MAX_AUDIO_SECONDS` を削っても遅延は縮まりません。
-  遅延に効くのは**モデルサイズとチャンク間隔**だけです。
-- `WHISPER_MODEL_SIZE=base` にすると遅延は1.3〜1.9秒まで縮みますが、
-  固有名詞と数字が崩れます（「すこやかに」→「スクイアカ」、
-  電話番号が分断される）。精度を優先して `small` を既定にしています。
-- `CUMULATIVE_MAX_AUDIO_SECONDS` は
-  `チャンク長 × CUMULATIVE_TRANSCRIPTION_INTERVAL` より大きくすること。
-  下回ると毎回トリミングが走り、タイムスタンプ整合が壊れて
-  文字起こし結果が段落単位で欠落します。
+### 動作環境
 
----
+- Apple Silicon（M1）搭載の Mac
+- Python 3.9
 
-## アーキテクチャ
-
-```text
-マイク入力（CLI）
-  ↓
-WebSocket（累積バッファ方式）
-  ↓
-faster-whisper 文字起こし（セグメントタイムスタンプ付き）
-  ↓
-text_filter: フィラー除去
-  ↓
-確定 / 暫定テキスト返却
-```
-
----
-
-## 開発コマンド
-
-```bash
-# ビルド・起動
-docker compose up --build -d
-
-# ログ確認
-docker compose logs -f voice-analyzer
-
-# テスト実行
-docker compose exec voice-analyzer pytest /app/tests/ -v
-
-# カバレッジ付き
-docker compose exec voice-analyzer pytest /app/tests/ --cov=app --cov-report=term-missing
-```
-
----
-
-## テストカバレッジ
-
-| テストファイル                 | テスト数 | 対象機能       |
-| ------------------------------ | -------- | -------------- |
-| test_session_manager.py        | 47       | セッション管理 |
-| test_cumulative_buffer_trim.py | 17       | 累積バッファ   |
-| **合計**                       | **64**   |                |
+Docker は廃止しました。ローカルの venv で動かします。
+`faster-whisper` / `ctranslate2` は未導入のため、実行には別途インストールが必要です。
 
 ---
 
@@ -131,78 +58,71 @@ docker compose exec voice-analyzer pytest /app/tests/ --cov=app --cov-report=ter
 
 ```text
 app/
-├── main.py             # FastAPIエンドポイント
-├── config.py           # 設定管理
+├── config.py                   # Whisper設定
 ├── services/
-│   ├── audio_processor.py      # Whisper文字起こし
-│   ├── async_processor.py      # 非同期処理ラッパー（セグメント情報付き）
-│   ├── cumulative_buffer.py    # 累積バッファ管理（タイムスタンプベース確定）
-│   ├── session_manager.py      # セッション管理
-│   ├── text_filter.py          # フィラー除去
-│   └── websocket_manager.py    # WebSocket管理
+│   └── async_processor.py      # faster-whisper 呼び出し
 ├── utils/
-│   ├── logger.py               # ロガー
-│   └── performance_monitor.py  # 処理時間計測
-└── tests/              # テストスイート
+│   ├── logger.py
+│   └── performance_monitor.py
+└── tests/
 
 client/
-├── realtime_client.py  # CLIリアルタイムクライアント（マイク入力）
-└── audio_capture.py    # マイクキャプチャ（sounddevice）
+├── audio_capture.py            # マイク入力・VAD
+└── requirements.txt
 
 docs/
-├── TODO.md             # やることリスト
-├── PHASE15_DECISION.md # 機能廃止の判断記録
-└── archive/            # 廃止したUIに関するドキュメント
+├── requirements.md             # 要求定義（R-1〜R-21）
+├── 01_cleaanup_and_spike.md    # 第1段階の作業指示書
+├── TODO.md
+├── PHASE15_DECISION.md         # 方針転換の判断記録
+└── archive/                    # 廃止した機能のドキュメント
 ```
 
 ---
 
-## 設定
+## 設定（app/config.py）
 
-環境変数で上書き可能（`app/config.py`）:
+環境変数で上書きできます。すべて Whisper 関連です。
 
-| 変数名                              | デフォルト | 説明                     |
-| ----------------------------------- | ---------- | ------------------------ |
-| `WHISPER_MODEL_SIZE`                | small      | Whisperモデルサイズ      |
-| `WHISPER_COMPUTE_TYPE`              | int8       | 計算精度                 |
-| `WHISPER_BEAM_SIZE`                 | 1          | ビームサーチ幅           |
-| `WHISPER_VAD_ENABLED`               | true       | VAD有効/無効             |
-| `CUMULATIVE_MAX_AUDIO_SECONDS`      | 10.0       | バッファ最大長（秒）     |
-| `CUMULATIVE_TRANSCRIPTION_INTERVAL` | 1          | 再処理間隔（チャンク数） |
+| 変数名                 | デフォルト | 説明           |
+| ---------------------- | ---------- | -------------- |
+| `WHISPER_MODEL_SIZE`   | small      | モデルサイズ   |
+| `WHISPER_COMPUTE_TYPE` | int8       | 計算精度       |
+| `WHISPER_BEAM_SIZE`    | 1          | ビームサーチ幅 |
+| `WHISPER_VAD_ENABLED`  | true       | Whisper内蔵VAD |
+
+> **注意**: `WHISPER_VAD_ENABLED` は無音区間をスキップします。
+> R-7「沈黙が含まれていたことが分かること」と衝突するため、扱いは第2段階で検討します。
 
 ---
 
-## 既知の制限
+## 実行環境についての制約
 
-- APIサーバー必須（ローカルまたはリモートでサーバー起動が必要）
-- Pi 4 では文字起こしに 10.9〜17.3秒/回かかり、リアルタイム処理には追いつかない
-- Pi 4では float32 のみ対応（int8 不可）
+**CTranslate2（faster-whisper のバックエンド）は Metal に非対応**のため、
+Apple Silicon では GPU を利用できず CPU 実行になります。
+
+GPU を使う場合の選択肢は次の通りですが、**現時点で移行は行っていません**。
+
+| 選択肢                 | GPU                   | 速度                  |
+| ---------------------- | --------------------- | --------------------- |
+| mlx-whisper            | Metal + Neural Engine | whisper.cpp の約2.0倍 |
+| whisper.cpp            | Metal + Core ML       | CPU比 3倍以上         |
+| faster-whisper（現行） | なし                  | —                     |
 
 ---
 
 ## 設計判断の経緯
 
-Phase 5系〜10.5 で実装した **ブラウザUI と Chrome拡張機能は、Phase 15 で廃止し CLI に集約した**。
+このリポジトリは元々、Raspberry Pi 上で動作する音声解析 API サーバとして開発され、
+ブラウザUI と Chrome拡張を持っていました。
+Pi の実測性能（文字起こし 10.9〜17.3秒/回）が要求に対して構造的に不足すると判断し、
+段階的に機能を削ってローカル CLI ツールへ方針転換しています。
 
-Raspberry Pi 4（ARMv8.0-A / Cortex-A72）上では文字起こしに **実測 10.9〜17.3秒/回**かかり、
-3秒チャンクを前提としたリアルタイムUIが成立しなかったことが理由である。
-int8 非対応・torch 2.0.1 固定というハード制約があり、量子化やモデル縮小を試みても
-最小の tiny モデルで約14秒と、性能面の打ち手が残っていなかった。
+判断の詳細は [`docs/PHASE15_DECISION.md`](docs/PHASE15_DECISION.md) に記録しています。
 
-その後、CLI の要件を「発話から数秒以内に表示される」と定めた結果、
-これも Pi 4 では達成できないことが確定したため、**実行環境をローカルに一本化し
-Raspberry Pi 向けの構成（`Dockerfile.arm64` / `docker-compose.pi.yml`）も削除した**。
-同時に、**文字起こしに専念する方針としてひらがな正規化・翻訳・要約を削除した**。
-これにより Docker イメージは 9.97GB から 1.59GB になった
-（翻訳用の torch / transformers が約5GBを占めていた）。
-削除前の実装はタグ `v1.1-full-pipeline` から参照できる。
+過去の状態はタグから参照できます。
 
-判断の詳細（実測データ、撤退の過程で発見した設計上の問題、
-あえて修正を見送った理由）は [`docs/PHASE15_DECISION.md`](docs/PHASE15_DECISION.md) に記録している。
-UI と Pi デプロイに関する実装ドキュメントは [`docs/archive/`](docs/archive/) に移した。
-
-拡張機能・ブラウザUIを含む最終版は、タグ `v1.0-extension` で参照できる。
-
-```bash
-git checkout v1.0-extension
-```
+| タグ                 | 内容                               |
+| -------------------- | ---------------------------------- |
+| `v1.0-extension`     | Chrome拡張・ブラウザUIを含む版     |
+| `v1.1-full-pipeline` | 翻訳・要約・ひらがな正規化を含む版 |
