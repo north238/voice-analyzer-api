@@ -12,11 +12,17 @@
 
 ## 第1段階の残り
 
-- [ ] 認識精度の検証スパイク（`docs/01_cleaanup_and_spike.md` タスクB）
+- [ ] 認識精度の検証スパイク（`docs/01_cleaanup_and_spike.md` タスクB）を実施する
       **検証用音声の受領待ち。** 技術用語・言い直し・沈黙を含む実際の発話が必要で、
-      サンプル音声や合成音声では検証にならない（指示書7章）
-- [ ] 検証にあたり `faster-whisper` / `ctranslate2` を venv へ導入する
-      Docker 廃止により、ローカルに実行環境がない状態
+      サンプル音声や合成音声では検証にならない（指示書7章）。
+      スクリプトと実行環境は用意済みで、音声があれば即実行できる
+      （`venv/bin/python spike/transcribe.py <音声ファイル>`）
+
+- [ ] app 側の依存を記録する場所を決める
+      Docker 廃止により faster-whisper 等の依存記録が失われた。
+      `client/requirements.txt` はマイク入力用の依存しか持たない。
+      現在の導入内容: faster-whisper 1.2.1 / ctranslate2 4.8.1 / av 15.1.0 /
+      onnxruntime 1.19.2（Python 3.9）
 
 ## 第2段階以降の検討事項（実装しない）
 
