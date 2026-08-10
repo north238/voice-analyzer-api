@@ -8,7 +8,9 @@ from logging.handlers import TimedRotatingFileHandler
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 # ログディレクトリの設定
-LOG_DIR = Path(os.getenv("LOG_DIR", "/logs"))
+# 既定はリポジトリ直下の logs/（Docker 廃止に伴い /logs から変更）
+_DEFAULT_LOG_DIR = Path(__file__).resolve().parents[2] / "logs"
+LOG_DIR = Path(os.getenv("LOG_DIR", _DEFAULT_LOG_DIR))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # ログファイルのパス

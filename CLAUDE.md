@@ -2,152 +2,90 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-マイク音声をリアルタイムで文字起こしする FastAPI 製のAPI。
-ローカル環境で動作させ、CLIクライアントから利用する。
+開発中の思考を音声で吐き出し、LLM に渡すための忠実なテキストとして残すツール。
+ローカル（Mac）で動作する CLI として作り替えている途中。
+
+## 最優先の前提: 何も直さないツールである
+
+中核要求は**発話に忠実であること**（`docs/requirements.md` の R-1〜R-4）。
+
+- 言い間違い、言い直し、口ごもりを**そのまま残す**
+- 読みやすさのための整形を**行わない**
+- 意味を推測して補完・修正を**行わない**
+
+読み手は人間ではなく LLM。言い直しの過程そのものが思考の情報であり、
+除去すると下流の LLM が判断材料を失う。
+
+**「一般的にはこうする」という理由で整形・補正を加えないこと。**
+
+## 作業を始める前に読むもの
+
+- [`docs/requirements.md`](docs/requirements.md) — 要求定義（R-1〜R-21）。**実装前に必ず読む**
+- [`docs/01_cleaanup_and_spike.md`](docs/01_cleaanup_and_spike.md) — 第1段階の作業指示書
+
+### 守る原則（作業指示書 5章より）
+
+- **要求を勝手に弱めない。** 実現困難と判断したら、書き換えずに理由とともに報告する
+- **要求にないものを追加しない。** 必要と考えるなら実装せず提案として報告する
+- **削除をためらわない。** 動作するコードでも要求に照らして不要なら削除する
+- **段階を先に進めない。** 次段階の内容は実装せず提案に留める
 
 ## ドキュメント運用ルール
 
-**このルールに従うこと。過去の Phase 別ドキュメントは参考にしない。**
-
 - **やることは [`docs/TODO.md`](docs/TODO.md) に集約する。** 完了した項目は削除する
   （経緯は git 履歴に残るため、完了報告のドキュメントは作らない）
-- **Phase 別の `PLAN` / `COMPLETION` / `INVESTIGATION` は今後作らない。**
-  この運用で不要なドキュメントが増えたため、Phase 15 で方針を変更した
+- **Phase 別の `PLAN` / `COMPLETION` / `INVESTIGATION` は作らない**
 - 設計判断で記録を残す必要があるものだけ、独立した `DECISION` 文書にする
   （例: [`docs/PHASE15_DECISION.md`](docs/PHASE15_DECISION.md)）
 - `docs/archive/` は廃止した機能のドキュメント置き場。追加も更新もしない
 
-`docs/` 直下に残っている Phase 別ドキュメントは、過去の技術的な調査結果として
-参照する価値があるため残しているもの。新しく同種のファイルを作る必要はない。
+## 現在の状態
 
-## 現在の構成
+**第1段階（不要機能の削除）が完了した時点。動作する CLI はまだない。**
 
-CLIクライアント + サーバーのみ。**文字起こし専用**。
-ブラウザUI・Chrome拡張、および翻訳・要約・ひらがな正規化は廃止した。
+サーバ構成（FastAPI + WebSocket）から削除を進めた結果、残っているのは部品のみ。
+CLI の組み立ては第2段階以降。
 
-- 廃止の判断と経緯: [`docs/PHASE15_DECISION.md`](docs/PHASE15_DECISION.md)
-- 廃止した実装:
-  - `v1.0-extension` — Chrome拡張・ブラウザUIを含む版
-  - `v1.1-full-pipeline` — 翻訳・要約・ひらがな正規化を含む版
-- 廃止に関するドキュメント: `docs/archive/`
+| ファイル                           | 役割                                         |
+| ---------------------------------- | -------------------------------------------- |
+| `app/services/async_processor.py`  | faster-whisper のロードと文字起こし実行      |
+| `app/config.py`                    | Whisper のパラメータ設定                     |
+| `client/audio_capture.py`          | マイク入力（sounddevice）と VAD（webrtcvad） |
+| `app/utils/logger.py`              | ロガー                                       |
+| `app/utils/performance_monitor.py` | 処理時間の計測                               |
 
-### 既知の状態
+いずれも単体で import でき、互いに強く結合していない。
 
-- **リアルタイム性は「遅延 3.7〜4.6秒 / 画面更新 5秒ごと」で安定**（ローカル実行の実測）。
-  1回の文字起こしに3〜4秒かかるため、チャンク長5秒で「処理時間 < チャンク間隔」を
-  満たしている。ここを崩すと遅延が累積する（詳細は README「リアルタイム性について」）
+### 削除済み（復元はタグから）
 
-## 開発コマンド
+- FastAPI サーバ、WebSocket 層、セッション管理
+- 累積バッファ（リアルタイム表示用の差分抽出）とチャンク間の文脈引き継ぎ
+- `text_filter.py`（相槌の破棄とハルシネーション検出。R-2 に違反するため）
+- Docker 関連、翻訳・要約・ひらがな正規化、ブラウザUI・Chrome拡張
 
-### Docker
+| タグ                 | 内容                               |
+| -------------------- | ---------------------------------- |
+| `v1.0-extension`     | Chrome拡張・ブラウザUIを含む版     |
+| `v1.1-full-pipeline` | 翻訳・要約・ひらがな正規化を含む版 |
 
-```bash
-docker compose up --build -d
-docker compose logs -f voice-analyzer
-docker compose down
-```
+## 実行環境
 
-### テスト
+- Apple Silicon（M1）、Python 3.9、venv
+- Docker は廃止済み
+- `faster-whisper` / `ctranslate2` は venv に未導入（実行には別途インストールが必要）
 
-テストは `app/tests/` にある（`tests/` ではない）。
+**CTranslate2 は Metal 非対応**のため、Apple Silicon では CPU 実行になる。
+GPU を使うなら mlx-whisper / whisper.cpp が候補だが、**移行はまだ判断していない**。
 
-```bash
-docker compose exec voice-analyzer pytest /app/tests/ -v
-docker compose exec voice-analyzer pytest /app/tests/ --cov=app --cov-report=term-missing
-```
+## 要求との衝突（未解決・報告済み）
 
-現在は64件すべて通る。
+第2段階で扱う。勝手に解決しないこと。
 
-### CLIクライアント
-
-```bash
-source venv/bin/activate
-pip install -r client/requirements.txt   # 初回のみ
-
-python client/realtime_client.py --list-devices    # デバイス一覧
-python client/realtime_client.py                   # 文字起こし開始
-python client/realtime_client.py --enable-vad      # VADモード
-python client/realtime_client.py --device 2        # デバイス指定
-
-# 別ホストのサーバーに接続
-python client/realtime_client.py \
-  --url ws://<サーバーのIP>:5001/ws/transcribe-stream-cumulative
-```
-
-## アーキテクチャ
-
-### 処理フロー
-
-```text
-マイク入力（CLI） → WebSocket
-  ↓
-音声チャンク受信（cumulative buffer）
-  ↓
-faster-whisper 文字起こし（initial_prompt対応）
-  ↓
-text_filter: フィラー除去
-  ↓
-確定/暫定テキスト返却
-```
-
-### 主要コンポーネント
-
-**サーバー側:**
-
-- `app/main.py`: FastAPIエンドポイント
-- `app/services/audio_processor.py`: faster-whisper音声認識
-- `app/services/cumulative_buffer.py`: 音声バッファ・差分抽出
-- `app/services/text_filter.py`: フィラー除去
-- `app/services/websocket_manager.py`: WebSocket接続管理
-
-**クライアント側:**
-
-- `client/realtime_client.py`: CLIリアルタイムクライアント（マイク入力）
-- `client/audio_capture.py`: マイクキャプチャ（sounddevice / VAD）
-
-### エンドポイント
-
-| エンドポイント                        | 利用者               |
-| ------------------------------------- | -------------------- |
-| `WS /ws/transcribe-stream-cumulative` | `realtime_client.py` |
-| `GET /health`                         | 外形監視用           |
-
-### 外部依存
-
-- **ffmpeg**: 音声変換
-- **faster-whisper**: 音声認識（CTranslate2ベース。torch非依存）
-
-## 設定（app/config.py）
-
-環境変数で上書き可能。主なもの:
-
-- `WHISPER_MODEL_SIZE`: small（base にすると遅延1.3〜1.9秒まで縮むが、
-  固有名詞と数字が崩れるため精度優先で small）
-- `WHISPER_BEAM_SIZE`: 1
-- `WHISPER_COMPUTE_TYPE`: int8
-- `CUMULATIVE_MAX_AUDIO_SECONDS`: 10.0秒
-- `CUMULATIVE_TRANSCRIPTION_INTERVAL`: 1チャンク（届くたびに文字起こし）
-
-**重要な制約**: `CUMULATIVE_MAX_AUDIO_SECONDS` は
-`チャンク長 × CUMULATIVE_TRANSCRIPTION_INTERVAL` より大きくすること。
-トリミングは文字起こし後にしか実行されないため、下回ると毎回トリミングが走り、
-タイムスタンプ整合が壊れて文字起こし結果が段落単位で欠落する。
-
-## 既知の制限
-
-### Whisperモデルの30秒制限
-
-- Whisperは30秒のセグメントをネイティブサポート（アーキテクチャ上の制約）
-- 30秒を超えると幻覚（hallucination）や精度低下が発生する可能性
-- Phase 6.4〜8 で対策済み（安定性ベースの確定ロジック、トリミング閾値の引き下げ、
-  強制確定処理）
-- 詳細: `docs/WHISPER_SPECIFICATIONS.md`
-
-### バッファトリミング時の文脈保持
-
-Phase 7.0 でトリミングタイミングを「文字起こし後」に変更し、中間部分のテキスト喪失を改善。
-処理順序（データ更新 → コールバック → クリーンアップ）が重要で、
-文字起こし前にトリミングすると `last_transcription` が古いまま強制確定が失敗する。
+- **R-7（沈黙が分かること）と `WHISPER_VAD_ENABLED`**
+  内蔵VADは無音区間をスキップするため、沈黙の情報が失われる
+- **R-5（区切りで発話が欠落しないこと）とハルシネーション抑制設定**
+  `WHISPER_LOG_PROB_THRESHOLD` や `WHISPER_NO_SPEECH_THRESHOLD` は
+  確信度の低いセグメントを捨てるため、発話が欠落しうる
 
 ## Git
 
