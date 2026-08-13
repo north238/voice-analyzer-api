@@ -27,9 +27,21 @@
 - [ ] 沈黙を記録する構成を本体へ取り込む
       `transcribe_async()` は「音声バイト列を丸ごと渡す」形で区間ごとの処理と合わない。
       インタフェースの変更が要る
-- [ ] R-5（区切りで発話が欠落しないこと）とハルシネーション抑制設定の衝突を解消する
-      `WHISPER_LOG_PROB_THRESHOLD` / `WHISPER_NO_SPEECH_THRESHOLD` は
-      確信度の低いセグメントを捨てるため発話が欠落しうる
+- [ ] 発話区間の切り出しによる欠落を検証・対処する（R-5）
+      VAD が発話と判定しなかった音声は認識処理に到達しない。小声のつぶやき、
+      語尾の減衰、息継ぎ直後の立ち上がりが落ちうる。**落ちたことは出力から分からない**
+      （沈黙マーカーすら入らず、単に無かったことになる）。
+      `speech_pad_ms` は既定400msが効いているが、区間として検出されなかった小声には効かない。
+      実測（`sample/005`）で採用部と破棄部の音量差が5.3dBしかなく、判定の余裕が小さい。
+      検証には語尾が減衰する発話・小声を含む音声が要る
+
+- [ ] `no_speech_threshold` によるセグメント破棄を解消する（R-5）
+      `faster_whisper/transcribe.py` の `generate_segments` に、
+      `no_speech_prob > no_speech_threshold` かつ `avg_logprob < log_prob_threshold` のとき
+      `seek += segment_size; continue` で**30秒窓を丸ごと飛ばす**処理がある。
+      現在の設定（0.6 / -1.0）で発話が黙って消えうる。ログも DEBUG レベルのみ。
+      なお `compression_ratio_threshold` は破棄ではなく温度を上げての再試行のため、
+      こちらは R-5 のリスクではない
 - [ ] app 側の依存を記録する場所を決める
       Docker 廃止により faster-whisper 等の依存記録が失われた。
       `client/requirements.txt` はマイク入力用の依存しか持たない。
