@@ -58,6 +58,15 @@ VAD_INTERVAL_SEC = 1.0
 # VAD が区間の終わりを確定するには、後続に無音が続く必要があるため
 TAIL_MARGIN_SEC = SILENCE_THRESHOLD_SEC + 0.5
 
+# 1コールバックあたりの取得サンプル数（100ms分）。
+# 未指定にすると 1ms 単位の細切れで届き（実測で毎秒約1068回）、
+# ループが空転して処理が進まなくなる
+BLOCK_SIZE = 1600
+
+# キューの待ち時間。無音でもこの間隔でループを回して Ctrl+C を受け取れるようにする。
+# タイムアウトなしのブロッキング取得にすると、音声が来るまで割り込みが処理されない
+QUEUE_TIMEOUT_SEC = 0.5
+
 
 class Recorder:
     """セッションの記録係。
@@ -210,6 +219,7 @@ def run_microphone(session: Session, device: int = None) -> None:
         channels=1,
         dtype="int16",
         device=device,
+        blocksize=BLOCK_SIZE,
         callback=on_audio,
     )
     stream.start()
@@ -222,13 +232,30 @@ def run_microphone(session: Session, device: int = None) -> None:
     buffer = np.empty(0, dtype=np.float32)
     consumed = 0.0  # バッファ先頭が、セッション開始から何秒地点にあたるか
 
+    def drop_front(samples: int) -> None:
+        """バッファ先頭を捨て、捨てた分だけ経過時間を進める"""
+        nonlocal buffer, consumed
+        if samples <= 0:
+            return
+        buffer = buffer[samples:]
+        consumed += samples / SAMPLE_RATE
+
     try:
         while True:
-            # 溜まった音声をすべて取り出す
-            chunks = [frames.get()]
+            # 溜まった音声を取り出す。
+            # タイムアウト付きにして、無音でもループを回して Ctrl+C を受け取れるようにする
+            chunks = []
+            try:
+                chunks.append(frames.get(timeout=QUEUE_TIMEOUT_SEC))
+            except queue.Empty:
+                pass
             while not frames.empty():
                 chunks.append(frames.get())
-            buffer = np.concatenate([buffer] + [to_waveform(c.flatten()) for c in chunks])
+
+            if chunks:
+                buffer = np.concatenate(
+                    [buffer] + [to_waveform(c.flatten()) for c in chunks]
+                )
 
             if len(buffer) < VAD_INTERVAL_SEC * SAMPLE_RATE:
                 continue
@@ -237,6 +264,10 @@ def run_microphone(session: Session, device: int = None) -> None:
 
             regions = find_speech_regions(buffer)
             if not regions:
+                # 発話が無いので、末尾の余裕分だけ残して捨てる。
+                # 捨てないと沈黙が続くほどバッファが伸び、VAD の所要時間も増え続ける
+                # （実測: 10分の無音でバッファ36MB、VAD 1.42秒/周回）
+                drop_front(len(buffer) - int(TAIL_MARGIN_SEC * SAMPLE_RATE))
                 continue
 
             # 末尾の区間は、まだ発話が続いている可能性があるため確定させない。
@@ -244,6 +275,7 @@ def run_microphone(session: Session, device: int = None) -> None:
             buffer_end = len(buffer) / SAMPLE_RATE
             settled = [r for r in regions if buffer_end - r["end"] >= TAIL_MARGIN_SEC]
             if not settled:
+                # 発話の途中。捨てると欠落するため、バッファはそのまま保持する（R-5）
                 continue
 
             for region in settled:
@@ -255,9 +287,7 @@ def run_microphone(session: Session, device: int = None) -> None:
                 )
 
             # 確定させた分をバッファから捨てる
-            cut = int(settled[-1]["end"] * SAMPLE_RATE)
-            buffer = buffer[cut:]
-            consumed += settled[-1]["end"]
+            drop_front(int(settled[-1]["end"] * SAMPLE_RATE))
 
     except KeyboardInterrupt:
         print("", file=sys.stderr)
