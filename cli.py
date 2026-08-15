@@ -33,7 +33,7 @@ sys.path.insert(0, str(ROOT / "app"))
 
 from config import settings  # noqa: E402
 from faster_whisper.vad import VadOptions, get_speech_timestamps  # noqa: E402
-from services.async_processor import get_whisper_model  # noqa: E402
+from services.whisper_model import get_whisper_model  # noqa: E402
 
 SAMPLE_RATE = 16000
 
