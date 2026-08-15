@@ -22,61 +22,89 @@
 
 ---
 
-## 現在の状態
+## 使い方
 
-**第1段階（不要機能の削除）が完了した時点です。動作する CLI はまだありません。**
+```bash
+# マイクから入力する（Ctrl+C で終了）
+venv/bin/python cli.py
 
-サーバ構成（FastAPI + WebSocket）からローカル CLI ツールへ作り替える途中で、
-通信層・セッション管理・リアルタイム表示の仕組みを削除しました。
-CLI の組み立ては第2段階以降で行います。
+# ログを消して、文字起こし結果だけを表示する
+venv/bin/python cli.py 2>/dev/null
 
-作業範囲は [`docs/01_cleaanup_and_spike.md`](docs/01_cleaanup_and_spike.md) を参照してください。
+# 音声ファイルを処理する
+venv/bin/python cli.py sample/006-sample-b.m4a
+```
 
-### 残っている部品
+結果は画面に表示しつつ、同時に `notes/` へ Markdown で追記されます
+（ファイル名は `2026-08-15_073442.md` のように開始日時）。
 
-| ファイル                           | 役割                                          |
-| ---------------------------------- | --------------------------------------------- |
-| `app/services/async_processor.py`  | faster-whisper のモデルロードと文字起こし実行 |
-| `app/config.py`                    | Whisper のパラメータ設定                      |
-| `client/audio_capture.py`          | マイク入力（sounddevice）と VAD（webrtcvad）  |
-| `app/utils/logger.py`              | ロガー                                        |
-| `app/utils/performance_monitor.py` | 処理時間の計測                                |
+発話が確定するたびに書き出すため、途中で異常終了しても、
+それまでに書き出された内容は残ります。
 
-いずれも単体で import でき、互いに強く結合していません。
+### 表示までの待ち時間
+
+発話が終わってから画面に出るまで、**実測で 3.1〜7.1秒（平均 4.9秒）**かかります。
+
+内訳は「発話終了の確定待ち 2.0秒（固定）」と「文字起こし 0.9〜1.6秒」、
+残りはループの周回間隔です。発話が長いほど文字起こしに時間がかかります。
+
+話している最中には結果が出ません。発話の区切りを検出してから認識するためです。
 
 ### 動作環境
 
 - Apple Silicon（M1）搭載の Mac
 - Python 3.9
+- ffmpeg（音声ファイルを扱う場合）
 
 Docker は廃止しました。ローカルの venv で動かします。
-`faster-whisper` / `ctranslate2` は未導入のため、実行には別途インストールが必要です。
+
+```bash
+venv/bin/pip install faster-whisper sounddevice numpy
+```
+
+### 現在の状態
+
+第3段階（実用可能な状態への到達）まで完了しています。
+経緯は [`docs/`](docs/) の作業指示書を参照してください。
 
 ---
 
 ## ファイル構成
 
 ```text
+cli.py                          # エントリポイント
+
 app/
 ├── config.py                   # Whisper設定
 ├── services/
-│   └── async_processor.py      # faster-whisper 呼び出し
-├── utils/
-│   ├── logger.py
-│   └── performance_monitor.py
-└── tests/
+│   └── async_processor.py      # モデルのロード（ファイル一括処理用の経路も持つ）
+└── utils/
+    ├── logger.py
+    └── performance_monitor.py
 
 client/
-├── audio_capture.py            # マイク入力・VAD
-└── requirements.txt
+└── audio_capture.py            # 旧マイク実装。cli.py からは使っていない（後述）
+
+spike/                          # 検証用の使い捨てスクリプト
+├── transcribe.py               # ファイル入力での文字起こし
+├── silence.py                  # 沈黙の記録（第2段階の検証）
+└── compare_r2.py               # 言い直し消失の切り分け
 
 docs/
 ├── requirements.md             # 要求定義（R-1〜R-21）
 ├── 01_cleaanup_and_spike.md    # 第1段階の作業指示書
+├── 02_slience_and_verification.md
+├── 03_usable_state.md
 ├── TODO.md
 ├── PHASE15_DECISION.md         # 方針転換の判断記録
 └── archive/                    # 廃止した機能のドキュメント
+
+notes/                          # 文字起こしの記録（gitignore）
 ```
+
+`client/audio_capture.py` は webrtcvad による発話区間検出を持ちますが、
+第2段階で Silero VAD を採用したため役割が重複します。
+`cli.py` はマイク入力に `sounddevice` を直接使っており、このファイルは参照していません。
 
 ---
 

@@ -41,20 +41,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 現在の状態
 
-**第1段階（不要機能の削除）が完了した時点。動作する CLI はまだない。**
+**第3段階（実用可能な状態への到達）まで完了。マイクから喋って使える。**
 
-サーバ構成（FastAPI + WebSocket）から削除を進めた結果、残っているのは部品のみ。
-CLI の組み立ては第2段階以降。
+```bash
+venv/bin/python cli.py              # マイク入力（Ctrl+C で終了）
+venv/bin/python cli.py <音声ファイル>
+```
 
-| ファイル                           | 役割                                         |
-| ---------------------------------- | -------------------------------------------- |
-| `app/services/async_processor.py`  | faster-whisper のロードと文字起こし実行      |
-| `app/config.py`                    | Whisper のパラメータ設定                     |
-| `client/audio_capture.py`          | マイク入力（sounddevice）と VAD（webrtcvad） |
-| `app/utils/logger.py`              | ロガー                                       |
-| `app/utils/performance_monitor.py` | 処理時間の計測                               |
+結果は画面に表示しつつ `notes/` へ Markdown で追記される。
 
-いずれも単体で import でき、互いに強く結合していない。
+| ファイル                          | 役割                                                  |
+| --------------------------------- | ----------------------------------------------------- |
+| `cli.py`                          | エントリポイント。マイク入力・逐次表示・逐次記録      |
+| `app/services/async_processor.py` | モデルのロード（`get_whisper_model()`）               |
+| `app/config.py`                   | Whisper のパラメータ設定                              |
+| `app/utils/logger.py`             | ロガー（標準エラー出力へ）                            |
+| `client/audio_capture.py`         | 旧マイク実装。**`cli.py` からは使っていない**（下記） |
+
+### 構成上の要点（変更する前に読むこと）
+
+- **VAD は Silero VAD**（`faster_whisper.vad.get_speech_timestamps`）を使い、
+  Whisper 内蔵VADは `vad_filter=False` で無効にしている。
+  内蔵VADは無音を除去してから認識するため、沈黙の情報が失われる（R-7）
+- **`client/audio_capture.py` の webrtcvad とは役割が重複する。**
+  二重VADになるため `cli.py` では使わず、`sounddevice` を直接呼んでいる
+- **逐次処理を崩さないこと。** 発話が確定するたびに表示と書き出しの両方へ流している。
+  まとめて出力する構造にすると R-8（随時確認）と R-12（異常時の保全）が両方壊れる
+- **記録は追記ごとに `flush` + `fsync`。** `finally` に頼らない（強制終了で実行されないため）
+- **マイクの `blocksize` を外さないこと。** 未指定だと1ms刻みで届き、
+  ループが毎秒1000回以上空転する（実測）
 
 ### 削除済み（復元はタグから）
 
@@ -72,7 +87,7 @@ CLI の組み立ては第2段階以降。
 
 - Apple Silicon（M1）、Python 3.9、venv
 - Docker は廃止済み
-- `faster-whisper` / `ctranslate2` は venv に未導入（実行には別途インストールが必要）
+- `faster-whisper` / `ctranslate2` / `sounddevice` は venv に導入済み
 
 **CTranslate2 は Metal 非対応**のため、Apple Silicon では CPU 実行になる。
 GPU を使うなら mlx-whisper / whisper.cpp が候補だが、**移行はまだ判断していない**。
