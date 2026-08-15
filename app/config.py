@@ -20,13 +20,11 @@ class Settings:
     WHISPER_BEAM_SIZE: int = int(os.getenv("WHISPER_BEAM_SIZE", "1"))
     WHISPER_BEST_OF: int = int(os.getenv("WHISPER_BEST_OF", "1"))
     WHISPER_TEMPERATURE: float = 0.0
-    WHISPER_VAD_ENABLED: bool = (
-        os.getenv("WHISPER_VAD_ENABLED", "true").lower() == "true"
-    )
+    # 外部VAD（Silero VAD）へ渡す設定。Whisper内蔵VADは使わないため
+    # vad_filter 関連の設定は持たない
     WHISPER_VAD_MIN_SILENCE_MS: int = int(
         os.getenv("WHISPER_VAD_MIN_SILENCE_MS", "500")
     )
-    WHISPER_VAD_SPEECH_PAD_MS: int = int(os.getenv("WHISPER_VAD_SPEECH_PAD_MS", "400"))
 
     # ハルシネーション抑制設定（Phase 12追加）
     # condition_on_previous_text: 前の出力への依存を断ち、繰り返しの連鎖を防止
