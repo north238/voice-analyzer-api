@@ -41,34 +41,16 @@
       `sample/005` で 5.3dB（余裕が小さい）、`sample/006` で 26.8dB（明確に分離）だった。
       006（語尾の減衰・小声を意図的に含む）では取りこぼしが発生しなかったが、
       005 のような条件では余裕がない。録音環境に依存するため、対処の要否は継続判断
-- [ ] `no_speech_threshold` によるセグメント破棄を解消する（R-5）
-      `faster_whisper/transcribe.py` の `generate_segments` に、
-      `no_speech_prob > no_speech_threshold` かつ `avg_logprob < log_prob_threshold` のとき
-      `seek += segment_size; continue` で**30秒窓を丸ごと飛ばす**処理がある。
-      現在の設定（0.6 / -1.0）で発話が黙って消えうる。ログも DEBUG レベルのみ。
-      なお `compression_ratio_threshold` は破棄ではなく温度を上げての再試行のため、
-      こちらは R-5 のリスクではない
-- [ ] 沈黙マーカーの記法と閾値を確定する（R-7）
-      現在は `...`、閾値1.5秒、確定待ち2.0秒をいずれも暫定値として使っている
-      （`cli.py` の `SILENCE_MARKER` / `SILENCE_THRESHOLD_SEC` / `TAIL_MARGIN_SEC`）。
-      閾値は待ち時間にも直結する（短くすると表示は速くなるが区間が細切れになり精度が落ちる）
+- [ ] `no_speech_threshold` による破棄を、長時間の音声で再確認する（R-5）
+      破棄は AND 条件（`no_speech_prob > 0.6` **かつ** `avg_logprob < -1.0`）で、
+      片方でも外れれば救済される。第4段階で実測したところ、
+      `avg_logprob` が全区間で -0.23〜-0.56 と閾値から大きく離れており、
+      **破棄は1件も発生していなかった**（`sample/003`, `006` の全10区間）。
+      現時点で緩和の必要はない。ただし確認は最長81秒の音声に留まる。
+      3分以上の音声での再確認が残っている
 
 ### 整理
 
-- [ ] app 側の依存を記録する場所を決める
-      Docker 廃止により faster-whisper 等の依存記録が失われた。
-      `client/requirements.txt` はマイク入力用の依存しか持たない。
-      現在の導入内容: faster-whisper 1.2.1 / ctranslate2 4.8.1 / av 15.1.0 /
-      onnxruntime 1.19.2 / sounddevice 0.5.3（Python 3.9）
-- [ ] `client/audio_capture.py` の要否を判断する
-      webrtcvad による発話区間検出を持つが、Silero VAD と役割が重複し
-      `cli.py` からは使っていない。残すと二重VADの誤用を招く
-- [ ] `app/services/async_processor.py` の整理
-      `cli.py` は `get_whisper_model()` しか使っていない。
-      `transcribe_async()` はファイル一括処理用として `spike/transcribe.py` が依存している。
-      139-140行目に到達不能なコードもある（`elif seg_text:` は常に偽。動作に影響なし）
-- [ ] `spike/` の要否を判断する
-      検証は完了しており、使い捨てとして作ったもの
 - [ ] 文字起こしエンジンの選定
       CTranslate2 は Metal 非対応で Apple Silicon では CPU 実行になる。
       ただし実測ではリアルタイム比 0.08〜0.10 で、現状ボトルネックにはなっていない
