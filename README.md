@@ -31,8 +31,8 @@ venv/bin/python cli.py
 # ログを消して、文字起こし結果だけを表示する
 venv/bin/python cli.py 2>/dev/null
 
-# 音声ファイルを処理する
-venv/bin/python cli.py sample/004-setumei.mp3
+# 音声ファイルを処理する（mp3 / m4a / wav など、ffmpeg が読める形式）
+venv/bin/python cli.py ~/Downloads/recording.m4a
 ```
 
 結果は画面に表示しつつ、同時に `notes/` へ Markdown で追記されます
