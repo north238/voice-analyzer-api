@@ -32,7 +32,7 @@ venv/bin/python cli.py
 venv/bin/python cli.py 2>/dev/null
 
 # 音声ファイルを処理する
-venv/bin/python cli.py sample/006-sample-b.m4a
+venv/bin/python cli.py sample/004-setumei.mp3
 ```
 
 結果は画面に表示しつつ、同時に `notes/` へ Markdown で追記されます
