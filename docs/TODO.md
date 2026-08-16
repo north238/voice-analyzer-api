@@ -5,7 +5,7 @@
 - **やることのみを書く。** 完了した項目は削除する（経緯は git 履歴に残る）
 - Phase 別の `PLAN` / `COMPLETION` / `INVESTIGATION` は今後作らない
 - 設計判断で記録を残す必要があるものだけ、独立した `DECISION` 文書にする
-  （例: [`PHASE15_DECISION.md`](PHASE15_DECISION.md)）
+  （例: [`DECISION_cli_migration.md`](DECISION_cli_migration.md)）
 - 各項目には**なぜ必要か**を1行添える。着手時に背景を再調査せずに済ませるため
 
 ---
