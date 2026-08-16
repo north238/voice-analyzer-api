@@ -20,8 +20,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 作業を始める前に読むもの
 
-- [`docs/requirements.md`](docs/requirements.md) — 要求定義（R-1〜R-21）。**実装前に必ず読む**
-- [`docs/01_cleaanup_and_spike.md`](docs/01_cleaanup_and_spike.md) — 第1段階の作業指示書
+- [`docs/requirements.md`](docs/requirements.md) — 要求定義（R-1〜R-22）。**実装前に必ず読む**
+- `docs/0*_*.md` — 各段階の作業指示書
 
 ### 守る原則（作業指示書 5章より）
 
@@ -41,7 +41,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 現在の状態
 
-**第3段階（実用可能な状態への到達）まで完了。マイクから喋って使える。**
+**第4段階（暫定値の確定と運用の整備）まで完了。日常的に使える状態。**
 
 ```bash
 venv/bin/python cli.py              # マイク入力（Ctrl+C で終了）
@@ -50,26 +50,30 @@ venv/bin/python cli.py <音声ファイル>
 
 結果は画面に表示しつつ `notes/` へ Markdown で追記される。
 
-| ファイル                          | 役割                                                  |
-| --------------------------------- | ----------------------------------------------------- |
-| `cli.py`                          | エントリポイント。マイク入力・逐次表示・逐次記録      |
-| `app/services/async_processor.py` | モデルのロード（`get_whisper_model()`）               |
-| `app/config.py`                   | Whisper のパラメータ設定                              |
-| `app/utils/logger.py`             | ロガー（標準エラー出力へ）                            |
-| `client/audio_capture.py`         | 旧マイク実装。**`cli.py` からは使っていない**（下記） |
+| ファイル                        | 役割                                                       |
+| ------------------------------- | ---------------------------------------------------------- |
+| `cli.py`                        | エントリポイント。マイク入力・逐次表示・逐次記録・状態表示 |
+| `config.json`                   | 設定ファイル（任意。gitignore）                            |
+| `app/services/whisper_model.py` | モデルのロード（`get_whisper_model()`）                    |
+| `app/config.py`                 | Whisper のパラメータ設定                                   |
+| `app/utils/logger.py`           | ロガー（標準エラー出力へ）                                 |
 
 ### 構成上の要点（変更する前に読むこと）
 
 - **VAD は Silero VAD**（`faster_whisper.vad.get_speech_timestamps`）を使い、
   Whisper 内蔵VADは `vad_filter=False` で無効にしている。
   内蔵VADは無音を除去してから認識するため、沈黙の情報が失われる（R-7）
-- **`client/audio_capture.py` の webrtcvad とは役割が重複する。**
-  二重VADになるため `cli.py` では使わず、`sounddevice` を直接呼んでいる
+- **マイク入力は `sounddevice` を直接使う。** webrtcvad による実装は
+  Silero VAD と役割が重複するため第4段階で削除した。復活させると二重VADになる
 - **逐次処理を崩さないこと。** 発話が確定するたびに表示と書き出しの両方へ流している。
   まとめて出力する構造にすると R-8（随時確認）と R-12（異常時の保全）が両方壊れる
 - **記録は追記ごとに `flush` + `fsync`。** `finally` に頼らない（強制終了で実行されないため）
 - **マイクの `blocksize` を外さないこと。** 未指定だと1ms刻みで届き、
   ループが毎秒1000回以上空転する（実測）
+- **標準出力は文字起こし結果だけに保つこと。** 状態表示（R-22）もログも標準エラーへ出す。
+  混ぜると `2>/dev/null` で結果だけを取り出せなくなり、R-8 の確認を妨げる
+- **確定した値は変えないこと。** 沈黙マーカー `[沈黙]`、閾値1.5秒、確定待ち2.0秒は
+  第4段階で根拠つきで確定させた。閾値は待ち時間と精度の両方に影響する
 
 ### 削除済み（復元はタグから）
 

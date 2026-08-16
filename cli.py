@@ -15,6 +15,7 @@
 """
 
 import argparse
+import json
 import os
 import queue
 import subprocess
@@ -32,30 +33,37 @@ sys.path.insert(0, str(ROOT / "app"))
 
 from config import settings  # noqa: E402
 from faster_whisper.vad import VadOptions, get_speech_timestamps  # noqa: E402
-from services.async_processor import get_whisper_model  # noqa: E402
+from services.whisper_model import get_whisper_model  # noqa: E402
 
 SAMPLE_RATE = 16000
 
-# --- 暫定値: 記法・閾値とも確定させない（docs/03_usable_state.md 4章） ---
+# 設定ファイル。無くても動く（R-9）。利用者が直接編集できる形式（R-21）
+CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
 
-# 沈黙マーカー。R-7 が求めるのは「沈黙があったと分かること」のみで長短の区別は不要
-SILENCE_MARKER = "..."
+# 沈黙マーカー（第4段階で確定）。
+# R-7 が求めるのは「沈黙があったと分かること」のみで、長短の区別は不要。
+# 出力の読み手は LLM であり、沈黙と発話内容を混同しないことを基準に選んだ。
+# 以前は "..." を使っていたが、三点リーダとして発話本文にも現れうるため区別できない
+# （実際に過去の出力にも本文中の "..." があった）。角括弧は発話に現れず、
+# 注釈であることが読み手から明確に判別できる
+SILENCE_MARKER = "[沈黙]"
 
-# この秒数以上あいた場合のみ沈黙として扱う。
+# この秒数以上あいた場合のみ沈黙として扱う（第4段階で確定。値は据え置き）。
 # 閾値未満の間で隔てられた区間は結合する。
+# 実使用で、息継ぎがマーカー化せず思考の間だけが記録されることを確認済み。
 # 注: これは要求由来の制約ではない。息継ぎにマーカーを入れること自体は R-1 に反しない
 #     （実際にあった間の記録であり、推測でも修正でもない）。
-#     マーカーが多すぎると下流の LLM にとってノイズになるという実用上の判断であり、
-#     暫定の設計判断として後から自由に変えてよい
+#     マーカーが多すぎると下流の LLM にとってノイズになるという実用上の判断
 SILENCE_THRESHOLD_SEC = 1.5
-
-# --- ここまで暫定値 ---
 
 # マイク入力で、直近の音声に対して VAD をかける間隔
 VAD_INTERVAL_SEC = 1.0
 
-# 発話が途切れたと判断してから文字起こしに回すまでの余裕。
-# VAD が区間の終わりを確定するには、後続に無音が続く必要があるため
+# 発話が途切れたと判断してから文字起こしに回すまでの余裕（第4段階で確定。値は据え置き）。
+# VAD が区間の終わりを確定するには、後続に無音が続く必要がある。
+# この値は表示までの待ち時間に直結する（実測 3.1〜7.1秒のうち 2.0秒がこれ）。
+# 短縮すると待ちは減るが、発話が途中で切られて区間が細切れになり精度が落ちる
+# （第2段階で、短い区間ほど精度が落ちることを実測済み）
 TAIL_MARGIN_SEC = SILENCE_THRESHOLD_SEC + 0.5
 
 # 1コールバックあたりの取得サンプル数（100ms分）。
@@ -166,11 +174,51 @@ def transcribe(audio: np.ndarray) -> str:
     return "".join(s.text for s in segments).strip()
 
 
+class StatusLine:
+    """動作していることを示す表示（R-22）。
+
+    長い沈黙を挟んで使うツールのため、何も出ない状態が「正常な待機」なのか
+    「処理の停止」なのかを利用者が区別できる必要がある。
+
+    標準エラーへ出し、同じ行を上書きする。標準出力は文字起こし結果だけに保つため
+    （混ぜると R-8 の確認を妨げ、`2>/dev/null` で結果だけを取り出せなくなる）。
+    リダイレクト時やパイプ時は表示しない。
+    """
+
+    # 動いていることが分かる最小限の表示にとどめる。
+    # 経過時間や処理件数は R-22 の充足に不要なため出さない
+    FRAMES = "|/-\\"
+
+    def __init__(self, stream=sys.stderr):
+        self.stream = stream
+        self.enabled = stream.isatty()
+        self.index = 0
+        self.shown = False
+
+    def tick(self, label: str) -> None:
+        if not self.enabled:
+            return
+        frame = self.FRAMES[self.index % len(self.FRAMES)]
+        self.index += 1
+        self.stream.write(f"\r{frame} {label}    ")
+        self.stream.flush()
+        self.shown = True
+
+    def clear(self) -> None:
+        """結果を表示する前に、状態表示の行を消す"""
+        if not self.enabled or not self.shown:
+            return
+        self.stream.write("\r\033[K")
+        self.stream.flush()
+        self.shown = False
+
+
 class Session:
     """確定した発話を、表示と記録の両方へ流す"""
 
-    def __init__(self, recorder: Recorder):
+    def __init__(self, recorder: Recorder, status: "StatusLine" = None):
         self.recorder = recorder
+        self.status = status
         self.previous_end = 0.0
         self.has_output = False
 
@@ -178,6 +226,10 @@ class Session:
         if not text:
             self.previous_end = end
             return
+
+        # 状態表示の行を消してから結果を出す（表示が結果を押し流さないようにする）
+        if self.status:
+            self.status.clear()
 
         gap = start - self.previous_end
         if self.has_output and gap >= SILENCE_THRESHOLD_SEC:
@@ -190,15 +242,48 @@ class Session:
         self.has_output = True
 
 
-def run_file(path: Path, session: Session) -> None:
+def load_config() -> dict:
+    """設定ファイルを読む。無ければ既定値で動く（R-9）。
+
+    設定できる項目は、利用者が実際に変更したくなるものに絞っている（R-20, R-21）。
+    項目を増やすほど「単純な操作で開始できること」から遠ざかるため、
+    沈黙の閾値などの動作を左右する値は意図的に含めていない。
+    """
+    defaults = {
+        "output_dir": str(ROOT / "notes"),
+        "model_size": "",  # 空なら app/config.py の既定（small）に従う
+    }
+
+    if not CONFIG_PATH.exists():
+        return defaults
+
+    try:
+        loaded = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        # 壊れた設定で起動できなくなるより、既定値で動くほうがよい
+        print(f"設定を読めませんでした（既定値で続行）: {e}", file=sys.stderr)
+        return defaults
+
+    unknown = set(loaded) - set(defaults)
+    if unknown:
+        print(f"設定に未知の項目があります（無視）: {', '.join(sorted(unknown))}",
+              file=sys.stderr)
+
+    defaults.update({k: v for k, v in loaded.items() if k in defaults})
+    return defaults
+
+
+def run_file(path: Path, session: Session, status: "StatusLine" = None) -> None:
     """音声ファイルを処理する。区間ごとに確定させ、逐次出力する"""
     audio = load_file(path)
     for region in find_speech_regions(audio):
         chunk = audio[int(region["start"] * SAMPLE_RATE) : int(region["end"] * SAMPLE_RATE)]
+        if status:
+            status.tick("文字起こし中")
         session.emit(transcribe(chunk), region["start"], region["end"])
 
 
-def run_microphone(session: Session, device: int = None) -> None:
+def run_microphone(session: Session, device: int = None, status: "StatusLine" = None) -> None:
     """マイクから入力する。
 
     R-6（冒頭が失われないこと）のため、録音を先に開始してから
@@ -209,7 +294,7 @@ def run_microphone(session: Session, device: int = None) -> None:
 
     frames = queue.Queue()
 
-    def on_audio(indata, _frames, _time, status):
+    def on_audio(indata, _frames, _time, _status):
         # sounddevice のコールバックは別スレッドから呼ばれる。
         # ここで重い処理をすると音声のドロップアウトを招くため、キューに積むだけにする
         frames.put(indata.copy())
@@ -263,6 +348,8 @@ def run_microphone(session: Session, device: int = None) -> None:
             loader.join()  # 初回のみ待つ。2回目以降はロード済みで即座に返る
 
             regions = find_speech_regions(buffer)
+            if status:
+                status.tick("待機中" if not regions else "発話を検出中")
             if not regions:
                 # 発話が無いので、末尾の余裕分だけ残して捨てる。
                 # 捨てないと沈黙が続くほどバッファが伸び、VAD の所要時間も増え続ける
@@ -282,6 +369,8 @@ def run_microphone(session: Session, device: int = None) -> None:
                 chunk = buffer[
                     int(region["start"] * SAMPLE_RATE) : int(region["end"] * SAMPLE_RATE)
                 ]
+                if status:
+                    status.tick("文字起こし中")
                 session.emit(
                     transcribe(chunk), consumed + region["start"], consumed + region["end"]
                 )
@@ -290,6 +379,8 @@ def run_microphone(session: Session, device: int = None) -> None:
             drop_front(int(settled[-1]["end"] * SAMPLE_RATE))
 
     except KeyboardInterrupt:
+        if status:
+            status.clear()
         print("", file=sys.stderr)
     finally:
         stream.stop()
@@ -297,16 +388,27 @@ def run_microphone(session: Session, device: int = None) -> None:
 
 
 def main() -> None:
+    config = load_config()
+
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("audio", nargs="?", help="音声ファイル（省略時はマイク入力）")
     parser.add_argument("--device", type=int, default=None, help="入力デバイスの番号")
     parser.add_argument(
-        "--output-dir", type=Path, default=ROOT / "notes", help="記録の保存先"
+        "--output-dir",
+        type=Path,
+        default=None,
+        help=f"記録の保存先（既定: {config['output_dir']}）",
     )
     args = parser.parse_args()
 
-    recorder = Recorder(args.output_dir)
-    session = Session(recorder)
+    # コマンドラインの指定が設定ファイルより優先される
+    output_dir = args.output_dir or Path(config["output_dir"]).expanduser()
+    if config["model_size"]:
+        os.environ.setdefault("WHISPER_MODEL_SIZE", config["model_size"])
+
+    status = StatusLine()
+    recorder = Recorder(output_dir)
+    session = Session(recorder, status)
     print(f"記録先: {recorder.path}", file=sys.stderr)
 
     try:
@@ -314,10 +416,11 @@ def main() -> None:
             path = Path(args.audio)
             if not path.exists():
                 raise SystemExit(f"ファイルが見つかりません: {path}")
-            run_file(path, session)
+            run_file(path, session, status)
         else:
-            run_microphone(session, args.device)
+            run_microphone(session, args.device, status)
     finally:
+        status.clear()
         recorder.close()
 
 

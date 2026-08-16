@@ -38,8 +38,19 @@ venv/bin/python cli.py sample/006-sample-b.m4a
 結果は画面に表示しつつ、同時に `notes/` へ Markdown で追記されます
 （ファイル名は `2026-08-15_073442.md` のように開始日時）。
 
+動作中は「待機中 / 発話を検出中 / 文字起こし中」が画面下部に表示されます。
+長い沈黙を挟んでも、止まっているのではなく待機中であることが分かります。
+この表示は標準エラーへ出るため、`2>/dev/null` で消しても結果には影響しません。
+
 発話が確定するたびに書き出すため、途中で異常終了しても、
 それまでに書き出された内容は残ります。
+
+### 沈黙の記録
+
+発話の間が 1.5 秒以上あいた場合、`[沈黙]` が挿入されます。長短は区別しません。
+
+出力の読み手は LLM です。`...` ではなく角括弧にしているのは、
+三点リーダが発話本文にも現れうるため、沈黙と発話内容が区別できなくなるからです。
 
 ### 表示までの待ち時間
 
@@ -64,7 +75,7 @@ venv/bin/pip install faster-whisper sounddevice numpy
 
 ### 現在の状態
 
-第3段階（実用可能な状態への到達）まで完了しています。
+第4段階（暫定値の確定と運用の整備）まで完了しています。
 経緯は [`docs/`](docs/) の作業指示書を参照してください。
 
 ---
@@ -72,29 +83,23 @@ venv/bin/pip install faster-whisper sounddevice numpy
 ## ファイル構成
 
 ```text
-cli.py                          # エントリポイント
+cli.py                          # エントリポイント（これ1つで動く）
+config.json                     # 設定ファイル（任意。無くても動く）
 
 app/
-├── config.py                   # Whisper設定
+├── config.py                   # Whisper のパラメータ
 ├── services/
-│   └── async_processor.py      # モデルのロード（ファイル一括処理用の経路も持つ）
+│   └── whisper_model.py        # モデルのロード
 └── utils/
     ├── logger.py
     └── performance_monitor.py
 
-client/
-└── audio_capture.py            # 旧マイク実装。cli.py からは使っていない（後述）
-
-spike/                          # 検証用の使い捨てスクリプト
-├── transcribe.py               # ファイル入力での文字起こし
-├── silence.py                  # 沈黙の記録（第2段階の検証）
-└── compare_r2.py               # 言い直し消失の切り分け
-
 docs/
-├── requirements.md             # 要求定義（R-1〜R-21）
+├── requirements.md             # 要求定義（R-1〜R-22）
 ├── 01_cleaanup_and_spike.md    # 第1段階の作業指示書
 ├── 02_slience_and_verification.md
 ├── 03_usable_state.md
+├── 04_finalize_and_config.md
 ├── TODO.md
 ├── PHASE15_DECISION.md         # 方針転換の判断記録
 └── archive/                    # 廃止した機能のドキュメント
@@ -102,25 +107,43 @@ docs/
 notes/                          # 文字起こしの記録（gitignore）
 ```
 
-`client/audio_capture.py` は webrtcvad による発話区間検出を持ちますが、
-第2段階で Silero VAD を採用したため役割が重複します。
-`cli.py` はマイク入力に `sounddevice` を直接使っており、このファイルは参照していません。
-
 ---
 
-## 設定（app/config.py）
+## 設定
 
-環境変数で上書きできます。すべて Whisper 関連です。
+`config.json` をリポジトリ直下に置くと、次回以降も設定が引き継がれます。
+**無くても動きます。**
 
-| 変数名                 | デフォルト | 説明           |
-| ---------------------- | ---------- | -------------- |
-| `WHISPER_MODEL_SIZE`   | small      | モデルサイズ   |
-| `WHISPER_COMPUTE_TYPE` | int8       | 計算精度       |
-| `WHISPER_BEAM_SIZE`    | 1          | ビームサーチ幅 |
-| `WHISPER_VAD_ENABLED`  | true       | Whisper内蔵VAD |
+```json
+{
+  "output_dir": "~/Documents/voice-notes",
+  "model_size": "small"
+}
+```
 
-> **注意**: `WHISPER_VAD_ENABLED` は無音区間をスキップします。
-> R-7「沈黙が含まれていたことが分かること」と衝突するため、扱いは第2段階で検討します。
+| 項目         | 既定値   | 説明                   |
+| ------------ | -------- | ---------------------- |
+| `output_dir` | `notes/` | 記録の保存先           |
+| `model_size` | `small`  | Whisper のモデルサイズ |
+
+`--output-dir` で指定した場合は、そちらが優先されます。
+
+設定できる項目は、利用者が実際に変更したくなるものに絞っています。
+沈黙の閾値など動作を左右する値は、精度や待ち時間に影響するため含めていません。
+
+### Whisper の詳細な設定（app/config.py）
+
+環境変数で上書きできます。通常は変更する必要はありません。
+
+| 変数名                       | デフォルト | 説明                        |
+| ---------------------------- | ---------- | --------------------------- |
+| `WHISPER_MODEL_SIZE`         | small      | モデルサイズ                |
+| `WHISPER_COMPUTE_TYPE`       | int8       | 計算精度                    |
+| `WHISPER_BEAM_SIZE`          | 1          | ビームサーチ幅              |
+| `WHISPER_VAD_MIN_SILENCE_MS` | 500        | 外部VAD（Silero）の無音判定 |
+
+Whisper 内蔵の VAD は使いません（`vad_filter=False` 固定）。
+無音区間を除去してから認識するため、沈黙の情報が失われるからです（R-7）。
 
 ---
 
