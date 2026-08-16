@@ -75,7 +75,7 @@ venv/bin/pip install faster-whisper sounddevice numpy
 
 ### 現在の状態
 
-第3段階（実用可能な状態への到達）まで完了しています。
+第4段階（暫定値の確定と運用の整備）まで完了しています。
 経緯は [`docs/`](docs/) の作業指示書を参照してください。
 
 ---
