@@ -31,8 +31,8 @@ venv/bin/python cli.py
 # ログを消して、文字起こし結果だけを表示する
 venv/bin/python cli.py 2>/dev/null
 
-# 音声ファイルを処理する
-venv/bin/python cli.py sample/006-sample-b.m4a
+# 音声ファイルを処理する（mp3 / m4a / wav など、ffmpeg が読める形式）
+venv/bin/python cli.py ~/Downloads/recording.m4a
 ```
 
 結果は画面に表示しつつ、同時に `notes/` へ Markdown で追記されます
@@ -95,14 +95,16 @@ app/
     └── performance_monitor.py
 
 docs/
-├── requirements.md             # 要求定義（R-1〜R-22）
-├── 01_cleaanup_and_spike.md    # 第1段階の作業指示書
-├── 02_slience_and_verification.md
+├── requirements.md               # 要求定義（R-1〜R-22）
+├── TODO.md                       # やること
+├── DECISION_cli_migration.md     # 方針転換の判断記録
+├── 01_cleanup_and_spike.md       # 第1段階の作業指示書
+├── 02_silence_and_verification.md
 ├── 03_usable_state.md
 ├── 04_finalize_and_config.md
-├── TODO.md
-├── PHASE15_DECISION.md         # 方針転換の判断記録
-└── archive/                    # 廃止した機能のドキュメント
+└── archive/                      # 過去の構成のドキュメント（更新しない）
+    ├── server/                   # Raspberry Pi + API サーバ時代
+    └── browser/                  # ブラウザUI・Chrome拡張
 
 notes/                          # 文字起こしの記録（gitignore）
 ```
@@ -169,7 +171,7 @@ GPU を使う場合の選択肢は次の通りですが、**現時点で移行�
 Pi の実測性能（文字起こし 10.9〜17.3秒/回）が要求に対して構造的に不足すると判断し、
 段階的に機能を削ってローカル CLI ツールへ方針転換しています。
 
-判断の詳細は [`docs/PHASE15_DECISION.md`](docs/PHASE15_DECISION.md) に記録しています。
+判断の詳細は [`docs/DECISION_cli_migration.md`](docs/DECISION_cli_migration.md) に記録しています。
 
 過去の状態はタグから参照できます。
 

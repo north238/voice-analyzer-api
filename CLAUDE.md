@@ -35,9 +35,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **やることは [`docs/TODO.md`](docs/TODO.md) に集約する。** 完了した項目は削除する
   （経緯は git 履歴に残るため、完了報告のドキュメントは作らない）
 - **Phase 別の `PLAN` / `COMPLETION` / `INVESTIGATION` は作らない**
-- 設計判断で記録を残す必要があるものだけ、独立した `DECISION` 文書にする
-  （例: [`docs/PHASE15_DECISION.md`](docs/PHASE15_DECISION.md)）
-- `docs/archive/` は廃止した機能のドキュメント置き場。追加も更新もしない
+- 設計判断で記録を残す必要があるものだけ、独立した `DECISION_<主題>.md` にする
+  （例: [`docs/DECISION_cli_migration.md`](docs/DECISION_cli_migration.md)）
+- **`docs/` 直下には現行の実装に関わる文書だけを置く。** 現在は7つ
+- `docs/archive/` は過去の構成のドキュメント置き場。**追加も更新もしない**。
+  `server/`（Pi + APIサーバ時代）と `browser/`（ブラウザUI・Chrome拡張）に分かれている。
+  **内容は現行の実装と一致しない**ため、実装の根拠には使わない
 
 ## 現在の状態
 
