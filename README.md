@@ -1,289 +1,181 @@
 # voice-analyzer-api
 
-日本語音声をリアルタイムで「文字起こし → ひらがな正規化 → 翻訳 → 要約」する FastAPI ベースのサービスです。
-Chrome拡張機能として動作し、YouTubeなどのタブ音声をワンクリックで文字起こしできます。
+開発中の思考を音声で吐き出し、**LLM に渡すための忠実なテキスト**として残すためのツールです。
+
+キーボードで書くと思考が止まるが、声に出すだけなら止まらない。
+その発話をテキストとして残し、最終的に LLM へ渡して要約・整理させることを目的としています。
 
 > 本リポジトリのコードおよびドキュメントは、生成AI（Claude Code）を活用して作成しています。
 
-## 主な機能
+## 中核となる方針: 何も直さない
 
-- **リアルタイム文字起こし**: faster-whisper による高速・高精度な日本語音声認識
-- **タイムスタンプ表示**: Whisperセグメント単位の正確な発話タイムスタンプ付き表示
-- **ひらがな正規化**: janome 形態素解析によるひらがな変換（オプション）
-- **日英翻訳**: Helsinki-NLP/opus-mt-ja-en による日本語→英語翻訳（オプション）
-- **AI要約**: 録音終了後にGemini 2.0 Flash または Ollama で要約生成（オプション）
-- **Chrome拡張機能**: ワンクリックでタブ音声をキャプチャしてサイドパネルに表示
-- **Zenモード**: 余分なUIを排除してテキスト読書に集中できるモード
-- **テキスト出力**: タイムスタンプ付きテキストファイルのダウンロード
+読み手は人間ではなく LLM です。言い直しの過程そのものが思考の情報であり、
+読みやすさを優先して除去・修正すると LLM が判断材料を失います。
 
----
+そのため、次のことを**行いません**。
 
-## クイックスタート（開発環境）
+- 言い間違い、言い直し、口ごもりの除去
+- 読みやすさのための整形
+- 意味を推測した補完・修正
 
-```bash
-# サーバー起動
-docker compose up -d
-```
-
-### Chrome拡張機能（推奨）
-
-1. `chrome://extensions/` を開く
-2. 「デベロッパーモード」を有効化
-3. 「パッケージ化されていない拡張機能を読み込む」をクリック
-4. `extension/` フォルダを選択
-5. 拡張機能アイコンをクリックしてサイドパネルを表示
-
-### ブラウザUI（従来版）
-
-```bash
-open http://localhost:5001/static/index.html
-```
-
-### CLIクライアント
-
-```bash
-source venv/bin/activate
-python client/realtime_client.py --cumulative
-```
+要求の詳細は [`docs/requirements.md`](docs/requirements.md) を参照してください。
 
 ---
 
-## Raspberry Pi 4 環境構築
-
-### 動作確認済み構成
-
-| 項目            | 内容                        |
-| --------------- | --------------------------- |
-| ハードウェア    | Raspberry Pi 4 (8GB)        |
-| OS              | Ubuntu 64bit (aarch64)      |
-| IPアドレス      | 192.168.0.x（有線固定推奨） |
-| Dockerイメージ  | `Dockerfile.arm64`          |
-| composeファイル | `docker-compose.pi.yml`     |
-
-### 注意事項（ハマりポイント）
-
-> **torch は `==2.0.1` に固定すること。**
-> 2.1以降のバージョンはARMv8.2以降向けにコンパイルされており、
-> Pi 4（ARMv8.0-A / Cortex-A72）では SIGILL クラッシュが発生する。
-
-> **WHISPER_COMPUTE_TYPE は `float32` を使用すること。**
-> Pi 4は int8 演算に非対応のため、`int8` を指定するとエラーが発生する。
-
-> **CUMULATIVE_MAX_AUDIO_SECONDS は `3秒 × CUMULATIVE_TRANSCRIPTION_INTERVAL` より大きくすること。**
-> トリミングは文字起こし後にしか実行されないため、これを下回る値を設定すると
-> 毎回トリミングが走り、タイムスタンプ整合が壊れて文字起こし結果が段落単位で欠落する。
-
-### 初回セットアップ
+## 使い方
 
 ```bash
-# リポジトリのクローン
-git clone https://github.com/north238/voice-analyzer-api.git
-cd voice-analyzer-api
+# マイクから入力する（Ctrl+C で終了）
+venv/bin/python cli.py
 
-# ネットワーク作成（初回のみ）
-docker network create pi_network
+# ログを消して、文字起こし結果だけを表示する
+venv/bin/python cli.py 2>/dev/null
 
-# ビルド・起動（初回は30〜60分かかる場合あり）
-docker compose -f docker-compose.pi.yml build --no-cache
-docker compose -f docker-compose.pi.yml up -d
+# 音声ファイルを処理する（mp3 / m4a / wav など、ffmpeg が読める形式）
+venv/bin/python cli.py ~/Downloads/recording.m4a
 ```
 
-### 通常の起動・停止
+結果は画面に表示しつつ、同時に `notes/` へ Markdown で追記されます
+（ファイル名は `2026-08-15_073442.md` のように開始日時）。
+
+動作中は「待機中 / 発話を検出中 / 文字起こし中」が画面下部に表示されます。
+長い沈黙を挟んでも、止まっているのではなく待機中であることが分かります。
+この表示は標準エラーへ出るため、`2>/dev/null` で消しても結果には影響しません。
+
+発話が確定するたびに書き出すため、途中で異常終了しても、
+それまでに書き出された内容は残ります。
+
+### 沈黙の記録
+
+発話の間が 1.5 秒以上あいた場合、`[沈黙]` が挿入されます。長短は区別しません。
+
+出力の読み手は LLM です。`...` ではなく角括弧にしているのは、
+三点リーダが発話本文にも現れうるため、沈黙と発話内容が区別できなくなるからです。
+
+### 表示までの待ち時間
+
+発話が終わってから画面に出るまで、**実測で 3.1〜7.1秒（平均 4.9秒）**かかります。
+
+内訳は「発話終了の確定待ち 2.0秒（固定）」と「文字起こし 0.9〜1.6秒」、
+残りはループの周回間隔です。発話が長いほど文字起こしに時間がかかります。
+
+話している最中には結果が出ません。発話の区切りを検出してから認識するためです。
+
+### 動作環境
+
+- Apple Silicon（M1）搭載の Mac
+- Python 3.9
+- ffmpeg（音声ファイルを扱う場合）
+
+Docker は廃止しました。ローカルの venv で動かします。
 
 ```bash
-# 起動
-dc -f docker-compose.pi.yml up -d
-
-# 停止
-dc -f docker-compose.pi.yml down
-
-# ログ確認
-docker logs voice-analyzer-api
-
-# 状態確認
-dc ps
+venv/bin/pip install faster-whisper sounddevice numpy
 ```
 
-### 動作確認
+### 現在の状態
 
-```bash
-# ヘルスチェック
-curl http://<ラズパイのIP>:5001/health
-
-# 音声ファイルでテスト
-curl -X POST http://<ラズパイのIP>:5001/transcribe \
-  -F "file=@sample/001-sibutomo.mp3" \
-  -F "intent=raw"
-```
-
-### Pi向け環境変数（docker-compose.pi.yml）
-
-```yaml
-environment:
-  - TZ=Asia/Tokyo
-  - LOG_LEVEL=INFO
-  - ENV=production
-  - LOG_BACKUP_COUNT=14
-  - LOG_DIR=/logs
-  # Whisper設定（Pi 4向け最適化）
-  - WHISPER_MODEL_SIZE=base # tiny も可（2倍速、精度低）
-  - WHISPER_BEAM_SIZE=1
-  - WHISPER_BEST_OF=1
-  - WHISPER_CPU_THREADS=4
-  - WHISPER_COMPUTE_TYPE=float32 # Pi 4はint8非対応のためfloat32必須
-  - WHISPER_VAD_ENABLED=false # onnxruntime未インストール時はfalse（Dockerfile.arm64 line:28）
-  # 累積バッファ（処理速度とのトレードオフ）
-  - CUMULATIVE_MAX_AUDIO_SECONDS=20.0 # 3秒 × TRANSCRIPTION_INTERVAL より大きくすること
-  - CUMULATIVE_TRANSCRIPTION_INTERVAL=5
-```
-
-### パフォーマンス目安（float32 / Pi 4）
-
-| モデル | 処理時間 | 精度 | メモリ |
-| ------ | -------- | ---- | ------ |
-| tiny   | 約14秒   | 低   | ~0.8GB |
-| base   | 約28秒   | 中   | ~1.5GB |
-
-### Chrome拡張機能との接続
-
-拡張機能の設定画面（`chrome://extensions/` → オプション）でAPIサーバーURLを変更：
-
-```text
-変更前: ws://localhost:5001
-変更後: ws://<ラズパイのIP>:5001
-```
-
----
-
-## アーキテクチャ
-
-```text
-音声入力（タブ / マイク / 動画）
-  ↓
-WebSocket (累積バッファ方式)
-  ↓
-faster-whisper 文字起こし（セグメントタイムスタンプ付き）
-  ↓
-text_filter: フィラー除去
-  ↓
-normalizer: ひらがな正規化（オプション）
-  ↓
-translator: 日→英翻訳（オプション）
-  ↓
-確定テキスト返却
-  ↓
-summarizer: AI要約（オプション・録音終了後）
-```
-
----
-
-## 開発コマンド
-
-```bash
-# ビルド・起動
-docker compose up --build -d
-
-# ログ確認
-docker compose logs -f voice-analyzer
-
-# テスト実行
-docker compose exec voice-analyzer pytest /app/tests/ -v
-
-# カバレッジ付き
-docker compose exec voice-analyzer pytest /app/tests/ --cov=app --cov-report=term-missing
-```
-
----
-
-## テストカバレッジ
-
-| テストファイル                   | テスト数 | 対象機能                 |
-| -------------------------------- | -------- | ------------------------ |
-| test_translator.py               | 39       | 日英翻訳                 |
-| test_session_manager.py          | 47       | セッション管理           |
-| test_text_stats.py               | 27       | テキスト統計             |
-| test_normalizer_comprehensive.py | 39       | ひらがな正規化（包括）   |
-| test_normalizer.py               | 27       | ひらがな正規化（基本）   |
-| **合計**                         | **179**  | **総合カバレッジ 98.9%** |
+第4段階（暫定値の確定と運用の整備）まで完了しています。
+経緯は [`docs/`](docs/) の作業指示書を参照してください。
 
 ---
 
 ## ファイル構成
 
 ```text
-extension/              # Chrome拡張機能
-├── manifest.json
-├── sidepanel/          # サイドパネルUI
-├── settings/           # 設定画面
-└── background/         # Service Worker
+cli.py                          # エントリポイント（これ1つで動く）
+config.json                     # 設定ファイル（任意。無くても動く）
 
 app/
-├── main.py             # FastAPIエンドポイント
-├── config.py           # 設定管理
+├── config.py                   # Whisper のパラメータ
 ├── services/
-│   ├── audio_processor.py      # Whisper文字起こし
-│   ├── async_processor.py      # 非同期処理ラッパー（セグメント情報付き）
-│   ├── cumulative_buffer.py    # 累積バッファ管理（タイムスタンプベース確定）
-│   ├── session_manager.py      # セッション管理
-│   ├── translator.py           # 日英翻訳
-│   ├── summarizer.py           # AI要約（Gemini / Ollama）
-│   └── websocket_manager.py    # WebSocket管理
-├── utils/
-│   └── normalizer.py           # ひらがな正規化
-└── static/             # ブラウザUI（従来版）
+│   └── whisper_model.py        # モデルのロード
+└── utils/
+    ├── logger.py
+    └── performance_monitor.py
 
-client/
-└── realtime_client.py  # CLIリアルタイムクライアント
+docs/
+├── requirements.md               # 要求定義（R-1〜R-22）
+├── TODO.md                       # やること
+├── DECISION_cli_migration.md     # 方針転換の判断記録
+├── 01_cleanup_and_spike.md       # 第1段階の作業指示書
+├── 02_silence_and_verification.md
+├── 03_usable_state.md
+├── 04_finalize_and_config.md
+└── archive/                      # 過去の構成のドキュメント（更新しない）
+    ├── server/                   # Raspberry Pi + API サーバ時代
+    └── browser/                  # ブラウザUI・Chrome拡張
 
-tests/                  # テストスイート
-docs/                   # 実装ドキュメント
+notes/                          # 文字起こしの記録（gitignore）
 ```
 
 ---
 
 ## 設定
 
-環境変数で上書き可能（`app/config.py`）:
+`config.json` をリポジトリ直下に置くと、次回以降も設定が引き継がれます。
+**無くても動きます。**
 
-| 変数名                              | デフォルト               | 説明                                |
-| ----------------------------------- | ------------------------ | ----------------------------------- |
-| `WHISPER_MODEL_SIZE`                | small                    | Whisperモデルサイズ                 |
-| `WHISPER_COMPUTE_TYPE`              | int8                     | 計算精度（Pi 4はfloat32必須）       |
-| `WHISPER_BEAM_SIZE`                 | 1                        | ビームサーチ幅                      |
-| `WHISPER_VAD_ENABLED`               | true                     | VAD有効/無効                        |
-| `CUMULATIVE_MAX_AUDIO_SECONDS`      | 12.0                     | バッファ最大長（秒）                |
-| `CUMULATIVE_TRANSCRIPTION_INTERVAL` | 3                        | 再処理間隔（チャンク数）            |
-| `SUMMARY_PROVIDER`                  | ollama                   | 要約プロバイダー（gemini / ollama） |
-| `GEMINI_API_KEY`                    | （空）                   | Google Gemini APIキー               |
-| `GEMINI_MODEL`                      | gemini-2.0-flash         | 使用するGeminiモデル                |
-| `OLLAMA_BASE_URL`                   | `http://local-llm:11434` | OllamaサーバーURL                   |
+```json
+{
+  "output_dir": "~/Documents/voice-notes",
+  "model_size": "small"
+}
+```
+
+| 項目         | 既定値   | 説明                   |
+| ------------ | -------- | ---------------------- |
+| `output_dir` | `notes/` | 記録の保存先           |
+| `model_size` | `small`  | Whisper のモデルサイズ |
+
+`--output-dir` で指定した場合は、そちらが優先されます。
+
+設定できる項目は、利用者が実際に変更したくなるものに絞っています。
+沈黙の閾値など動作を左右する値は、精度や待ち時間に影響するため含めていません。
+
+### Whisper の詳細な設定（app/config.py）
+
+環境変数で上書きできます。通常は変更する必要はありません。
+
+| 変数名                       | デフォルト | 説明                        |
+| ---------------------------- | ---------- | --------------------------- |
+| `WHISPER_MODEL_SIZE`         | small      | モデルサイズ                |
+| `WHISPER_COMPUTE_TYPE`       | int8       | 計算精度                    |
+| `WHISPER_BEAM_SIZE`          | 1          | ビームサーチ幅              |
+| `WHISPER_VAD_MIN_SILENCE_MS` | 500        | 外部VAD（Silero）の無音判定 |
+
+Whisper 内蔵の VAD は使いません（`vad_filter=False` 固定）。
+無音区間を除去してから認識するため、沈黙の情報が失われるからです（R-7）。
 
 ---
 
-## 既知の制限
+## 実行環境についての制約
 
-- Chrome専用（Safari / Firefox では動作しない）
-- APIサーバー必須（ローカルまたはリモートでサーバー起動が必要）
-- 翻訳は大まかな内容把握用途（Helsinki-NLP 軽量モデル）
-- AI要約はGemini利用時はAPIキーが必要
-- Pi 4では float32 のみ対応（int8 不可）
+**CTranslate2（faster-whisper のバックエンド）は Metal に非対応**のため、
+Apple Silicon では GPU を利用できず CPU 実行になります。
+
+GPU を使う場合の選択肢は次の通りですが、**現時点で移行は行っていません**。
+
+| 選択肢                 | GPU                   | 速度                  |
+| ---------------------- | --------------------- | --------------------- |
+| mlx-whisper            | Metal + Neural Engine | whisper.cpp の約2.0倍 |
+| whisper.cpp            | Metal + Core ML       | CPU比 3倍以上         |
+| faster-whisper（現行） | なし                  | —                     |
 
 ---
 
 ## 設計判断の経緯
 
-Phase 5系〜10.5 で実装した **ブラウザUI と Chrome拡張機能は、Phase 15 で廃止し CLI に集約する**判断をした。
+このリポジトリは元々、Raspberry Pi 上で動作する音声解析 API サーバとして開発され、
+ブラウザUI と Chrome拡張を持っていました。
+Pi の実測性能（文字起こし 10.9〜17.3秒/回）が要求に対して構造的に不足すると判断し、
+段階的に機能を削ってローカル CLI ツールへ方針転換しています。
 
-Raspberry Pi 4（ARMv8.0-A / Cortex-A72）上では文字起こしに **実測 10.9〜17.3秒/回**かかり、
-3秒チャンクを前提としたリアルタイムUIが成立しなかったことが理由である。
-int8 非対応・torch 2.0.1 固定というハード制約があり、量子化やモデル縮小を試みても
-最小の tiny モデルで約14秒と、性能面の打ち手が残っていなかった。
+判断の詳細は [`docs/DECISION_cli_migration.md`](docs/DECISION_cli_migration.md) に記録しています。
 
-判断の詳細（実測データ、撤退の過程で発見した設計上の問題、
-あえて修正を見送った理由）は [`docs/PHASE15_DECISION.md`](docs/PHASE15_DECISION.md) に記録している。
+過去の状態はタグから参照できます。
 
-拡張機能・ブラウザUIを含む最終版は、タグ `v1.0-extension` で参照できる。
-
-```bash
-git checkout v1.0-extension
-```
+| タグ                 | 内容                               |
+| -------------------- | ---------------------------------- |
+| `v1.0-extension`     | Chrome拡張・ブラウザUIを含む版     |
+| `v1.1-full-pipeline` | 翻訳・要約・ひらがな正規化を含む版 |

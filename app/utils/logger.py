@@ -8,7 +8,9 @@ from logging.handlers import TimedRotatingFileHandler
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 # ログディレクトリの設定
-LOG_DIR = Path(os.getenv("LOG_DIR", "/logs"))
+# 既定はリポジトリ直下の logs/（Docker 廃止に伴い /logs から変更）
+_DEFAULT_LOG_DIR = Path(__file__).resolve().parents[2] / "logs"
+LOG_DIR = Path(os.getenv("LOG_DIR", _DEFAULT_LOG_DIR))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # ログファイルのパス
@@ -59,8 +61,10 @@ def setup_logger():
     # フォーマッターの作成
     formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
 
-    # コンソール出力ハンドラー（既存の動作を維持）
-    console_handler = logging.StreamHandler(sys.stdout)
+    # コンソール出力ハンドラー
+    # 標準エラー出力に出す。標準出力は文字起こし結果の表示に使うため、
+    # 混在させると結果だけを取り出せなくなる（`2>/dev/null` で抑制可能にする）
+    console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)

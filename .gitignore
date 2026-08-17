@@ -221,3 +221,6 @@ logs/
 
 # Claude CLI directory
 .claude/
+notes/
+config.json
+sample/

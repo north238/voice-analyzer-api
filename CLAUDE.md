@@ -2,472 +2,114 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-完了済みフェーズ:
+開発中の思考を音声で吐き出し、LLM に渡すための忠実なテキストとして残すツール。
+ローカル（Mac）で動作する CLI として作り替えている途中。
 
-- Phase 0: バッチ翻訳機能 ✅
-- Phase 1: チャンク処理 ✅
-- Phase 2: WebSocketストリーミング ✅
-- Phase 3: リアルタイム音声入力 ✅
-- Phase 4: 処理遅延の最適化 ✅
-- Phase 4.1: 累積バッファ方式 ✅
-- Phase 5: ブラウザUI実装 ✅
-- Phase 5.1: 動画コンテンツ対応 ✅
-- Phase 5.2: 処理オプション機能 ✅
-- Phase 5.3: 句読点挿入処理の削除 ✅
-- Phase 5.4: テキストファイル出力機能 ✅
-- Phase 5.5: バグ修正・UI改善 ✅
-- Phase 6.2: Chrome拡張機能化 ✅
-- Phase 6.3: アイコン画像の改善 ✅
-- Phase 6.4: 30秒問題の修正 ✅
-- Phase 6.5: タイムアウト問題とセッション終了処理の修正 ✅
-- Phase 6.6: バッファトリミング時の文脈保持（部分実装） ✅
-- Phase 7.0: バッファトリミング時の文脈保持の完全実装 ✅
-- Phase 8: ハルシネーション対策とテキスト管理の再設計 ✅
-- Phase 9: ダウンロード機能バグ修正（ひらがな・翻訳の出力） ✅
-- Phase 10: UI刷新 + Zenモード実装（ブラウザUI・Chrome拡張） ✅
-- Phase 10.5: Chrome拡張UI改善 ✅
-  - 上級者向け機能（ひらがな/翻訳）をデフォルト非表示化（`showAdvancedFeatures` フラグ）
-  - 設定画面ヘッダーをサイドパネルと統一（graphic_eq + ZenVoice）
-  - 拡張機能アイコンを Material Symbols 公式 `graphic_eq` に変更
-- Phase 11: ブラウザ版レスポンシブ対応 ✅
-  - Tailwind CSS のブレークポイント（`md`, `lg`）でレスポンシブ対応
-  - 左サイドバー: `lg` 未満で非表示（`hidden lg:flex`）
-  - 右サイドバー: モバイルで縦積み、`md` 以上でサイドバー表示
-  - padding・余白をモバイル向けに最適化（`p-5 md:p-8 lg:p-12` 等）
-- Phase 12.1: Whisperタイムスタンプのサーバー側伝搬 ✅
-- Phase 12.2: Whisperセグメント単位での文節分割 ✅
-- Phase 12.3: 重複テキスト問題の修正（stable_countリセット） ✅
-- Phase 12.4: newly_confirmed決定ロジックのタイムスタンプベース化 ✅
-- Phase 13: 要約機能の実装（Gemini 2.0 Flash / Ollama対応） ✅
-- Phase 14: Raspberry Pi デプロイ対応 ✅
-  - ARM64対応 Dockerfile 作成（`Dockerfile.arm64`）
-  - Pi専用 docker-compose 作成（`docker-compose.pi.yml`）
-- Phase 15: ブラウザUI・Chrome拡張の撤退判断 ✅
-  - Pi 4 の実測性能（文字起こし 10.9〜17.3秒/回）ではリアルタイムUIが成立しないため、
-    ブラウザUI・Chrome拡張を廃止し CLI に集約する判断をした
-  - バッファ設定の矛盾（`MAX_AUDIO_SECONDS` < `3秒 × TRANSCRIPTION_INTERVAL`）による
-    テキスト欠落バグを修正（`docker-compose.pi.yml`）
-  - 拡張側の終了ハンドシェイクの問題は、廃止対象のため意図的に未対応
-  - 詳細: `docs/PHASE15_DECISION.md`
+## 最優先の前提: 何も直さないツールである
 
----
+中核要求は**発話に忠実であること**（`docs/requirements.md` の R-1〜R-4）。
 
-## 主要機能
+- 言い間違い、言い直し、口ごもりを**そのまま残す**
+- 読みやすさのための整形を**行わない**
+- 意味を推測して補完・修正を**行わない**
 
-### Chrome拡張機能 (Phase 6.2, 6.3, 10.5)
+読み手は人間ではなく LLM。言い直しの過程そのものが思考の情報であり、
+除去すると下流の LLM が判断材料を失う。
 
-- ワンクリックでタブ音声キャプチャ（chrome.tabCapture API）
-- サイドパネルでリアルタイム文字起こし表示
-- **上級者向け機能**: 設定画面で `showAdvancedFeatures` をONにした場合のみ、ひらがな正規化・翻訳タブを表示（デフォルトOFF）
-- 設定画面でAPIサーバーURL・上級者向け機能のON/OFFを設定可能
-- テキストファイル出力機能（タイムスタンプ付き、UTF-8 BOM対応）
-- アイコン: Material Symbols `graphic_eq`（青い角丸正方形 + 白いイコライザー）
+**「一般的にはこうする」という理由で整形・補正を加えないこと。**
 
-### ブラウザUI (Phase 5系, Phase 11)
+## 作業を始める前に読むもの
 
-- マイク入力、動画ファイル、タブ共有(YouTube等)の3モード
-- リアルタイム文字起こし（確定/暫定テキストの区別）
-- 処理オプション: ひらがな正規化、翻訳のオン/オフ切り替え
-- 音量メーター、パフォーマンス表示
-- テキストファイル出力機能（タイムスタンプ付き、UTF-8 BOM対応）
-- レスポンシブ対応（モバイル〜デスクトップ）（Phase 11で実装済み）
+- [`docs/requirements.md`](docs/requirements.md) — 要求定義（R-1〜R-22）。**実装前に必ず読む**
+- `docs/0*_*.md` — 各段階の作業指示書
 
-### リアルタイム処理 (Phase 4系)
+### 守る原則（作業指示書 5章より）
 
-- 処理時間: 1.7〜2.2秒/チャンク (約43%削減達成)
-- Whisperモデル: small (beam_size=1)
-- 翻訳: num_beams=4に最適化
-- 累積バッファによる文脈保持
+- **要求を勝手に弱めない。** 実現困難と判断したら、書き換えずに理由とともに報告する
+- **要求にないものを追加しない。** 必要と考えるなら実装せず提案として報告する
+- **削除をためらわない。** 動作するコードでも要求に照らして不要なら削除する
+- **段階を先に進めない。** 次段階の内容は実装せず提案に留める
 
-### 負荷軽減 (Phase 5.2)
+## ドキュメント運用ルール
 
-- 文字起こしのみ: 1.3〜1.6秒
-- 翻訳オフ: 約30%削減
-- 全てオフ: 約40%削減
+- **やることは [`docs/TODO.md`](docs/TODO.md) に集約する。** 完了した項目は削除する
+  （経緯は git 履歴に残るため、完了報告のドキュメントは作らない）
+- **Phase 別の `PLAN` / `COMPLETION` / `INVESTIGATION` は作らない**
+- 設計判断で記録を残す必要があるものだけ、独立した `DECISION_<主題>.md` にする
+  （例: [`docs/DECISION_cli_migration.md`](docs/DECISION_cli_migration.md)）
+- **`docs/` 直下には現行の実装に関わる文書だけを置く。** 現在は7つ
+- `docs/archive/` は過去の構成のドキュメント置き場。**追加も更新もしない**。
+  `server/`（Pi + APIサーバ時代）と `browser/`（ブラウザUI・Chrome拡張）に分かれている。
+  **内容は現行の実装と一致しない**ため、実装の根拠には使わない
 
-## プロジェクト概要
+## 現在の状態
 
-音声を受け取り「文字起こし → フィルタリング → ひらがな正規化 → 翻訳」を行うFastAPI製の日本語音声解析API。
-
-### アクセス方法
+**第4段階（暫定値の確定と運用の整備）まで完了。日常的に使える状態。**
 
 ```bash
-# サーバー起動（Raspberry Pi）
-docker compose -f docker-compose.pi.yml up -d
-
-# Chrome拡張機能（推奨）
-# 1. chrome://extensions/ を開く
-# 2. 「デベロッパーモード」を有効化
-# 3. 「パッケージ化されていない拡張機能を読み込む」をクリック
-# 4. extension/ フォルダを選択
-# 5. 拡張機能アイコンをクリックしてサイドパネルを表示
-
-# ブラウザUI（従来版）
-open http://localhost:5001/static/index.html
-
-# CLIクライアント (累積バッファモード)
-python client/realtime_client.py --cumulative
+venv/bin/python cli.py              # マイク入力（Ctrl+C で終了）
+venv/bin/python cli.py <音声ファイル>
 ```
 
-## 開発コマンド
-
-### Docker開発
-
-```bash
-# ビルド・起動（Raspberry Pi）
-docker compose -f docker-compose.pi.yml up --build -d
-
-# ログ確認
-docker compose -f docker-compose.pi.yml logs -f voice-analyzer
-
-# 停止
-docker compose -f docker-compose.pi.yml down
-```
-
-### テスト実行
-
-```bash
-# 全テスト実行
-# 注: Dockerfile.arm64 に pytest は含まれないため、テストは Mac 側 (Dockerfile) で実行する
-docker compose exec voice-analyzer pytest /app/tests/ -v
-
-# カバレッジ付き
-docker compose exec voice-analyzer pytest /app/tests/ --cov=app --cov-report=term-missing
-```
-
-**テストカバレッジ: 98.9%**
-
-- test_translator.py: 39件 ✅
-- test_session_manager.py: 47件 ✅
-- test_text_stats.py: 27件 ✅
-- test_normalizer_comprehensive.py: 39件 ✅
-- test_normalizer.py: 27件 (2件失敗は既知の制限)
-
-## アーキテクチャ
-
-### 処理フロー
-
-```text
-音声入力 (マイク/動画/タブ) → WebSocket
-  ↓
-音声チャンク受信 (cumulative buffer)
-  ↓
-faster-whisper文字起こし (initial_prompt対応)
-  ↓
-text_filter: フィラー除去
-  ↓
-normalizer: ひらがな正規化 (オプション)
-  ↓
-translator: 日→英翻訳 (オプション)
-  ↓
-確定/暫定テキスト返却
-```
-
-### 主要コンポーネント
-
-**サーバー側:**
-
-- `app/main.py`: FastAPIエンドポイント
-- `app/services/audio_processor.py`: faster-whisper音声認識
-- `app/services/cumulative_buffer.py`: 音声バッファ・差分抽出
-- `app/services/translator.py`: Helsinki-NLP/opus-mt-ja-en翻訳
-- `app/services/websocket_manager.py`: WebSocket接続管理
-- `app/utils/normalizer.py`: janome形態素解析
-
-**クライアント側:**
-
-- `client/realtime_client.py`: CLIリアルタイムクライアント
-- `app/static/`: ブラウザUI (HTML/CSS/JS)
-
-### 外部依存
-
-- **ffmpeg**: 音声変換
-- **faster-whisper**: 音声認識 (CTranslate2)
-- **janome**: 形態素解析
-- **opus-mt**: 日英翻訳モデル
-- **Ollama**: ローカルLLM (ブラウザ版の`local-llm`サービス。docker-compose.pi.yml からは削除済み)
-
-## 設定 (app/config.py)
-
-環境変数で上書き可能:
-
-- `WHISPER_MODEL_SIZE`: small (デフォルト。ラズパイは base に上書き)
-- `WHISPER_BEAM_SIZE`: 1 (デフォルト)
-- `OLLAMA_BASE_URL`: <http://local-llm:11434> (ブラウザ版のみ。ラズパイ構成では未使用)
-- `TRANSLATION_MODEL`: Helsinki-NLP/opus-mt-ja-en
-- `CUMULATIVE_MAX_AUDIO_SECONDS`: 12.0秒 (バッファ最大長。ラズパイは 20.0)
-- `CUMULATIVE_TRANSCRIPTION_INTERVAL`: 3チャンク (再処理間隔。ラズパイは 5)
-
-## ファイル構成
-
-```text
-extension/                               # Chrome拡張機能（Phase 6.2, 6.3, 10.5）
-├── manifest.json                        # Manifest V3設定
-├── icons/                               # アイコン画像（16/48/128px）
-│   ├── icon.svg                         # ソースSVG（graphic_eq Material Symbols公式パス）
-│   ├── icon16.png                       # ツールバー用
-│   ├── icon48.png                       # 拡張機能管理画面用
-│   ├── icon128.png                      # Chromeウェブストア用
-│   ├── create_icons.py                  # PNG生成スクリプト
-│   ├── generate_icons.sh                # ワンコマンド生成スクリプト
-│   └── README.md                        # アイコン生成ドキュメント
-├── sidepanel/
-│   ├── sidepanel.html                   # サイドパネルUI
-│   ├── sidepanel.js                     # メインアプリケーション（showAdvancedFeatures対応）
-│   ├── css/sidepanel.css                # サイドパネルスタイル
-│   └── js/
-│       ├── audio-capture.js             # 音声キャプチャ（chrome.tabCapture対応）
-│       ├── audio-processor.js           # AudioWorklet
-│       ├── websocket-client.js          # WebSocket通信
-│       └── ui-controller.js             # UI制御
-├── settings/
-│   ├── settings.html                    # 設定画面（ZenVoiceヘッダー、上級者向け機能セクション）
-│   └── settings.js                      # chrome.storage.sync（showAdvancedFeatures対応）
-├── background/
-│   └── service-worker.js                # 拡張機能アイコンクリック処理
-└── README.md                            # インストール手順、使い方
-
-app/
-├── main.py                          # FastAPIエンドポイント
-├── config.py                        # 設定管理
-├── services/
-│   ├── audio_processor.py           # Whisper文字起こし
-│   ├── async_processor.py           # 非同期処理ラッパー
-│   ├── cumulative_buffer.py         # 累積バッファ管理
-│   ├── session_manager.py           # セッション管理
-│   ├── text_filter.py               # フィラー除去
-│   ├── translator.py                # 翻訳
-│   ├── summarizer.py                # 要約（Gemini / Ollama）
-│   ├── llm_analyzer.py              # Ollama連携
-│   └── websocket_manager.py         # WebSocket管理
-├── utils/
-│   ├── normalizer.py                # ひらがな正規化
-│   ├── number_converter.py          # 数字→漢数字変換
-│   └── performance_monitor.py       # パフォーマンス計測
-└── static/
-    ├── index.html                   # ブラウザUI（Phase 11でレスポンシブ対応済み）
-    ├── css/style.css
-    └── js/
-        ├── app.js                   # メインアプリケーション
-        ├── ui-controller.js         # UI制御
-        ├── websocket-client.js      # WebSocket通信
-        ├── audio-capture.js         # 音声キャプチャ
-        └── audio-processor.js       # 音声処理
-
-client/
-├── realtime_client.py               # CLIリアルタイムクライアント
-├── ws_client.py                     # WebSocketクライアント (ファイル用)
-├── chunk_client.py                  # HTTPクライアント (旧)
-├── audio_capture.py                 # マイクキャプチャ (sounddevice)
-└── audio_input.py                   # 音声分割ユーティリティ
-
-tests/
-├── test_translator.py
-├── test_cumulative_buffer_trim.py
-├── test_session_manager.py
-├── test_text_stats.py
-├── test_normalizer.py
-└── test_normalizer_comprehensive.py
-
-Dockerfile.arm64                         # ARM64（Raspberry Pi）向けDockerfile（Phase 14）
-docker-compose.pi.yml                    # Raspberry Pi本番用docker-compose（Phase 14）
-
-docs/                                    # 実装ドキュメント
-├── IMPLEMENTION_PLAN.md                 # 全体実装計画
-├── LEARNING_PLAN.md                     # 学習資料
-├── PHASE11_PLAN.md                      # Phase 11実装計画（レスポンシブ対応）
-├── PHASE11_COMPLETION.md                # Phase 11完了報告
-├── PHASE12.1_PLAN.md                    # Phase 12.1実装計画
-├── PHASE12.2_PLAN.md                    # Phase 12.2実装計画
-├── PHASE12.3_PLAN.md                    # Phase 12.3実装計画
-├── PHASE12.4_PLAN.md                    # Phase 12.4実装計画
-├── PHASE13_PLAN.md                      # Phase 13実装計画
-├── PHASE14_PLAN.md                      # Phase 14実装計画（Raspberry Piデプロイ）
-├── PHASE15_DECISION.md                  # Phase 15撤退判断（拡張・ブラウザUIの廃止）
-├── PHASE1_COMPLETION.md                 # Phase 1完了報告
-├── PHASE2_COMPLETION.md                 # Phase 2完了報告
-├── PHASE3_COMPLETION.md                 # Phase 3完了報告
-├── PHASE3_PLAN.md                       # Phase 3実装計画
-├── PHASE4.1_COMPLETION.md               # Phase 4.1完了報告
-├── PHASE5.1_COMPLETION.md               # Phase 5.1完了報告
-├── PHASE5.3_COMPLETION.md               # Phase 5.3完了報告
-├── PHASE5.5_COMPLETION.md               # Phase 5.5完了報告
-├── PHASE6.2_COMPLETION.md               # Phase 6.2完了報告
-├── PHASE6.3_COMPLETION.md               # Phase 6.3完了報告
-├── PHASE6.4_COMPLETION.md               # Phase 6.4完了報告
-├── PHASE6.4_INVESTIGATION.md            # Phase 6.4調査資料
-├── PHASE6.5_COMPLETION.md               # Phase 6.5完了報告
-├── PHASE6.6_COMPLETION.md               # Phase 6.6完了報告
-├── PHASE6.6_INVESTIGATION.md            # Phase 6.6調査資料
-├── PHASE6.6_PLAN.md                     # Phase 6.6実装計画
-├── PHASE7_COMPLETION.md                 # Phase 7.0完了報告
-├── PHASE8_INVESTIGATION.md              # Phase 8調査資料
-├── PHASE8_PLAN.md                       # Phase 8実装計画
-└── WHISPER_SPECIFICATIONS.md            # Whisper仕様ドキュメント
-```
-
-## 使用方法
-
-### Chrome拡張機能（推奨）
-
-```bash
-# 1. chrome://extensions/ を開く
-# 2. 「デベロッパーモード」を有効化
-# 3. 「パッケージ化されていない拡張機能を読み込む」をクリック
-# 4. extension/ フォルダを選択
-# 5. 拡張機能アイコンをクリックしてサイドパネルを表示
-
-# 設定（初回のみ）
-# - 拡張機能アイコンを右クリック → 「オプション」で設定画面を開く
-# - APIサーバーURL: ws://<ラズパイのIP>:5001
-# - 上級者向け機能: ひらがな正規化・翻訳を使う場合はONにする（デフォルトOFF）
-
-# 操作
-# 1. 文字起こししたいWebページを開く（YouTube等）
-# 2. 拡張機能アイコンをクリック
-# 3. 「開始」ボタンをクリック
-# 4. リアルタイムで文字起こし結果が表示
-# 5. 「停止」ボタンで終了
-# 6. 「ダウンロード」ボタンでテキストファイル保存
-```
-
-### ブラウザUI（従来版）
-
-```bash
-# http://<ラズパイのIP>:5001/static/index.html にアクセス
-
-# 入力ソース選択
-# - マイク入力: デフォルトマイクから音声キャプチャ
-# - 動画ファイル: ローカル動画アップロード (mp4/webm)
-# - タブ共有: YouTube等のタブ音声をキャプチャ
-
-# 処理オプション
-# - ひらがな正規化: オン/オフ
-# - 翻訳 (日→英): オン/オフ
-
-# 操作
-# 1. 入力ソースを選択
-# 2. 処理オプションを選択
-# 3. 「開始」ボタンをクリック
-# 4. リアルタイムで文字起こし結果が表示
-# 5. 「停止」ボタンで終了
-```
-
-### CLIクライアント
-
-```bash
-# venv環境有効化
-source venv/bin/activate
-
-# 依存関係インストール (初回のみ)
-pip install -r client/requirements.txt
-
-# デバイス一覧確認
-python client/realtime_client.py --list-devices
-
-# リアルタイム翻訳開始 (累積バッファモード)
-python client/realtime_client.py --cumulative
-
-# VADモード (音声区間検出)
-python client/realtime_client.py --cumulative --enable-vad
-
-# デバイス指定
-python client/realtime_client.py --cumulative --device 2
-
-# ラズパイサーバーに接続
-python client/realtime_client.py --cumulative --url ws://<ラズパイのIP>:5001/ws/transcribe-stream-cumulative
-```
-
-## 既知の制限
-
-### Chrome拡張機能
-
-- Chrome専用 (Safari/Firefoxでは動作しない - chrome.tabCapture APIがChrome専用)
-- APIサーバー必須 (ローカルまたはリモートでサーバー起動が必要)
-- 現在のタブのみ (複数タブ同時録音は不可)
-
-### ブラウザUI（従来版）
-
-- HTTPSが必要 (localhost以外でマイクアクセス)
-- Safari未対応 (将来対応候補)
-- タブ共有時は「音声を共有」にチェック必須
-
-### 翻訳機能
-
-- Helsinki-NLP/opus-mt-ja-en (軽量モデル)
-- 複雑な日本語表現は精度に限界あり
-- 推奨用途: 大まかな内容把握の参考程度
-
-### Whisperモデルの30秒制限（Phase 6.4, 6.5, 8で改善）
-
-- Whisperは30秒のセグメントをネイティブサポート（アーキテクチャ上の制約）
-- 30秒を超えると幻覚（hallucination）や精度低下が発生する可能性
-- ✅ **Phase 6.4で修正**: 録音時間の表示は実際の経過時間を表示（30秒を超えても正しく表示）
-- ✅ **Phase 6.4で修正**: 確定テキストロジックを安定性ベースに変更（句点なしでも動作）
-- ✅ **Phase 6.5で修正**: タイムアウト延長（10秒→20秒）と強制確定処理で暫定テキストの喪失を防止
-- ✅ **Phase 8で修正**: トリミング閾値を25秒に引き下げ（処理遅延を考慮して30秒超過を防止）
-- 詳細: `docs/WHISPER_SPECIFICATIONS.md`、`docs/PHASE6.4_COMPLETION.md`、`docs/PHASE6.5_COMPLETION.md`を参照
-
-### バッファトリミング時の文脈喪失（Phase 6.6, 7.0, 8で対応）
-
-**Phase 7.0での改善**:
-
-- ✅ トリミングタイミングを「文字起こし後」に変更
-- ✅ 中間部分のテキスト喪失問題を改善
-
-### テスト
-
-- `test_normalizer.py`の2件失敗: 数え言葉変換の制限 (実用上の影響は軽微)
-
-## 今後の拡張候補
-
-**Phase 15以降の候補**
-
-- 複数タブ対応
-- Safari対応
-- HTTPS対応・本番環境対応
-- 字幕ファイル出力 (SRT/VTT)
-- Chrome Web Storeへの公開
-
-## 参考ドキュメント
-
-詳細な実装内容・計画は`docs/`配下を参照:
-
-### 実装計画
-
-- `docs/PHASE11_PLAN.md`: Phase 11 (ブラウザ版レスポンシブ対応) の実装計画
-- `docs/PHASE12.1_PLAN.md`: Phase 12.1 (Whisperタイムスタンプのサーバー側伝搬) の実装計画
-- `docs/PHASE12.2_PLAN.md`: Phase 12.2 (Whisperセグメント単位での文節分割) の実装計画
-- `docs/PHASE12.3_PLAN.md`: Phase 12.3 (重複テキスト問題の修正) の実装計画
-- `docs/PHASE12.4_PLAN.md`: Phase 12.4 (タイムスタンプベース化) の実装計画
-- `docs/PHASE13_PLAN.md`: Phase 13 (要約機能) の実装計画
-- `docs/PHASE14_PLAN.md`: Phase 14 (Raspberry Piデプロイ対応) の実装計画
-- `docs/IMPLEMENTION_PLAN.md`: 全体実装計画
-- `docs/PHASE3_PLAN.md`: Phase 3の実装計画
-- `docs/PHASE8_PLAN.md`: Phase 8の実装計画
-- `docs/LEARNING_PLAN.md`: 学習資料・参考情報
-
-### 完了報告
-
-- `docs/PHASE11_COMPLETION.md`: Phase 11 (ブラウザ版レスポンシブ対応) の詳細
-- `docs/PHASE1_COMPLETION.md`: Phase 1 (チャンク処理) の詳細
-- `docs/PHASE2_COMPLETION.md`: Phase 2 (WebSocketストリーミング) の詳細
-- `docs/PHASE3_COMPLETION.md`: Phase 3 (リアルタイム音声入力) の詳細
-- `docs/PHASE4.1_COMPLETION.md`: Phase 4.1 (累積バッファ方式) の詳細
-- `docs/PHASE5.1_COMPLETION.md`: Phase 5.1 (動画コンテンツ対応) の詳細
-- `docs/PHASE5.3_COMPLETION.md`: Phase 5.3 (句読点挿入処理の削除) の詳細
-- `docs/PHASE5.5_COMPLETION.md`: Phase 5.5 (バグ修正・UI改善) の詳細
-- `docs/PHASE6.2_COMPLETION.md`: Phase 6.2 (Chrome拡張機能化) の詳細
-- `docs/PHASE6.3_COMPLETION.md`: Phase 6.3 (アイコン画像の改善) の詳細
-- `docs/PHASE6.4_COMPLETION.md`: Phase 6.4 (30秒問題の修正) の詳細
-- `docs/PHASE6.5_COMPLETION.md`: Phase 6.5 (タイムアウト問題とセッション終了処理の修正) の詳細
-- `docs/PHASE6.6_COMPLETION.md`: Phase 6.6 (バッファトリミング時の文脈保持の部分実装) の詳細
-- `docs/PHASE7_COMPLETION.md`: Phase 7.0 (バッファトリミング時の文脈保持の完全実装) の詳細
-- `docs/PHASE9_COMPLETION.md`: Phase 9 (ダウンロード機能バグ修正) の詳細
-
-### 技術仕様・調査資料
-
-- `docs/WHISPER_SPECIFICATIONS.md`: Whisper音声認識モデルの仕様と制限
-- `docs/PHASE6.4_INVESTIGATION.md`: Phase 6.4 (30秒問題) の調査資料
-- `docs/PHASE6.6_INVESTIGATION.md`: Phase 6.6 (バッファトリミング) の調査資料
-- `docs/PHASE8_INVESTIGATION.md`: Phase 8 (ハルシネーション対策とテキスト管理) の調査資料
+結果は画面に表示しつつ `notes/` へ Markdown で追記される。
+
+| ファイル                        | 役割                                                       |
+| ------------------------------- | ---------------------------------------------------------- |
+| `cli.py`                        | エントリポイント。マイク入力・逐次表示・逐次記録・状態表示 |
+| `config.json`                   | 設定ファイル（任意。gitignore）                            |
+| `app/services/whisper_model.py` | モデルのロード（`get_whisper_model()`）                    |
+| `app/config.py`                 | Whisper のパラメータ設定                                   |
+| `app/utils/logger.py`           | ロガー（標準エラー出力へ）                                 |
+
+### 構成上の要点（変更する前に読むこと）
+
+- **VAD は Silero VAD**（`faster_whisper.vad.get_speech_timestamps`）を使い、
+  Whisper 内蔵VADは `vad_filter=False` で無効にしている。
+  内蔵VADは無音を除去してから認識するため、沈黙の情報が失われる（R-7）
+- **マイク入力は `sounddevice` を直接使う。** webrtcvad による実装は
+  Silero VAD と役割が重複するため第4段階で削除した。復活させると二重VADになる
+- **逐次処理を崩さないこと。** 発話が確定するたびに表示と書き出しの両方へ流している。
+  まとめて出力する構造にすると R-8（随時確認）と R-12（異常時の保全）が両方壊れる
+- **記録は追記ごとに `flush` + `fsync`。** `finally` に頼らない（強制終了で実行されないため）
+- **マイクの `blocksize` を外さないこと。** 未指定だと1ms刻みで届き、
+  ループが毎秒1000回以上空転する（実測）
+- **標準出力は文字起こし結果だけに保つこと。** 状態表示（R-22）もログも標準エラーへ出す。
+  混ぜると `2>/dev/null` で結果だけを取り出せなくなり、R-8 の確認を妨げる
+- **確定した値は変えないこと。** 沈黙マーカー `[沈黙]`、閾値1.5秒、確定待ち2.0秒は
+  第4段階で根拠つきで確定させた。閾値は待ち時間と精度の両方に影響する
+
+### 削除済み（復元はタグから）
+
+- FastAPI サーバ、WebSocket 層、セッション管理
+- 累積バッファ（リアルタイム表示用の差分抽出）とチャンク間の文脈引き継ぎ
+- `text_filter.py`（相槌の破棄とハルシネーション検出。R-2 に違反するため）
+- Docker 関連、翻訳・要約・ひらがな正規化、ブラウザUI・Chrome拡張
+
+| タグ                 | 内容                               |
+| -------------------- | ---------------------------------- |
+| `v1.0-extension`     | Chrome拡張・ブラウザUIを含む版     |
+| `v1.1-full-pipeline` | 翻訳・要約・ひらがな正規化を含む版 |
+
+## 実行環境
+
+- Apple Silicon（M1）、Python 3.9、venv
+- Docker は廃止済み
+- `faster-whisper` / `ctranslate2` / `sounddevice` は venv に導入済み
+
+**CTranslate2 は Metal 非対応**のため、Apple Silicon では CPU 実行になる。
+GPU を使うなら mlx-whisper / whisper.cpp が候補だが、**移行はまだ判断していない**。
+
+## 要求との衝突（未解決・報告済み）
+
+第2段階で扱う。勝手に解決しないこと。
+
+- **R-7（沈黙が分かること）と `WHISPER_VAD_ENABLED`**
+  内蔵VADは無音区間をスキップするため、沈黙の情報が失われる
+- **R-5（区切りで発話が欠落しないこと）とハルシネーション抑制設定**
+  `WHISPER_LOG_PROB_THRESHOLD` や `WHISPER_NO_SPEECH_THRESHOLD` は
+  確信度の低いセグメントを捨てるため、発話が欠落しうる
+
+## Git
+
+- ブランチ: `main`（本番）← `development`（開発）← `feature/*`
+- コミットメッセージは日本語。プレフィックス例: 追加、修正、削除、改修、リファクタ
