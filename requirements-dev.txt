@@ -1,0 +1,4 @@
+# テストに必要なもの
+-r requirements.txt
+
+pytest==8.4.2

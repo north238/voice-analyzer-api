@@ -1,0 +1,33 @@
+name: テスト
+
+on:
+  push:
+    branches: [main, development]
+  pull_request:
+
+jobs:
+  pytest:
+    # 本ツールの動作環境は Mac（R-17）だが、テストは音声デバイスにも
+    # モデルにも触れないため OS に依存しない。実行時間の短い ubuntu で回す
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # README の「動作環境」に合わせる
+          python-version: "3.9"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: PortAudio を入れる
+        # sounddevice が読み込み時に必要とする。テストでは差し替えているが、
+        # 依存として入る以上、環境の欠落で落ちないようにしておく
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2
+
+      - name: 依存関係を入れる
+        run: pip install -r requirements-dev.txt
+
+      - name: テスト
+        run: python -m pytest app/tests/ -q

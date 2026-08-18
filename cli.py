@@ -6,6 +6,7 @@
 
 結果は標準出力に表示しつつ、同時に Markdown ファイルへ追記する。
 ログは標準エラー出力に出るため、`2>/dev/null` で結果だけを取り出せる。
+画面に出るのは異常時だけで、動作の記録は `logs/` にのみ残る。
 
 構造について:
     発話区間が確定するたびに、表示と書き出しの両方へ流す。セッション終了を待たない。
@@ -22,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import wave
 from datetime import datetime
 from pathlib import Path
@@ -34,6 +36,7 @@ sys.path.insert(0, str(ROOT / "app"))
 from config import settings  # noqa: E402
 from faster_whisper.vad import VadOptions, get_speech_timestamps  # noqa: E402
 from services.whisper_model import get_whisper_model  # noqa: E402
+from utils.logger import logger  # noqa: E402
 
 SAMPLE_RATE = 16000
 
@@ -124,6 +127,7 @@ def load_file(path: Path) -> np.ndarray:
             pcm = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
         return to_waveform(pcm)
     except subprocess.CalledProcessError:
+        logger.error(f"音声の読み込みに失敗: {path}")
         raise SystemExit(f"音声の読み込みに失敗しました: {path}")
     finally:
         if os.path.exists(converted):
@@ -174,6 +178,17 @@ def transcribe(audio: np.ndarray) -> str:
     return "".join(s.text for s in segments).strip()
 
 
+def log_transcription(audio: np.ndarray, start: float, end: float) -> str:
+    """文字起こしして、どの区間をどれだけの時間で処理したかを記録に残す"""
+    started = time.perf_counter()
+    text = transcribe(audio)
+    logger.debug(
+        f"区間確定: {start:.1f}〜{end:.1f}秒（{end - start:.1f}秒）"
+        f" 処理{time.perf_counter() - started:.2f}秒 {len(text)}文字"
+    )
+    return text
+
+
 class StatusLine:
     """動作していることを示す表示（R-22）。
 
@@ -221,9 +236,13 @@ class Session:
         self.status = status
         self.previous_end = 0.0
         self.has_output = False
+        self.count = 0
 
     def emit(self, text: str, start: float, end: float) -> None:
         if not text:
+            # 発話区間として検出されたのにテキストが得られなかった。
+            # 出力からは欠落したことが分からないため記録に残す（requirements.md 5.7）
+            logger.info(f"空の結果: {start:.1f}〜{end:.1f}秒（{end - start:.1f}秒）")
             self.previous_end = end
             return
 
@@ -233,6 +252,7 @@ class Session:
 
         gap = start - self.previous_end
         if self.has_output and gap >= SILENCE_THRESHOLD_SEC:
+            logger.info(f"沈黙マーカー: {gap:.1f}秒")
             print(SILENCE_MARKER, flush=True)
             self.recorder.append(f"{SILENCE_MARKER}\n\n")
 
@@ -240,6 +260,7 @@ class Session:
         self.recorder.append(f"{text}\n\n")
         self.previous_end = end
         self.has_output = True
+        self.count += 1
 
 
 def load_config() -> dict:
@@ -261,13 +282,12 @@ def load_config() -> dict:
         loaded = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as e:
         # 壊れた設定で起動できなくなるより、既定値で動くほうがよい
-        print(f"設定を読めませんでした（既定値で続行）: {e}", file=sys.stderr)
+        logger.warning(f"設定を読めませんでした（既定値で続行）: {e}")
         return defaults
 
     unknown = set(loaded) - set(defaults)
     if unknown:
-        print(f"設定に未知の項目があります（無視）: {', '.join(sorted(unknown))}",
-              file=sys.stderr)
+        logger.warning(f"設定に未知の項目があります（無視）: {', '.join(sorted(unknown))}")
 
     defaults.update({k: v for k, v in loaded.items() if k in defaults})
     return defaults
@@ -276,11 +296,14 @@ def load_config() -> dict:
 def run_file(path: Path, session: Session, status: "StatusLine" = None) -> None:
     """音声ファイルを処理する。区間ごとに確定させ、逐次出力する"""
     audio = load_file(path)
-    for region in find_speech_regions(audio):
+    regions = find_speech_regions(audio)
+    logger.debug(f"発話区間: {len(regions)}件 / 全体{len(audio) / SAMPLE_RATE:.1f}秒")
+    for region in regions:
         chunk = audio[int(region["start"] * SAMPLE_RATE) : int(region["end"] * SAMPLE_RATE)]
         if status:
             status.tick("文字起こし中")
-        session.emit(transcribe(chunk), region["start"], region["end"])
+        text = log_transcription(chunk, region["start"], region["end"])
+        session.emit(text, region["start"], region["end"])
 
 
 def run_microphone(session: Session, device: int = None, status: "StatusLine" = None) -> None:
@@ -294,9 +317,18 @@ def run_microphone(session: Session, device: int = None, status: "StatusLine" = 
 
     frames = queue.Queue()
 
-    def on_audio(indata, _frames, _time, _status):
+    # 入力の取りこぼし回数。発話が欠落する経路のひとつだが（R-5）、
+    # 出力からは欠落したことが分からないため記録に残す
+    overflows = 0
+    reported_overflows = 0
+
+    def on_audio(indata, _frames, _time, callback_status):
         # sounddevice のコールバックは別スレッドから呼ばれる。
-        # ここで重い処理をすると音声のドロップアウトを招くため、キューに積むだけにする
+        # ここで重い処理をすると音声のドロップアウトを招くため、
+        # キューに積むことと、取りこぼしを数えることだけに留める
+        nonlocal overflows
+        if callback_status:
+            overflows += 1
         frames.put(indata.copy())
 
     stream = sd.InputStream(
@@ -316,6 +348,7 @@ def run_microphone(session: Session, device: int = None, status: "StatusLine" = 
 
     buffer = np.empty(0, dtype=np.float32)
     consumed = 0.0  # バッファ先頭が、セッション開始から何秒地点にあたるか
+    was_speaking = False  # 直前の周回で発話を検出していたか（変化した時だけ記録する）
 
     def drop_front(samples: int) -> None:
         """バッファ先頭を捨て、捨てた分だけ経過時間を進める"""
@@ -327,6 +360,13 @@ def run_microphone(session: Session, device: int = None, status: "StatusLine" = 
 
     try:
         while True:
+            # 取りこぼしは画面にも出す。状態表示と混ざらないよう行を消してから出す
+            if overflows != reported_overflows:
+                if status:
+                    status.clear()
+                logger.warning(f"音声の取りこぼしを検出（累計 {overflows} 回）")
+                reported_overflows = overflows
+
             # 溜まった音声を取り出す。
             # タイムアウト付きにして、無音でもループを回して Ctrl+C を受け取れるようにする
             chunks = []
@@ -350,6 +390,16 @@ def run_microphone(session: Session, device: int = None, status: "StatusLine" = 
             regions = find_speech_regions(buffer)
             if status:
                 status.tick("待機中" if not regions else "発話を検出中")
+
+            # VAD は1秒ごとに回るため、毎周回記録すると待機中だけでログが埋まる。
+            # 状態が変わった時にだけ残す
+            if bool(regions) != was_speaking:
+                was_speaking = bool(regions)
+                logger.debug(
+                    f"{'発話を検出' if was_speaking else '待機'}"
+                    f"（バッファ{len(buffer) / SAMPLE_RATE:.1f}秒）"
+                )
+
             if not regions:
                 # 発話が無いので、末尾の余裕分だけ残して捨てる。
                 # 捨てないと沈黙が続くほどバッファが伸び、VAD の所要時間も増え続ける
@@ -371,9 +421,9 @@ def run_microphone(session: Session, device: int = None, status: "StatusLine" = 
                 ]
                 if status:
                     status.tick("文字起こし中")
-                session.emit(
-                    transcribe(chunk), consumed + region["start"], consumed + region["end"]
-                )
+                start = consumed + region["start"]
+                end = consumed + region["end"]
+                session.emit(log_transcription(chunk, start, end), start, end)
 
             # 確定させた分をバッファから捨てる
             drop_front(int(settled[-1]["end"] * SAMPLE_RATE))
@@ -403,25 +453,46 @@ def main() -> None:
 
     # コマンドラインの指定が設定ファイルより優先される
     output_dir = args.output_dir or Path(config["output_dir"]).expanduser()
-    if config["model_size"]:
-        os.environ.setdefault("WHISPER_MODEL_SIZE", config["model_size"])
+
+    # settings は import 時（このファイルの先頭）に環境変数を読み終えているため、
+    # ここで os.environ を書き換えても間に合わない。属性へ直接代入する。
+    # 環境変数での指定があればそちらを優先する（従来の setdefault と同じ扱い）
+    if config["model_size"] and not os.getenv("WHISPER_MODEL_SIZE"):
+        settings.WHISPER_MODEL_SIZE = config["model_size"]
 
     status = StatusLine()
     recorder = Recorder(output_dir)
     session = Session(recorder, status)
-    print(f"記録先: {recorder.path}", file=sys.stderr)
+    print(f"記録先: {recorder.path.resolve()}", file=sys.stderr)
+
+    # 記録と突き合わせるための1行。実際に使われた設定を残す
+    logger.info(
+        f"セッション開始: 記録先={recorder.path.resolve()}"
+        f" 入力={args.audio or 'マイク'}"
+        f" モデル={settings.WHISPER_MODEL_SIZE}"
+    )
 
     try:
         if args.audio:
             path = Path(args.audio)
             if not path.exists():
+                logger.error(f"ファイルが見つかりません: {path}")
                 raise SystemExit(f"ファイルが見つかりません: {path}")
             run_file(path, session, status)
         else:
             run_microphone(session, args.device, status)
+    except Exception:
+        # 画面に出て消えるだけでは後から原因を追えない。
+        # ここでトレースバックを出したうえで SystemExit に変える。
+        # そのまま再送出すると同じトレースバックが画面に二重に出る。
+        # SystemExit / KeyboardInterrupt は正常な終了経路なので対象外（Exception を継承しない）
+        status.clear()
+        logger.exception("異常終了")
+        raise SystemExit(1)
     finally:
         status.clear()
         recorder.close()
+        logger.info(f"セッション終了: 発話{session.count}件")
 
 
 if __name__ == "__main__":
