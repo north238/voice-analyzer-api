@@ -250,7 +250,7 @@ def load_config() -> dict:
     沈黙の閾値などの動作を左右する値は意図的に含めていない。
     """
     defaults = {
-        "output_dir": str(ROOT / "notes"),
+        "output_dir": "notes",
         "model_size": "",  # 空なら app/config.py の既定（small）に従う
     }
 
