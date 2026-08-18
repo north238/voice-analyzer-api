@@ -49,6 +49,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 venv/bin/python cli.py              # マイク入力（Ctrl+C で終了）
 venv/bin/python cli.py <音声ファイル>
+venv/bin/python -m pytest app/tests/ -q   # テスト
 ```
 
 結果は画面に表示しつつ `notes/` へ Markdown で追記される。
@@ -59,7 +60,10 @@ venv/bin/python cli.py <音声ファイル>
 | `config.json`                   | 設定ファイル（任意。gitignore）                            |
 | `app/services/whisper_model.py` | モデルのロード（`get_whisper_model()`）                    |
 | `app/config.py`                 | Whisper のパラメータ設定                                   |
-| `app/utils/logger.py`           | ロガー（標準エラー出力へ）                                 |
+| `app/utils/logger.py`           | ログ設定（画面は警告以上、`logs/` には詳細）               |
+| `app/tests/`                    | テスト。音声認識そのものは対象にしない                     |
+| `requirements.txt`              | 実行に必要なもの（`-dev` はテスト用）                      |
+| `.github/workflows/test.yml`    | push と Pull Request でテストを実行する                    |
 
 ### 構成上の要点（変更する前に読むこと）
 
@@ -75,6 +79,12 @@ venv/bin/python cli.py <音声ファイル>
   ループが毎秒1000回以上空転する（実測）
 - **標準出力は文字起こし結果だけに保つこと。** 状態表示（R-22）もログも標準エラーへ出す。
   混ぜると `2>/dev/null` で結果だけを取り出せなくなり、R-8 の確認を妨げる
+- **ログは画面とファイルで量を変えている。** 画面（標準エラー）は WARNING 以上、
+  `logs/` には DEBUG まで残す。異常時だけ画面が反応し、後から追うための記録は
+  ファイル側にだけ溜まる。ログに要求はないため、判断基準は
+  「後から `notes/` を読み返したとき、その記録を信用してよいか判定できるか」に置く
+- **マイクのループ内で毎周回ログを出さないこと。** VAD は1秒ごとに回るため、
+  待機中のログだけでファイルが埋まって読めなくなる。状態が変わった時にだけ出す
 - **確定した値は変えないこと。** 沈黙マーカー `[沈黙]`、閾値1.5秒、確定待ち2.0秒は
   第4段階で根拠つきで確定させた。閾値は待ち時間と精度の両方に影響する
 
@@ -83,6 +93,7 @@ venv/bin/python cli.py <音声ファイル>
 - FastAPI サーバ、WebSocket 層、セッション管理
 - 累積バッファ（リアルタイム表示用の差分抽出）とチャンク間の文脈引き継ぎ
 - `text_filter.py`（相槌の破棄とハルシネーション検出。R-2 に違反するため）
+- `performance_monitor.py`（サーバ時代の計測。未使用。処理時間は区間確定のログに含めた）
 - Docker 関連、翻訳・要約・ひらがな正規化、ブラウザUI・Chrome拡張
 
 | タグ                 | 内容                               |

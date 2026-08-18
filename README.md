@@ -1,5 +1,7 @@
 # voice-analyzer-api
 
+[![テスト](https://github.com/north238/voice-analyzer-api/actions/workflows/test.yml/badge.svg)](https://github.com/north238/voice-analyzer-api/actions/workflows/test.yml)
+
 開発中の思考を音声で吐き出し、**LLM に渡すための忠実なテキスト**として残すためのツールです。
 
 キーボードで書くと思考が止まるが、声に出すだけなら止まらない。
@@ -47,7 +49,7 @@ git clone https://github.com/north238/voice-analyzer-api.git
 cd voice-analyzer-api
 
 python3 -m venv venv
-venv/bin/pip install faster-whisper sounddevice numpy
+venv/bin/pip install -r requirements.txt
 ```
 
 ### 3. 動作を確認する
@@ -225,19 +227,38 @@ Apple Silicon では CPU 実行になります。
 
 ---
 
+## テスト
+
+```bash
+venv/bin/pip install -r requirements-dev.txt
+venv/bin/python -m pytest app/tests/ -q
+```
+
+音声認識そのものは対象にしていません。モデルのロードに時間がかかり、
+結果も録音条件に左右されるためです。代わりに、要求に直結する挙動を対象にしています
+（沈黙マーカーの挿入条件、記録の即時書き出し、設定の反映、欠落や異常が記録に残ること）。
+
+`main` と `development` への push、および Pull Request で GitHub Actions が同じテストを実行します。
+
+---
+
 ## ファイル構成
 
 ```text
 cli.py                          # エントリポイント（これ1つで動く）
 config.json                     # 設定ファイル（任意。無くても動く）
+requirements.txt                # 実行に必要なもの
+requirements-dev.txt            # テストに必要なもの
+
+.github/workflows/test.yml      # push と Pull Request でテストを実行する
 
 app/
 ├── config.py                   # Whisper のパラメータ
 ├── services/
 │   └── whisper_model.py        # モデルのロード
+├── tests/                      # テスト
 └── utils/
-    ├── logger.py
-    └── performance_monitor.py
+    └── logger.py               # ログ（画面は異常時のみ、ファイルには詳細）
 
 docs/
 ├── requirements.md               # 要求定義（R-1〜R-22）

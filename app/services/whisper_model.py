@@ -4,6 +4,7 @@
 シングルトンとして保持して使い回す。
 """
 
+import time
 from typing import Optional
 
 from config import settings
@@ -17,7 +18,7 @@ def get_whisper_model() -> WhisperModel:
     """Whisper モデルを取得する（シングルトン）"""
     global _whisper_model
     if _whisper_model is None:
-        logger.info(f"🔧 Whisperモデルをロード中: {settings.WHISPER_MODEL_SIZE}")
+        started = time.perf_counter()
         _whisper_model = WhisperModel(
             settings.WHISPER_MODEL_SIZE,
             device=settings.WHISPER_DEVICE,
@@ -25,5 +26,10 @@ def get_whisper_model() -> WhisperModel:
             cpu_threads=settings.WHISPER_CPU_THREADS,
             num_workers=settings.WHISPER_NUM_WORKERS,
         )
-        logger.info("✅ Whisperモデルのロード完了")
+        # ロード時間は冒頭の取りこぼし（R-6）を調べるときの手がかりになるため残す。
+        # 正常時は無情報なので画面には出さない
+        logger.debug(
+            f"モデルをロード: {settings.WHISPER_MODEL_SIZE} "
+            f"({time.perf_counter() - started:.2f}秒)"
+        )
     return _whisper_model

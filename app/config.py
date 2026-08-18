@@ -3,7 +3,12 @@ from typing import Literal
 
 
 class Settings:
-    """アプリケーション設定"""
+    """アプリケーション設定
+
+    各値はクラス定義時（＝ import した時点）に評価される。
+    import より後に os.environ を書き換えても反映されない。
+    実行時に設定を変える場合は settings の属性へ直接代入する（cli.py の main を参照）
+    """
 
     # Whisper設定
     # Phase 12: base → small に変更（精度大幅向上）
